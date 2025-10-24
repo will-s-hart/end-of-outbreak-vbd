@@ -1,0 +1,34 @@
+[project]
+name = "endoutbreakvbd"
+requires-python = ">=3.11"
+version = "0.0.0"
+
+[tool.pixi.project]
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64", "linux-aarch64", "osx-arm64", "osx-64", "win-64"]
+
+[tool.pixi.dependencies]
+annotated-types = "*"
+matplotlib = "*"
+numpy = "*"
+scipy = "*"
+tqdm = "*"
+
+[tool.pixi.pypi-dependencies]
+endoutbreakvbd = { path = ".", editable = true }
+
+[tool.pixi.feature.dev.dependencies]
+ruff = "*"
+ipykernel = "*"
+jupyter_bokeh = "*"
+snakemake = "*"
+
+# [tool.pixi.feature.dev.pypi-dependencies]
+# snakemake-executor-plugin-slurm = "*" # use pypi version because of https://github.com/snakemake/snakemake-executor-plugin-slurm/issues/356
+
+[tool.pixi.environments]
+default = { features = ["dev"], solve-group = "prod" }
+
+[tool.pixi.feature.dev.tasks]
+lint = "ruff check"
+format = "ruff format"
