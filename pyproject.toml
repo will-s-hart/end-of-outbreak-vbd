@@ -3,16 +3,21 @@ name = "endoutbreakvbd"
 requires-python = ">=3.11"
 version = "0.0.0"
 
-[tool.pixi.project]
+[tool.pixi.workspace]
 channels = ["conda-forge", "bioconda"]
 platforms = ["linux-64", "linux-aarch64", "osx-arm64", "osx-64", "win-64"]
 
 [tool.pixi.dependencies]
 annotated-types = "*"
+arviz = "*"
+climepi = "*"
 matplotlib = "*"
 numpy = "*"
+pymc = "*"
 scipy = "*"
+statsmodels = "*"
 tqdm = "*"
+xarray = "*"
 
 [tool.pixi.pypi-dependencies]
 endoutbreakvbd = { path = ".", editable = true }
