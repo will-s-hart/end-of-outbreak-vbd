@@ -3,19 +3,21 @@ import functools
 import numpy as np
 import pandas as pd
 import scipy.integrate
+import scipy.interpolate
 import scipy.stats
 
 
 def get_parameters():
-    gen_time_max = 40
-    gen_time_dist_cont = scipy.stats.gamma(a=8.53, scale=1.46)
-    gen_time_dist_vec = discretise_cori(gen_time_dist_cont, max_val=gen_time_max)
+    gen_time_dist_vec = _get_gen_time_dist()
+    rep_no_func_doy, rep_no_func = _get_rep_no()
     return {
         "gen_time_dist_vec": gen_time_dist_vec,
+        "rep_no_func_doy": rep_no_func_doy,
+        "rep_no_func": rep_no_func,
     }
 
 
-def get_lazio_2017_data():
+def get_data():
     df = pd.read_csv(
         "endoutbreakvbd/lazio_chik_2017.csv", index_col="onset_date", parse_dates=True
     )
@@ -23,7 +25,47 @@ def get_lazio_2017_data():
     return df
 
 
-def discretise_cori(dist_cont, max_val=None, allow_zero=False):
+def get_weather_data():
+    df = pd.read_csv(
+        "endoutbreakvbd/rome_2017_weather.csv", index_col="date", parse_dates=True
+    )
+    df["doy"] = df.index.day_of_year
+    return df
+
+
+def _get_gen_time_dist():
+    gen_time_max = 40
+    gen_time_dist_cont = scipy.stats.gamma(a=8.53, scale=1.46)
+    gen_time_dist_vec = _discretise_cori(gen_time_dist_cont, max_val=gen_time_max)
+    return gen_time_dist_vec
+
+
+def _get_rep_no():
+    df_rt = pd.read_csv(
+        "endoutbreakvbd/lazio_chik_2017_Rt.csv", index_col="date", parse_dates=True
+    )
+    doy_vec = df_rt.index.day_of_year
+    rt_vec = df_rt["R_t"].values
+    rep_no_func_doy = scipy.interpolate.interp1d(
+        doy_vec,
+        rt_vec,
+        kind="nearest",
+        bounds_error=False,
+        # fill_value=0,
+        fill_value=(rt_vec[0], rt_vec[-1]),
+    )
+    rep_no_func = scipy.interpolate.interp1d(
+        doy_vec - get_data().index[0].day_of_year,
+        rt_vec,
+        kind="nearest",
+        bounds_error=False,
+        # fill_value=0,
+        fill_value=(rt_vec[0], rt_vec[-1]),
+    )
+    return rep_no_func_doy, rep_no_func
+
+
+def _discretise_cori(dist_cont, max_val=None, allow_zero=False):
     """
     Function for discretising a continuous distribution using the method
     described in https://doi.org/10.1093/aje/kwt133 (web appendix 11).
