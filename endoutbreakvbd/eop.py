@@ -2,9 +2,11 @@ from typing import Annotated, Callable
 
 import numpy as np
 from annotated_types import Gt
-from numpy.typing import ArrayLike
+from tqdm import tqdm
 
 from endoutbreakvbd.model import renewal_model
+
+posint = Annotated[int, Gt(0)]
 
 
 def eop_analytical(
@@ -12,8 +14,21 @@ def eop_analytical(
     incidence_vec: list[int] | np.ndarray[int],
     rep_no_func: Callable[[int | np.ndarray[int]], float | np.ndarray[float]],
     gen_time_dist_vec: list[float] | np.ndarray[float],
-    t_calc: Annotated[int, Gt(0)],
-) -> float:
+    t_calc: posint | np.ndarray[posint],
+) -> float | np.ndarray[float]:
+    if not np.isscalar(t_calc):
+        return np.array(
+            [
+                eop_analytical(
+                    incidence_vec=incidence_vec,
+                    rep_no_func=rep_no_func,
+                    gen_time_dist_vec=gen_time_dist_vec,
+                    t_calc=t_calc_curr,
+                )
+                for t_calc_curr in t_calc
+            ]
+        )
+
     gen_time_max = len(gen_time_dist_vec)
 
     if len(incidence_vec) < t_calc:
@@ -40,10 +55,25 @@ def eop_simulation(
     incidence_vec: list[int] | np.ndarray[int],
     rep_no_func: Callable[[int | np.ndarray[int]], float | np.ndarray[float]],
     gen_time_dist_vec: list[float] | np.ndarray[float],
-    t_calc: Annotated[int, Gt(0)],
+    t_calc: posint | np.ndarray[posint],
     n_sims: int,
     rng: np.random.Generator,
-) -> float:
+) -> float | np.ndarray[float]:
+    if not np.isscalar(t_calc):
+        return np.array(
+            [
+                eop_simulation(
+                    incidence_vec=incidence_vec,
+                    rep_no_func=rep_no_func,
+                    gen_time_dist_vec=gen_time_dist_vec,
+                    t_calc=t_calc_curr,
+                    n_sims=n_sims,
+                    rng=rng,
+                )
+                for t_calc_curr in tqdm(t_calc)
+            ]
+        )
+
     if len(incidence_vec) < t_calc:
         incidence_vec = np.append(
             incidence_vec, np.zeros(t_calc - len(incidence_vec), dtype=int)
