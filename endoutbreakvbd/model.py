@@ -15,7 +15,7 @@ def renewal_model(
 ) -> np.ndarray[int]:
     gen_time_max = len(gen_time_dist_vec)
     gen_time_dist_vec = np.concatenate(
-        [gen_time_dist_vec, np.zeros(t_stop - len(gen_time_dist_vec))]
+        [gen_time_dist_vec, np.zeros(t_stop - 1 - len(gen_time_dist_vec))]
     )
     incidence_vec = np.zeros(t_stop, dtype=int)
     if incidence_init is None:
