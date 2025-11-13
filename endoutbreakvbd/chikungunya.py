@@ -27,7 +27,9 @@ def get_data():
 
 def get_weather_data():
     df = pd.read_csv(
-        "endoutbreakvbd/rome_2017_weather.csv", index_col="date", parse_dates=True
+        "endoutbreakvbd/rome_weather_suitability_2017.csv",
+        index_col="date",
+        parse_dates=True,
     )
     df["doy"] = df.index.day_of_year
     return df

@@ -21,6 +21,7 @@ xarray = "*"
 
 [tool.pixi.pypi-dependencies]
 endoutbreakvbd = { path = ".", editable = true }
+meteostat = "*"
 
 [tool.pixi.feature.dev.dependencies]
 ruff = "*"

@@ -1,5 +1,6 @@
 import numpy as np
 import pymc as pm
+import pytensor.tensor as pt
 import scipy.stats
 
 
@@ -66,7 +67,6 @@ def _fit_model(
             mu=expected_incidence_local[nonzero_foi_idx],
             observed=incidence_vec_local[nonzero_foi_idx],
         )
-
         if step_func is not None:
             kwargs_sample["step"] = step_func()
 
@@ -90,7 +90,7 @@ def fit_random_walk_model(
     *,
     incidence_vec,
     gen_time_dist_vec,
-    random_walk_sd=0.05,
+    random_walk_std=0.05,
     priors=None,
     **kwargs,
 ):
@@ -100,7 +100,7 @@ def fit_random_walk_model(
         (rep_no_start,) = _extract_priors(["rep_no_start"], priors=priors)
 
         log_rep_no_jumps = pm.Normal(
-            "rep_no_jumps", mu=0, sigma=random_walk_sd, shape=t_stop - 1
+            "rep_no_jumps", mu=0, sigma=random_walk_std, shape=t_stop - 1
         )
 
         rep_no_vec = pm.Deterministic(
@@ -179,6 +179,53 @@ def fit_weather_model(
             "rep_no_vec",
             rep_no_max / (1 + pm.math.exp(-(c_0 + c_1 * temperature_vec))),
         )
+        return rep_no_vec
+
+    return _fit_model(
+        incidence_vec=incidence_vec,
+        gen_time_dist_vec=gen_time_dist_vec,
+        rep_no_vec_func=rep_no_vec_func,
+        **kwargs,
+    )
+
+
+def fit_suitability_model(
+    *,
+    incidence_vec,
+    suitability_mean_vec,
+    suitability_std,
+    gen_time_dist_vec,
+    random_walk_std=0.05,
+    **kwargs,
+):
+    t_stop = len(incidence_vec)
+
+    def rep_no_vec_func():
+        log_rep_no_factor_start = pm.Normal("log_rep_no_factor_start", mu=0, sigma=1)
+        log_rep_no_factor_jumps = pm.Normal(
+            "rep_no_jumps", mu=0, sigma=random_walk_std, shape=t_stop - 1
+        )
+        rep_no_factor_vec = pm.Deterministic(
+            "rep_no_factor_vec",
+            pm.math.exp(
+                pm.math.cumsum(
+                    pm.math.concatenate(
+                        [[log_rep_no_factor_start], log_rep_no_factor_jumps], axis=0
+                    )
+                )
+            ),
+        )
+        suitability_vec_ext = pm.Normal(
+            "suitability_ext",
+            mu=suitability_mean_vec,
+            sigma=suitability_std,
+            shape=t_stop,
+        )
+        suitability_vec = pm.Deterministic(
+            "suitability_vec",
+            pm.math.clip(suitability_vec_ext, 1e-8, 1),
+        )
+        rep_no_vec = pm.Deterministic("rep_no_vec", rep_no_factor_vec * suitability_vec)
         return rep_no_vec
 
     return _fit_model(
