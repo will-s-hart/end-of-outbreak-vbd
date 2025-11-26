@@ -1,4 +1,5 @@
 import functools
+import pathlib
 
 import numpy as np
 import pandas as pd
@@ -16,7 +17,9 @@ def get_parameters():
 
 def get_data():
     df = pd.read_csv(
-        "data/lazio_chik_2017.csv", index_col="onset_date", parse_dates=True
+        pathlib.Path(__file__).parents[1] / "data/lazio_chik_2017.csv",
+        index_col="onset_date",
+        parse_dates=True,
     )
     df["doy"] = df.index.day_of_year
     return df
@@ -24,7 +27,7 @@ def get_data():
 
 def get_suitability_data():
     df = pd.read_csv(
-        "results/rome_weather_suitability_2017.csv",
+        pathlib.Path(__file__).parents[1] / "results/rome_weather_suitability_2017.csv",
         index_col="date",
         parse_dates=True,
     )
