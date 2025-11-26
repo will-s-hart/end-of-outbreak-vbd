@@ -1,6 +1,5 @@
 import numpy as np
 import pymc as pm
-import pytensor.tensor as pt
 import scipy.stats
 
 
@@ -11,18 +10,6 @@ def _lognormal_params_from_median_percentile_2_5(median, percentile_2_5):
 
 
 DEFAULT_PRIORS = {
-    "rep_no_max": (
-        pm.LogNormal,
-        _lognormal_params_from_median_percentile_2_5(2, 0.1),
-    ),
-    "rep_no_amplitude": (
-        pm.LogNormal,
-        _lognormal_params_from_median_percentile_2_5(2, 0.1),
-    ),
-    "doy_max": (
-        pm.TruncatedNormal,
-        {"mu": 215, "sigma": 1, "lower": 1, "upper": 366},
-    ),
     "rep_no_start": (
         pm.LogNormal,
         _lognormal_params_from_median_percentile_2_5(1, 0.2),
@@ -123,61 +110,34 @@ def fit_random_walk_model(
     )
 
 
-def fit_periodic_model(
+def fit_autoregressive_model(
     *,
     incidence_vec,
-    doy_start,
     gen_time_dist_vec,
-    priors=None,
+    prior_median=1.0,
+    prior_percentile_2_5=0.33,
+    rho=0.95,
     **kwargs,
 ):
-    priors = priors or {}
     t_stop = len(incidence_vec)
-    doy_vec = (doy_start + np.arange(t_stop)) % 365
 
     def rep_no_vec_func():
-        rep_no_max, rep_no_amplitude, doy_max = _extract_priors(
-            ["rep_no_max", "rep_no_amplitude", "doy_max"], priors=priors
+        lognormal_params = _lognormal_params_from_median_percentile_2_5(
+            prior_median, prior_percentile_2_5
         )
 
-        rep_no_vec = pm.Deterministic(
-            "rep_no_vec",
-            pm.math.maximum(
-                rep_no_max
-                - rep_no_amplitude
-                + rep_no_amplitude * pm.math.cos(2 * np.pi * (doy_vec - doy_max) / 365),
-                0,
+        log_rep_no_vec = pm.AR(
+            "log_rep_no_vec",
+            sigma=lognormal_params["sigma"] * np.sqrt(1 - rho**2),
+            rho=rho,
+            shape=t_stop,
+            init_dist=pm.Normal.dist(
+                mu=lognormal_params["mu"], sigma=lognormal_params["sigma"]
             ),
         )
-        return rep_no_vec
-
-    return _fit_model(
-        incidence_vec=incidence_vec,
-        gen_time_dist_vec=gen_time_dist_vec,
-        rep_no_vec_func=rep_no_vec_func,
-        **kwargs,
-    )
-
-
-def fit_weather_model(
-    *,
-    incidence_vec,
-    temperature_vec,
-    gen_time_dist_vec,
-    priors=None,
-    **kwargs,
-):
-    priors = priors or {}
-
-    def rep_no_vec_func():
-        (rep_no_max,) = _extract_priors(["rep_no_max"], priors=priors)
-        c_0 = pm.Normal("c_0", mu=-9, sigma=1)
-        c_1 = pm.Normal("c_1", mu=0.3, sigma=0.1)
-        # c_0 = pm.Uniform("c_0", lower=-10, upper=0)
-        # c_1 = pm.Uniform("c_1", lower=0, upper=1)
         rep_no_vec = pm.Deterministic(
             "rep_no_vec",
-            rep_no_max / (1 + pm.math.exp(-(c_0 + c_1 * temperature_vec))),
+            pm.math.exp(log_rep_no_vec),
         )
         return rep_no_vec
 
@@ -192,38 +152,61 @@ def fit_weather_model(
 def fit_suitability_model(
     *,
     incidence_vec,
-    suitability_mean_vec,
-    suitability_std,
     gen_time_dist_vec,
+    suitability_mean_vec,
+    suitability_std=0.05,
+    suitability_rho=0.95,
+    rep_no_factor_model="autoregressive",
     random_walk_std=0.05,
+    log_rep_no_factor_std=0.5,
+    log_rep_no_factor_rho=0.95,
     **kwargs,
 ):
     t_stop = len(incidence_vec)
 
     def rep_no_vec_func():
-        log_rep_no_factor_start = pm.Normal("log_rep_no_factor_start", mu=0, sigma=1)
-        log_rep_no_factor_jumps = pm.Normal(
-            "rep_no_jumps", mu=0, sigma=random_walk_std, shape=t_stop - 1
-        )
-        rep_no_factor_vec = pm.Deterministic(
-            "rep_no_factor_vec",
-            pm.math.exp(
-                pm.math.cumsum(
-                    pm.math.concatenate(
-                        [[log_rep_no_factor_start], log_rep_no_factor_jumps], axis=0
+        if rep_no_factor_model == "autoregressive":
+            log_rep_no_factor_vec = pm.AR(
+                "log_rep_no_factor_vec",
+                sigma=log_rep_no_factor_std * np.sqrt(1 - log_rep_no_factor_rho**2),
+                rho=log_rep_no_factor_rho,
+                shape=t_stop,
+                init_dist=pm.Normal.dist(mu=0, sigma=log_rep_no_factor_std),
+            )
+            rep_no_factor_vec = pm.Deterministic(
+                "rep_no_factor_vec", pm.math.exp(log_rep_no_factor_vec)
+            )
+        elif rep_no_factor_model == "random_walk":
+            log_rep_no_factor_start = pm.Normal(
+                "log_rep_no_factor_start", mu=0, sigma=1
+            )
+            log_rep_no_factor_jumps = pm.Normal(
+                "rep_no_jumps", mu=0, sigma=random_walk_std, shape=t_stop - 1
+            )
+            rep_no_factor_vec = pm.Deterministic(
+                "rep_no_factor_vec",
+                pm.math.exp(
+                    pm.math.cumsum(
+                        pm.math.concatenate(
+                            [[log_rep_no_factor_start], log_rep_no_factor_jumps], axis=0
+                        )
                     )
-                )
-            ),
-        )
-        suitability_vec_ext = pm.Normal(
+                ),
+            )
+        else:
+            raise ValueError(
+                "rep_no_factor_model must be one of 'autoregressive' or 'random_walk'"
+            )
+        suitability_deviations = pm.AR(
             "suitability_ext",
-            mu=suitability_mean_vec,
-            sigma=suitability_std,
+            sigma=suitability_std * np.sqrt(1 - suitability_rho**2),
+            rho=suitability_rho,
             shape=t_stop,
+            init_dist=pm.Normal.dist(mu=0, sigma=suitability_std),
         )
         suitability_vec = pm.Deterministic(
             "suitability_vec",
-            pm.math.clip(suitability_vec_ext, 1e-8, 1),
+            pm.math.clip(suitability_mean_vec + suitability_deviations, 1e-8, 1),
         )
         rep_no_vec = pm.Deterministic("rep_no_vec", rep_no_factor_vec * suitability_vec)
         return rep_no_vec
