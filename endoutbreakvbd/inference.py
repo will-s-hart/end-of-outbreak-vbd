@@ -116,7 +116,7 @@ def fit_autoregressive_model(
     gen_time_dist_vec,
     prior_median=1.0,
     prior_percentile_2_5=0.33,
-    rho=0.95,
+    rho=0.975,
     **kwargs,
 ):
     t_stop = len(incidence_vec)
@@ -155,30 +155,40 @@ def fit_suitability_model(
     gen_time_dist_vec,
     suitability_mean_vec,
     suitability_std=0.05,
-    suitability_rho=0.95,
+    suitability_rho=0.975,
     rep_no_factor_model="autoregressive",
     random_walk_std=0.05,
-    log_rep_no_factor_std=0.5,
-    log_rep_no_factor_rho=0.95,
+    rep_no_factor_prior_median=2.0,
+    rep_no_factor_prior_percentile_2_5=0.5,
+    log_rep_no_factor_rho=0.975,
     **kwargs,
 ):
     t_stop = len(incidence_vec)
 
     def rep_no_vec_func():
+        rep_no_factor_lognormal_params = _lognormal_params_from_median_percentile_2_5(
+            rep_no_factor_prior_median, rep_no_factor_prior_percentile_2_5
+        )
         if rep_no_factor_model == "autoregressive":
             log_rep_no_factor_vec = pm.AR(
                 "log_rep_no_factor_vec",
-                sigma=log_rep_no_factor_std * np.sqrt(1 - log_rep_no_factor_rho**2),
+                sigma=rep_no_factor_lognormal_params["sigma"]
+                * np.sqrt(1 - log_rep_no_factor_rho**2),
                 rho=log_rep_no_factor_rho,
                 shape=t_stop,
-                init_dist=pm.Normal.dist(mu=0, sigma=log_rep_no_factor_std),
+                init_dist=pm.Normal.dist(
+                    mu=rep_no_factor_lognormal_params["mu"],
+                    sigma=rep_no_factor_lognormal_params["sigma"],
+                ),
             )
             rep_no_factor_vec = pm.Deterministic(
                 "rep_no_factor_vec", pm.math.exp(log_rep_no_factor_vec)
             )
         elif rep_no_factor_model == "random_walk":
             log_rep_no_factor_start = pm.Normal(
-                "log_rep_no_factor_start", mu=0, sigma=1
+                "log_rep_no_factor_start",
+                mu=rep_no_factor_lognormal_params["mu"],
+                sigma=rep_no_factor_lognormal_params["sigma"],
             )
             log_rep_no_factor_jumps = pm.Normal(
                 "rep_no_jumps", mu=0, sigma=random_walk_std, shape=t_stop - 1
