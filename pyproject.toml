@@ -1,3 +1,8 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
 [project]
 name = "endoutbreakvbd"
 requires-python = ">=3.11"
@@ -39,3 +44,9 @@ default = { features = ["dev"], solve-group = "prod" }
 [tool.pixi.feature.dev.tasks]
 lint = "ruff check"
 format = "ruff format"
+
+[tool.hatch.build.targets.sdist]
+include = ["endoutbreakvbd/**"]
+
+[tool.hatch.build.targets.wheel]
+include = ["endoutbreakvbd/**"]

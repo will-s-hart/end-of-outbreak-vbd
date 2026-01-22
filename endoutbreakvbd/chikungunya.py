@@ -27,7 +27,7 @@ def get_data():
 
 def get_suitability_data():
     df = pd.read_csv(
-        pathlib.Path(__file__).parents[1] / "results/rome_weather_suitability_2017.csv",
+        pathlib.Path(__file__).parents[1] / "results/weather_suitability_data_2017.csv",
         index_col="date",
         parse_dates=True,
     )

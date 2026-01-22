@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 
@@ -16,3 +17,13 @@ def month_start_xticks(ax, year=2017, interval_months=2):
     ax.set_xticks(month_starts_doy)
     labels = [f"{d.day} {d:%b}" for d in month_starts]
     ax.set_xticklabels(labels, rotation=0)
+
+
+def plot_data_on_twin_ax(ax, t_vec, incidence_vec):
+    twin_ax = ax.twinx()
+    twin_ax.bar(t_vec, incidence_vec, color="tab:gray", alpha=0.5)
+    twin_ax.set_ylim(0, np.max(incidence_vec))
+    twin_ax.set_ylabel("Number of cases")
+    twin_ax.yaxis.label.set_color("tab:gray")
+    twin_ax.tick_params(axis="y", colors="tab:gray")
+    return twin_ax
