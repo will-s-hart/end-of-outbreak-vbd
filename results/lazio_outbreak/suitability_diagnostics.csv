@@ -1,0 +1,8 @@
+rhat_mean,rhat_median,rhat_max,ess_mean,ess_median,ess_min
+"<xarray.DataArray 'rep_no_vec' ()> Size: 8B
+array(1.00071051)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
+array(1.0006327)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
+array(1.00322734)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
+array(4163.46499511)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
+array(4257.55842349)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
+array(2400.75331442)"
