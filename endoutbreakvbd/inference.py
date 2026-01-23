@@ -44,12 +44,12 @@ def _fit_model(
             "Local incidence cannot be greater than zero when force of infection is 0."
         )
 
-    with pm.Model() as model:
+    with pm.Model():
         rep_no_vec = rep_no_vec_func()
 
         expected_incidence_local = rep_no_vec * foi_vec
 
-        likelihood = pm.Poisson(
+        pm.Poisson(
             "likelihood",
             mu=expected_incidence_local[nonzero_foi_idx],
             observed=incidence_vec_local[nonzero_foi_idx],
