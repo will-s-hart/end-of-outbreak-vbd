@@ -65,11 +65,12 @@ def _get_inputs():
 
 def run_analyses():
     inputs = _get_inputs()
+    rng = np.random.default_rng(2)
     _run_analyses_for_model(
         model="autoregressive",
         incidence_vec=inputs["incidence_vec"],
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
-        fit_model_kwargs={},
+        fit_model_kwargs={"rng": rng},
         save_path=inputs["results_paths"]["autoregressive"],
         save_path_diagnostics=inputs["results_paths"]["autoregressive_diagnostics"],
     )
@@ -79,6 +80,7 @@ def run_analyses():
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
         fit_model_kwargs={
             "suitability_mean_vec": inputs["suitability_mean_vec"],
+            "rng": rng,
         },
         save_path=inputs["results_paths"]["suitability"],
         save_path_diagnostics=inputs["results_paths"]["suitability_diagnostics"],

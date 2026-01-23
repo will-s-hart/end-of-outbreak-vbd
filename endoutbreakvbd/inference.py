@@ -24,8 +24,11 @@ def _fit_model(
     rep_no_vec_func,
     step_func=None,
     thin=1,
+    rng=None,
     **kwargs_sample,
 ):
+    if rng is not None:
+        kwargs_sample = {**kwargs_sample, "random_seed": rng}
     t_stop = len(incidence_vec)
     gen_time_dist_vec = np.concatenate(
         [gen_time_dist_vec, np.zeros(t_stop - 1 - len(gen_time_dist_vec))]
