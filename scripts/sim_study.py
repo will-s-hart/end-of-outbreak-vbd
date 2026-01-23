@@ -189,7 +189,7 @@ def _run_example_outbreak_declaration_analysis(
     declaration_day_df = pd.DataFrame(
         index=pd.MultiIndex.from_product(
             [perc_risk_threshold_vals, doy_last_case_vec],
-            names=["risj", "final_case_day_of_year"],
+            names=["risk_threshold", "final_case_day_of_year"],
         ),
         columns=["days_to_declaration"],
     )
@@ -203,9 +203,9 @@ def _run_example_outbreak_declaration_analysis(
             gen_time_dist_vec=gen_time_dist_vec,
             t_calc=eop_days,
         )
-        declaration_day = np.where(1 - eop_vals < perc_risk_threshold / 100)[0][0]
+        declaration_day = np.where((1 - eop_vals) < perc_risk_threshold / 100)[0][0]
         declaration_day_df.loc[
-            (perc_risk_threshold, doy_last_case), "Days to declaration"
+            (perc_risk_threshold, doy_last_case), "days_to_declaration"
         ] = declaration_day
     declaration_day_df.to_csv(save_path)
 
@@ -253,7 +253,7 @@ def _run_many_outbreak_analysis(
             gen_time_dist_vec=gen_time_dist_vec,
             t_calc=eop_days,
         )
-        declaration_day = np.where(1 - eop_vals < perc_risk_threshold / 100)[0][0]
+        declaration_day = np.where((1 - eop_vals) < perc_risk_threshold / 100)[0][0]
         df.loc[sim_idx, "first_case_day_of_year"] = doy_start
         df.loc[sim_idx, "final_case_day_of_year"] = doy_last_case
         df.loc[sim_idx, "days_to_declaration"] = declaration_day
