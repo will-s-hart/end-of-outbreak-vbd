@@ -1,8 +1,8 @@
 rhat_mean,rhat_median,rhat_max,ess_mean,ess_median,ess_min
 "<xarray.DataArray 'rep_no_vec' ()> Size: 8B
-array(1.00062954)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
-array(1.00052033)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
-array(1.00268701)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
-array(3082.93288151)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
-array(2979.15228422)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
-array(1272.30141308)"
+array(1.00077435)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
+array(1.00061858)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
+array(1.00350323)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
+array(3339.73188039)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
+array(3189.26049564)","<xarray.DataArray 'rep_no_vec' ()> Size: 8B
+array(1564.48145713)"
