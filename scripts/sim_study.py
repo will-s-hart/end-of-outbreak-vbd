@@ -7,7 +7,11 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from endoutbreakvbd import eop_analytical, eop_simulation, renewal_model
+from endoutbreakvbd import (
+    further_case_risk_analytical,
+    further_case_risk_simulation,
+    renewal_model,
+)
 from endoutbreakvbd.chikungunya import get_parameters, get_suitability_data
 from endoutbreakvbd.utils import month_start_xticks, plot_data_on_twin_ax
 
@@ -47,7 +51,7 @@ def _get_inputs():
     results_dir = pathlib.Path(__file__).parents[1] / "results/sim_study"
     results_dir.mkdir(parents=True, exist_ok=True)
     results_paths = {
-        "example_outbreak_eop": results_dir / "example_outbreak_eop.csv",
+        "example_outbreak_risk": results_dir / "example_outbreak_risk.csv",
         "example_outbreak_declaration": results_dir
         / "example_outbreak_declaration.csv",
         "many_outbreak": results_dir / "many_outbreak.csv",
@@ -57,7 +61,7 @@ def _get_inputs():
     fig_dir.mkdir(parents=True, exist_ok=True)
     fig_paths = {
         "rep_no": fig_dir / "rep_no.svg",
-        "example_outbreak_eop": fig_dir / "example_outbreak_eop.svg",
+        "example_outbreak_risk": fig_dir / "example_outbreak_risk.svg",
         "example_outbreak_declaration": fig_dir / "example_outbreak_declaration.svg",
         "many_outbreak": fig_dir / "many_outbreak.svg",
     }
@@ -83,13 +87,13 @@ def _get_inputs():
 def run_analyses():
     inputs = _get_inputs()
     rng = np.random.default_rng(2)
-    _run_example_outbreak_eop_analysis(
+    _run_example_outbreak_risk_analysis(
         incidence_vec=inputs["example_outbreak_incidence_vec"],
         rep_no_func_getter=inputs["rep_no_func_getter"],
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
         doy_start_vals=inputs["example_outbreak_doy_start_vals"],
         rng=rng,
-        save_path=inputs["results_paths"]["example_outbreak_eop"],
+        save_path=inputs["results_paths"]["example_outbreak_risk"],
     )
     _run_example_outbreak_declaration_analysis(
         incidence_vec=inputs["example_outbreak_incidence_vec"],
@@ -117,10 +121,10 @@ def make_plots():
         example_doy_vals=inputs["example_outbreak_doy_start_vals"],
         save_path=inputs["fig_paths"]["rep_no"],
     )
-    _make_example_outbreak_eop_plot(
+    _make_example_outbreak_risk_plot(
         incidence_vec=inputs["example_outbreak_incidence_vec"],
-        data_path=inputs["results_paths"]["example_outbreak_eop"],
-        save_path=inputs["fig_paths"]["example_outbreak_eop"],
+        data_path=inputs["results_paths"]["example_outbreak_risk"],
+        save_path=inputs["fig_paths"]["example_outbreak_risk"],
     )
     _make_example_outbreak_declaration_plot(
         data_path=inputs["results_paths"]["example_outbreak_declaration"],
@@ -132,7 +136,7 @@ def make_plots():
     )
 
 
-def _run_example_outbreak_eop_analysis(
+def _run_example_outbreak_risk_analysis(
     *,
     incidence_vec,
     rep_no_func_getter,
@@ -141,36 +145,36 @@ def _run_example_outbreak_eop_analysis(
     rng,
     save_path,
 ):
-    eop_days = np.arange(1, len(incidence_vec) + len(gen_time_dist_vec) + 1, dtype=int)
-    eop_days_sim = np.arange(
+    risk_days = np.arange(1, len(incidence_vec) + len(gen_time_dist_vec) + 1, dtype=int)
+    risk_days_sim = np.arange(
         1, len(incidence_vec) + len(gen_time_dist_vec) + 1, dtype=int
     )
-    eop_df = pd.DataFrame(
+    risk_df = pd.DataFrame(
         index=pd.MultiIndex.from_product(
-            [doy_start_vals, eop_days], names=["start_day_of_year", "day_of_outbreak"]
+            [doy_start_vals, risk_days], names=["start_day_of_year", "day_of_outbreak"]
         )
     )
 
     for doy_start in doy_start_vals:
         rep_no_func = rep_no_func_getter(doy_start)
 
-        eop_vals = eop_analytical(
+        risk_vals = further_case_risk_analytical(
             incidence_vec=incidence_vec,
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
-            t_calc=eop_days,
+            t_calc=risk_days,
         )
-        eop_vals_sim = eop_simulation(
+        risk_vals_sim = further_case_risk_simulation(
             incidence_vec=incidence_vec,
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
-            t_calc=eop_days_sim,
+            t_calc=risk_days_sim,
             n_sims=1000,
             rng=rng,
         )
-        eop_df.loc[(doy_start, eop_days), "analytical"] = eop_vals
-        eop_df.loc[(doy_start, eop_days_sim), "simulation"] = eop_vals_sim
-    eop_df.to_csv(save_path)
+        risk_df.loc[(doy_start, risk_days), "analytical"] = risk_vals
+        risk_df.loc[(doy_start, risk_days_sim), "simulation"] = risk_vals_sim
+    risk_df.to_csv(save_path)
 
 
 def _run_example_outbreak_declaration_analysis(
@@ -181,7 +185,7 @@ def _run_example_outbreak_declaration_analysis(
     gen_time_dist_vec,
     save_path,
 ):
-    eop_days = np.arange(
+    risk_days = np.arange(
         len(incidence_vec), len(incidence_vec) + len(gen_time_dist_vec) + 1, dtype=int
     )
 
@@ -197,13 +201,13 @@ def _run_example_outbreak_declaration_analysis(
     for perc_risk_threshold, doy_last_case in declaration_day_df.index:
         doy_start = doy_last_case - len(incidence_vec) + 1
         rep_no_func = rep_no_func_getter(doy_start)
-        eop_vals = eop_analytical(
+        risk_vals = further_case_risk_analytical(
             incidence_vec=incidence_vec,
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
-            t_calc=eop_days,
+            t_calc=risk_days,
         )
-        declaration_day = np.where((1 - eop_vals) < perc_risk_threshold / 100)[0][0]
+        declaration_day = np.where(risk_vals < perc_risk_threshold / 100)[0][0]
         declaration_day_df.loc[
             (perc_risk_threshold, doy_last_case), "days_to_declaration"
         ] = declaration_day
@@ -244,16 +248,16 @@ def _run_many_outbreak_analysis(
                 outbreak_found = True
         time_last_case = incidence_vec.nonzero()[0][-1]
         doy_last_case = doy_start + time_last_case
-        eop_days = np.arange(
+        risk_days = np.arange(
             time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2, dtype=int
         )
-        eop_vals = eop_analytical(
+        risk_vals = further_case_risk_analytical(
             incidence_vec=incidence_vec,
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
-            t_calc=eop_days,
+            t_calc=risk_days,
         )
-        declaration_day = np.where((1 - eop_vals) < perc_risk_threshold / 100)[0][0]
+        declaration_day = np.where(risk_vals < perc_risk_threshold / 100)[0][0]
         df.loc[sim_idx, "first_case_day_of_year"] = doy_start
         df.loc[sim_idx, "final_case_day_of_year"] = doy_last_case
         df.loc[sim_idx, "days_to_declaration"] = declaration_day
@@ -273,10 +277,10 @@ def _make_rep_no_plot(*, rep_no_func_doy, doy_vec, example_doy_vals, save_path):
     fig.savefig(save_path)
 
 
-def _make_example_outbreak_eop_plot(*, incidence_vec, data_path, save_path):
-    eop_df = pd.read_csv(data_path, index_col=[0, 1])
-    doy_start_vals = eop_df.index.get_level_values("start_day_of_year").unique()
-    eop_days = eop_df.index.get_level_values("day_of_outbreak").unique()
+def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path):
+    risk_df = pd.read_csv(data_path, index_col=[0, 1])
+    doy_start_vals = risk_df.index.get_level_values("start_day_of_year").unique()
+    risk_days = risk_df.index.get_level_values("day_of_outbreak").unique()
 
     fig, ax = plt.subplots()
     plot_data_on_twin_ax(
@@ -290,15 +294,15 @@ def _make_example_outbreak_eop_plot(*, incidence_vec, data_path, save_path):
         date_start = pd.Timestamp(year=2017, month=1, day=1) + pd.Timedelta(
             days=doy_start - 1
         )
-        eop_vals = eop_df.loc[doy_start, "analytical"].to_numpy()
+        risk_vals = risk_df.loc[doy_start, "analytical"].to_numpy()
         ax.plot(
-            eop_days,
-            1 - eop_vals,
+            risk_days,
+            risk_vals,
             label=f"First case on {date_start.day} {date_start:%b}",
             color=color,
         )
-        eop_vals_sim = eop_df.loc[doy_start, "simulation"].to_numpy()
-        ax.plot(eop_days, 1 - eop_vals_sim, ".", color=color)
+        risk_vals_sim = risk_df.loc[doy_start, "simulation"].to_numpy()
+        ax.plot(risk_days, risk_vals_sim, ".", color=color)
     ax.set_ylim(0, 1)
     ax.set_xlabel("Day of outbreak")
     ax.set_ylabel("Risk of additional cases")

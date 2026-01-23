@@ -9,17 +9,18 @@ from endoutbreakvbd.model import renewal_model
 nonnegint = Annotated[int, Ge(0)]
 
 
-def eop_analytical(
+def further_case_risk_analytical(
     *,
     incidence_vec: list[int] | np.ndarray[int],
     rep_no_func: Callable[[int | np.ndarray[int]], float | np.ndarray[float]],
     gen_time_dist_vec: list[float] | np.ndarray[float],
     t_calc: nonnegint | np.ndarray[nonnegint],
 ) -> float | np.ndarray[float]:
+    # Analytical calculation of risk of further cases on/after time t_calc
     if not np.isscalar(t_calc):
         return np.array(
             [
-                eop_analytical(
+                further_case_risk_analytical(
                     incidence_vec=incidence_vec,
                     rep_no_func=rep_no_func,
                     gen_time_dist_vec=gen_time_dist_vec,
@@ -29,13 +30,13 @@ def eop_analytical(
             ]
         )
     if t_calc == 0:
-        return 0
+        return 1
 
     gen_time_max = len(gen_time_dist_vec)
     t_last_case = np.max(np.nonzero(incidence_vec)[0])
     t_max = t_last_case + gen_time_max
     if t_calc > t_max:
-        return 1
+        return 0
 
     if len(incidence_vec) < t_calc:
         incidence_vec = np.append(
@@ -53,13 +54,13 @@ def eop_analytical(
             incidence_vec_theor[:t][::-1] * gen_time_dist_vec[:t]
         )
 
-    eop = np.exp(-np.dot(foi_vec_future, rep_no_vec_future)).mean(
-        # Handles case where rep_no_func returns equally likely values along axis 1
-    )
-    return eop
+    further_case_risk = (
+        1 - np.exp(-np.dot(foi_vec_future, rep_no_vec_future)).mean()
+    )  # Handles case where rep_no_func returns equally likely values along axis 1
+    return further_case_risk
 
 
-def eop_simulation(
+def further_case_risk_simulation(
     incidence_vec: list[int] | np.ndarray[int],
     rep_no_func: Callable[[int | np.ndarray[int]], float | np.ndarray[float]],
     gen_time_dist_vec: list[float] | np.ndarray[float],
@@ -67,10 +68,11 @@ def eop_simulation(
     n_sims: int,
     rng: np.random.Generator,
 ) -> float | np.ndarray[float]:
+    # Simulation-based calculation of risk of further cases on/after time t_calc
     if not np.isscalar(t_calc):
         return np.array(
             [
-                eop_simulation(
+                further_case_risk_simulation(
                     incidence_vec=incidence_vec,
                     rep_no_func=rep_no_func,
                     gen_time_dist_vec=gen_time_dist_vec,
@@ -82,13 +84,13 @@ def eop_simulation(
             ]
         )
     if t_calc == 0:
-        return 0
+        return 1
 
     if len(incidence_vec) < t_calc:
         incidence_vec = np.append(
             incidence_vec, np.zeros(t_calc - len(incidence_vec), dtype=int)
         )
-    outbreak_ended_sims = np.full(n_sims, False)
+    further_cases_sims = np.full(n_sims, False)
     for sim in range(n_sims):
         incidence_vec_sim = renewal_model(
             rep_no_func=rep_no_func,
@@ -98,6 +100,6 @@ def eop_simulation(
             incidence_init=incidence_vec[:t_calc],
             _break_on_case=True,
         )
-        outbreak_ended_sims[sim] = np.sum(incidence_vec_sim[t_calc:]) == 0
-    eop = np.mean(outbreak_ended_sims)
-    return eop
+        further_cases_sims[sim] = np.any(incidence_vec_sim[t_calc:] > 0)
+    further_case_risk = np.mean(further_cases_sims)
+    return further_case_risk

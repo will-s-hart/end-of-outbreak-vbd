@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import scipy.interpolate
 
-from endoutbreakvbd import eop_analytical
+from endoutbreakvbd import further_case_risk_analytical
 from endoutbreakvbd.chikungunya import get_data, get_parameters, get_suitability_data
 from endoutbreakvbd.inference import fit_autoregressive_model, fit_suitability_model
 from endoutbreakvbd.utils import month_start_xticks, plot_data_on_twin_ax
@@ -46,7 +46,7 @@ def _get_inputs():
     fig_paths = {
         "gen_time_dist": fig_dir / "gen_time_dist.svg",
         "rep_no": fig_dir / "rep_no.svg",
-        "eop": fig_dir / "eop.svg",
+        "risk": fig_dir / "risk.svg",
         "declaration": fig_dir / "declaration.svg",
         "suitability": fig_dir / "suitability.svg",
         "scaling_factor": fig_dir / "scaling_factor.svg",
@@ -119,7 +119,7 @@ def _run_analyses_for_model(
     rep_no_func_estim = scipy.interpolate.interp1d(
         t_vec, rep_no_mat, axis=0, bounds_error=True
     )
-    eop_vec = eop_analytical(
+    risk_vec = further_case_risk_analytical(
         incidence_vec=incidence_vec,
         rep_no_func=rep_no_func_estim,
         gen_time_dist_vec=gen_time_dist_vec,
@@ -131,7 +131,7 @@ def _run_analyses_for_model(
             "reproduction_number_mean": rep_no_mean_vec,
             "reproduction_number_lower": rep_no_lower_vec,
             "reproduction_number_upper": rep_no_upper_vec,
-            "end_of_outbreak_probability": eop_vec,
+            "further_case_risk": risk_vec,
         }
     ).set_index("day_of_outbreak")
     if model == "suitability":
@@ -155,14 +155,23 @@ def _run_analyses_for_model(
     ess = azs.ess(idata, var_names="rep_no_vec")["rep_no_vec"]
     df_diagnostics = pd.DataFrame(
         {
-            "rhat_mean": rhat.mean(),
-            "rhat_median": rhat.median(),
-            "rhat_max": rhat.max(),
-            "ess_mean": ess.mean(),
-            "ess_median": ess.median(),
-            "ess_min": ess.min(),
-        },
-        index=[0],
+            "stat": [
+                "rhat_mean",
+                "rhat_median",
+                "rhat_max",
+                "ess_mean",
+                "ess_median",
+                "ess_min",
+            ],
+            "value": [
+                rhat.mean().item(),
+                rhat.median().item(),
+                rhat.max().item(),
+                ess.mean().item(),
+                ess.median().item(),
+                ess.min().item(),
+            ],
+        }
     )
     df_diagnostics.to_csv(save_path_diagnostics, index=False)
 
@@ -185,7 +194,7 @@ def make_plots():
         ],
         save_path=inputs["fig_paths"]["rep_no"],
     )
-    _make_eop_plot(
+    _make_risk_plot(
         doy_vec=inputs["doy_vec"],
         incidence_vec=incidence_vec,
         model_names=["Autoregressive model", "Suitability model"],
@@ -193,7 +202,7 @@ def make_plots():
             inputs["results_paths"]["autoregressive"],
             inputs["results_paths"]["suitability"],
         ],
-        save_path=inputs["fig_paths"]["eop"],
+        save_path=inputs["fig_paths"]["risk"],
     )
     _make_declaration_plot(
         incidence_vec=incidence_vec,
@@ -257,7 +266,7 @@ def _make_rep_no_plot(*, doy_vec, incidence_vec, model_names, data_paths, save_p
     fig.savefig(save_path)
 
 
-def _make_eop_plot(*, doy_vec, incidence_vec, model_names, data_paths, save_path):
+def _make_risk_plot(*, doy_vec, incidence_vec, model_names, data_paths, save_path):
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"][: len(model_names)]
     fig, ax = plt.subplots()
     plot_data_on_twin_ax(ax, doy_vec, incidence_vec)
@@ -265,12 +274,7 @@ def _make_eop_plot(*, doy_vec, incidence_vec, model_names, data_paths, save_path
         model_names, data_paths, colors, strict=True
     ):
         df = pd.read_csv(data_path)
-        ax.plot(
-            doy_vec,
-            1 - df["end_of_outbreak_probability"],
-            color=color,
-            label=model_name,
-        )
+        ax.plot(doy_vec, df["further_case_risk"], color=color, label=model_name)
     month_start_xticks(ax, interval_months=1)
     ax.set_ylim(0, 1)
     ax.set_ylabel("Risk of additional cases")
@@ -282,11 +286,11 @@ def _make_declaration_plot(*, incidence_vec, model_names, data_paths, save_path)
     fig, ax = plt.subplots()
     perc_risk_thresholds = np.linspace(0.1, 10, 101)
     time_last_case = incidence_vec.nonzero()[0][-1]
-    eop_days = np.arange(time_last_case + 1, len(incidence_vec))
+    risk_days = np.arange(time_last_case + 1, len(incidence_vec))
     for model_name, data_path in zip(model_names, data_paths, strict=True):
         df = pd.read_csv(data_path)
-        eop_vals = df["end_of_outbreak_probability"].to_numpy()[eop_days]
-        below_threshold = (1 - eop_vals) < (perc_risk_thresholds[:, None] / 100)
+        risk_vals = df["further_case_risk"].to_numpy()[risk_days]
+        below_threshold = risk_vals < (perc_risk_thresholds[:, None] / 100)
         declaration_days = np.argmax(below_threshold, axis=1)
         ax.plot(perc_risk_thresholds, declaration_days, label=model_name)
     ax.set_xticks(np.append(perc_risk_thresholds[0], ax.get_xticks()))
