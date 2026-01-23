@@ -14,7 +14,8 @@ platforms = ["linux-64", "linux-aarch64", "osx-arm64", "osx-64", "win-64"]
 
 [tool.pixi.dependencies]
 annotated-types = "*"
-arviz = "*"
+arviz-base = "*"
+arviz-stats="*"
 climepi = "*"
 matplotlib = "*"
 numpy = "*"
