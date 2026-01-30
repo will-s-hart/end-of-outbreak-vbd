@@ -8,8 +8,9 @@ import pandas as pd
 from tqdm import tqdm
 
 from endoutbreakvbd import (
-    further_case_risk_analytical,
-    further_case_risk_simulation,
+    calc_declaration_delay,
+    calc_further_case_risk_analytical,
+    calc_further_case_risk_simulation,
     renewal_model,
 )
 from endoutbreakvbd.chikungunya import get_parameters, get_suitability_data
@@ -158,13 +159,13 @@ def _run_example_outbreak_risk_analysis(
     for doy_start in doy_start_vals:
         rep_no_func = rep_no_func_getter(doy_start)
 
-        risk_vals = further_case_risk_analytical(
+        risk_vals = calc_further_case_risk_analytical(
             incidence_vec=incidence_vec,
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
             t_calc=risk_days,
         )
-        risk_vals_sim = further_case_risk_simulation(
+        risk_vals_sim = calc_further_case_risk_simulation(
             incidence_vec=incidence_vec,
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
@@ -185,33 +186,38 @@ def _run_example_outbreak_declaration_analysis(
     gen_time_dist_vec,
     save_path,
 ):
+    time_last_case = incidence_vec.nonzero()[0][-1]
     risk_days = np.arange(
-        len(incidence_vec), len(incidence_vec) + len(gen_time_dist_vec) + 1, dtype=int
+        time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2, dtype=int
     )
 
     doy_last_case_vec = np.arange(1, 366, dtype=int)
-    declaration_day_df = pd.DataFrame(
+    declaration_delay_df = pd.DataFrame(
         index=pd.MultiIndex.from_product(
             [perc_risk_threshold_vals, doy_last_case_vec],
             names=["risk_threshold", "final_case_day_of_year"],
         ),
-        columns=["days_to_declaration"],
+        columns=["delay_to_declaration"],
     )
 
-    for perc_risk_threshold, doy_last_case in declaration_day_df.index:
+    for doy_last_case in doy_last_case_vec:
         doy_start = doy_last_case - len(incidence_vec) + 1
         rep_no_func = rep_no_func_getter(doy_start)
-        risk_vals = further_case_risk_analytical(
+        risk_vals = calc_further_case_risk_analytical(
             incidence_vec=incidence_vec,
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
             t_calc=risk_days,
         )
-        declaration_day = np.where(risk_vals < perc_risk_threshold / 100)[0][0]
-        declaration_day_df.loc[
-            (perc_risk_threshold, doy_last_case), "days_to_declaration"
-        ] = declaration_day
-    declaration_day_df.to_csv(save_path)
+        declaration_delay_vals = calc_declaration_delay(
+            risk_vec=risk_vals,
+            perc_risk_threshold=perc_risk_threshold_vals,
+            delay_of_first_risk=1,
+        )
+        declaration_delay_df.loc[
+            (perc_risk_threshold_vals, doy_last_case), "delay_to_declaration"
+        ] = declaration_delay_vals
+    declaration_delay_df.to_csv(save_path)
 
 
 def _run_many_outbreak_analysis(
@@ -229,7 +235,7 @@ def _run_many_outbreak_analysis(
         columns=[
             "first_case_day_of_year",
             "final_case_day_of_year",
-            "days_to_declaration",
+            "delay_to_declaration",
         ],
     )
     for sim_idx in tqdm(range(no_sims)):
@@ -251,17 +257,21 @@ def _run_many_outbreak_analysis(
         risk_days = np.arange(
             time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2, dtype=int
         )
-        risk_vals = further_case_risk_analytical(
+        risk_vals = calc_further_case_risk_analytical(
             incidence_vec=incidence_vec,
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
             t_calc=risk_days,
         )
-        declaration_day = np.where(risk_vals < perc_risk_threshold / 100)[0][0]
+        declaration_delay = calc_declaration_delay(
+            risk_vec=risk_vals,
+            perc_risk_threshold=perc_risk_threshold,
+            delay_of_first_risk=1,
+        )
         df.loc[sim_idx, "first_case_day_of_year"] = doy_start
         df.loc[sim_idx, "final_case_day_of_year"] = doy_last_case
-        df.loc[sim_idx, "days_to_declaration"] = declaration_day
-        if 150 < doy_last_case < 250 and declaration_day == 0:
+        df.loc[sim_idx, "delay_to_declaration"] = declaration_delay
+        if 150 < doy_last_case < 250 and declaration_delay == 0:
             print(
                 "Possible error - zero days to declaration for outbreak ending mid-year"
             )
@@ -311,23 +321,23 @@ def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path):
 
 
 def _make_example_outbreak_declaration_plot(*, data_path, save_path):
-    declaration_day_df = pd.read_csv(data_path, index_col=[0, 1])
-    perc_risk_threshold_vals = declaration_day_df.index.get_level_values(
+    declaration_delay_df = pd.read_csv(data_path, index_col=[0, 1])
+    perc_risk_threshold_vals = declaration_delay_df.index.get_level_values(
         "risk_threshold"
     ).unique()
-    doy_last_case_vec = declaration_day_df.index.get_level_values(
+    doy_last_case_vec = declaration_delay_df.index.get_level_values(
         "final_case_day_of_year"
     ).unique()
 
     fig, ax = plt.subplots()
 
     for perc_risk_threshold in perc_risk_threshold_vals:
-        declaration_day_vec = declaration_day_df.loc[
-            perc_risk_threshold, "days_to_declaration"
+        declaration_delay_vec = declaration_delay_df.loc[
+            perc_risk_threshold, "delay_to_declaration"
         ].to_numpy()
         ax.plot(
             doy_last_case_vec,
-            declaration_day_vec,
+            declaration_delay_vec,
             label=f"{perc_risk_threshold}% risk threshold",
         )
     month_start_xticks(ax)
@@ -347,7 +357,7 @@ def _make_many_outbreak_plot(*, data_path, save_path):
         include_lowest=True,
     )
     stats = (
-        df.groupby("final_case_doy_binned", observed=False)["days_to_declaration"]
+        df.groupby("final_case_doy_binned", observed=False)["delay_to_declaration"]
         .quantile([0.025, 0.5, 0.975])
         .unstack()
     )

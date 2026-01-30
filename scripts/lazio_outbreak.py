@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import scipy.interpolate
 
-from endoutbreakvbd import further_case_risk_analytical
+from endoutbreakvbd import calc_declaration_delay, calc_further_case_risk_analytical
 from endoutbreakvbd.chikungunya import get_data, get_parameters, get_suitability_data
 from endoutbreakvbd.inference import fit_autoregressive_model, fit_suitability_model
 from endoutbreakvbd.utils import month_start_xticks, plot_data_on_twin_ax
@@ -119,7 +119,7 @@ def _run_analyses_for_model(
     rep_no_func_estim = scipy.interpolate.interp1d(
         t_vec, rep_no_mat, axis=0, bounds_error=True
     )
-    risk_vec = further_case_risk_analytical(
+    risk_vec = calc_further_case_risk_analytical(
         incidence_vec=incidence_vec,
         rep_no_func=rep_no_func_estim,
         gen_time_dist_vec=gen_time_dist_vec,
@@ -290,9 +290,12 @@ def _make_declaration_plot(*, incidence_vec, model_names, data_paths, save_path)
     for model_name, data_path in zip(model_names, data_paths, strict=True):
         df = pd.read_csv(data_path)
         risk_vals = df["further_case_risk"].to_numpy()[risk_days]
-        below_threshold = risk_vals < (perc_risk_thresholds[:, None] / 100)
-        declaration_days = np.argmax(below_threshold, axis=1)
-        ax.plot(perc_risk_thresholds, declaration_days, label=model_name)
+        declaration_delays = calc_declaration_delay(
+            risk_vec=risk_vals,
+            perc_risk_threshold=perc_risk_thresholds,
+            delay_of_first_risk=1,
+        )
+        ax.plot(perc_risk_thresholds, declaration_delays, label=model_name)
     ax.set_xticks(np.append(perc_risk_thresholds[0], ax.get_xticks()))
     ax.set_xlim(perc_risk_thresholds[0], perc_risk_thresholds[-1])
     ax.set_ylim(0, ax.get_ylim()[1])

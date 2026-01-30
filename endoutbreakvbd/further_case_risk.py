@@ -9,7 +9,7 @@ from endoutbreakvbd.model import renewal_model
 nonnegint = Annotated[int, Ge(0)]
 
 
-def further_case_risk_analytical(
+def calc_further_case_risk_analytical(
     *,
     incidence_vec: list[int] | np.ndarray[int],
     rep_no_func: Callable[[int | np.ndarray[int]], float | np.ndarray[float]],
@@ -20,7 +20,7 @@ def further_case_risk_analytical(
     if not np.isscalar(t_calc):
         return np.array(
             [
-                further_case_risk_analytical(
+                calc_further_case_risk_analytical(
                     incidence_vec=incidence_vec,
                     rep_no_func=rep_no_func,
                     gen_time_dist_vec=gen_time_dist_vec,
@@ -60,7 +60,8 @@ def further_case_risk_analytical(
     return further_case_risk
 
 
-def further_case_risk_simulation(
+def calc_further_case_risk_simulation(
+    *,
     incidence_vec: list[int] | np.ndarray[int],
     rep_no_func: Callable[[int | np.ndarray[int]], float | np.ndarray[float]],
     gen_time_dist_vec: list[float] | np.ndarray[float],
@@ -72,7 +73,7 @@ def further_case_risk_simulation(
     if not np.isscalar(t_calc):
         return np.array(
             [
-                further_case_risk_simulation(
+                calc_further_case_risk_simulation(
                     incidence_vec=incidence_vec,
                     rep_no_func=rep_no_func,
                     gen_time_dist_vec=gen_time_dist_vec,
@@ -103,3 +104,9 @@ def further_case_risk_simulation(
         further_cases_sims[sim] = np.any(incidence_vec_sim[t_calc:] > 0)
     further_case_risk = np.mean(further_cases_sims)
     return further_case_risk
+
+
+def calc_declaration_delay(*, risk_vec, perc_risk_threshold, delay_of_first_risk):
+    below_threshold = risk_vec < (np.atleast_1d(perc_risk_threshold)[:, None] / 100)
+    declaration_delay = np.argmax(below_threshold, axis=1) + delay_of_first_risk
+    return declaration_delay
