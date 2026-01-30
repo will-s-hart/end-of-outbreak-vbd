@@ -39,8 +39,8 @@ def _get_inputs():
         return _rep_no_func
 
     example_outbreak_doy_start_vals = (
-        (rep_no_vec > 1.2).nonzero()[0][0] + 1,
-        (rep_no_vec > 1.2).nonzero()[0][-1] + 1,
+        np.nonzero(rep_no_vec > 1.2)[0][0] + 1,
+        np.nonzero(rep_no_vec > 1.2)[0][-1] + 1,
     )
     example_outbreak_incidence_vec = [1]
     example_outbreak_perc_risk_threshold_vals = (1, 2.5, 5)
@@ -186,7 +186,7 @@ def _run_example_outbreak_declaration_analysis(
     gen_time_dist_vec,
     save_path,
 ):
-    time_last_case = incidence_vec.nonzero()[0][-1]
+    time_last_case = np.nonzero(incidence_vec)[0][-1]
     risk_days = np.arange(
         time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2, dtype=int
     )
@@ -195,7 +195,7 @@ def _run_example_outbreak_declaration_analysis(
     declaration_delay_df = pd.DataFrame(
         index=pd.MultiIndex.from_product(
             [perc_risk_threshold_vals, doy_last_case_vec],
-            names=["risk_threshold", "final_case_day_of_year"],
+            names=["perc_risk_threshold", "final_case_day_of_year"],
         ),
         columns=["delay_to_declaration"],
     )
@@ -215,7 +215,7 @@ def _run_example_outbreak_declaration_analysis(
             delay_of_first_risk=1,
         )
         declaration_delay_df.loc[
-            (perc_risk_threshold_vals, doy_last_case), "delay_to_declaration"
+            (list(perc_risk_threshold_vals), doy_last_case), "delay_to_declaration"
         ] = declaration_delay_vals
     declaration_delay_df.to_csv(save_path)
 
@@ -252,7 +252,7 @@ def _run_many_outbreak_analysis(
             )
             if np.sum(incidence_vec) >= outbreak_size_threshold:
                 outbreak_found = True
-        time_last_case = incidence_vec.nonzero()[0][-1]
+        time_last_case = np.nonzero(incidence_vec)[0][-1]
         doy_last_case = doy_start + time_last_case
         risk_days = np.arange(
             time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2, dtype=int
@@ -323,7 +323,7 @@ def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path):
 def _make_example_outbreak_declaration_plot(*, data_path, save_path):
     declaration_delay_df = pd.read_csv(data_path, index_col=[0, 1])
     perc_risk_threshold_vals = declaration_delay_df.index.get_level_values(
-        "risk_threshold"
+        "perc_risk_threshold"
     ).unique()
     doy_last_case_vec = declaration_delay_df.index.get_level_values(
         "final_case_day_of_year"

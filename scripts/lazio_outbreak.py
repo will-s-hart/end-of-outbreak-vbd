@@ -285,7 +285,7 @@ def _make_risk_plot(*, doy_vec, incidence_vec, model_names, data_paths, save_pat
 def _make_declaration_plot(*, incidence_vec, model_names, data_paths, save_path):
     fig, ax = plt.subplots()
     perc_risk_thresholds = np.linspace(0.1, 10, 101)
-    time_last_case = incidence_vec.nonzero()[0][-1]
+    time_last_case = np.nonzero(incidence_vec)[0][-1]
     risk_days = np.arange(time_last_case + 1, len(incidence_vec))
     for model_name, data_path in zip(model_names, data_paths, strict=True):
         df = pd.read_csv(data_path)
