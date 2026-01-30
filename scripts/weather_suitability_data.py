@@ -87,76 +87,16 @@ def _get_process_data(*, save_path_all, save_path_2017):
     df_smoothed = pd.DataFrame(
         {"temperature": model.predict(x_full)}, index=df_full.index
     )
-    # Define temperature-suitability mapping
-    temperature_grid = np.linspace(10, 40, 61)
-    suitability_grid = (
-        np.array(
-            [
-                0.00000000e00,
-                0.00000000e00,
-                1.88203984e-08,
-                1.28367618e-07,
-                5.36961844e-07,
-                2.82007101e-06,
-                1.28234033e-05,
-                5.25931083e-05,
-                1.82882567e-04,
-                5.50222548e-04,
-                1.48801416e-03,
-                3.62102778e-03,
-                7.92083800e-03,
-                1.57431781e-02,
-                2.88100329e-02,
-                4.86355377e-02,
-                7.66192219e-02,
-                1.13479057e-01,
-                1.59883423e-01,
-                2.15867501e-01,
-                2.80759580e-01,
-                3.53556862e-01,
-                4.32786966e-01,
-                5.16530769e-01,
-                6.02553457e-01,
-                6.88071907e-01,
-                7.69834160e-01,
-                8.44406132e-01,
-                9.08117700e-01,
-                9.57439287e-01,
-                9.89023789e-01,
-                1.00000000e00,
-                9.88217659e-01,
-                9.52537702e-01,
-                8.92959231e-01,
-                8.10907665e-01,
-                7.09457680e-01,
-                5.93673840e-01,
-                4.69879650e-01,
-                3.45600684e-01,
-                2.29671637e-01,
-                1.32825400e-01,
-                6.50191949e-02,
-                2.73829517e-02,
-                1.02714042e-02,
-                3.48809148e-03,
-                1.03983518e-03,
-                3.27940090e-04,
-                7.74962840e-05,
-                1.17503236e-05,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-            ]
-        )
-        ** 2
+    # Define temperature-suitability mapping (need to square values for full
+    # transmission cycle)
+    # df_suitability_grid = pd.read_csv(
+    #     pathlib.Path(__file__).parents[1] / "data/mordecai_suitability_grid.csv"
+    # )
+    df_suitability_grid = pd.read_csv(  # from https://doi.org/10.1098/rsif.2025.0707
+        pathlib.Path(__file__).parents[1] / "data/tegar_suitability_grid.csv"
     )
+    temperature_grid = df_suitability_grid["temperature"].to_numpy(dtype=float)
+    suitability_grid = df_suitability_grid["suitability"].to_numpy(dtype=float) ** 2
     # Compute suitability for and save to CSV
     df_out_full = df_full.assign(temperature_smoothed=df_smoothed["temperature"])
     df_out_full = df_out_full.assign(
