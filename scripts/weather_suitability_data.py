@@ -13,10 +13,10 @@ from endoutbreakvbd.utils import month_start_xticks
 
 
 def _get_inputs():
-    results_dir = pathlib.Path(__file__).parents[1] / "results"
+    results_dir = pathlib.Path(__file__).parents[1] / "results/weather_suitability_data"
     results_paths = {
-        "all": results_dir / "weather_suitability_data_all.csv",
-        "2017": results_dir / "weather_suitability_data_2017.csv",
+        "all": results_dir / "all.csv",
+        "2017": results_dir / "2017.csv",
     }
 
     fig_dir = pathlib.Path(__file__).parents[1] / "figures/weather_suitability_data"
