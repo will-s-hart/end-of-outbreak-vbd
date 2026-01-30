@@ -32,6 +32,28 @@ def _get_inputs():
         .to_numpy()
     )
 
+    time_last_case = np.nonzero(incidence_vec)[0][-1]
+    doy_last_case = doy_start + time_last_case
+    doy_blood_resumed_rome = pd.Timestamp("2017-11-17").dayofyear
+    doy_blood_resumed_anzio = pd.Timestamp("2017-12-01").dayofyear
+    existing_declarations = {
+        "blood_resumed_rome": {
+            "doy": doy_blood_resumed_rome,
+            "outbreak_day": doy_blood_resumed_rome - doy_start,
+            "days_from_last_case": doy_blood_resumed_rome - doy_last_case,
+        },
+        "blood_resumed_anzio": {
+            "doy": doy_blood_resumed_anzio,
+            "outbreak_day": doy_blood_resumed_anzio - doy_start,
+            "days_from_last_case": doy_blood_resumed_anzio - doy_last_case,
+        },
+        "45_day_rule": {
+            "doy": doy_last_case + 45,
+            "outbreak_day": time_last_case + 45,
+            "days_from_last_case": 45,
+        },
+    }
+
     results_dir = pathlib.Path(__file__).parents[1] / "results/lazio_outbreak"
     results_dir.mkdir(parents=True, exist_ok=True)
     results_paths = {
@@ -58,6 +80,7 @@ def _get_inputs():
         "doy_vec": doy_vec,
         "incidence_vec": incidence_vec,
         "suitability_mean_vec": suitability_mean_vec,
+        "existing_declarations": existing_declarations,
         "results_paths": results_paths,
         "fig_paths": fig_paths,
     }
@@ -178,15 +201,13 @@ def _run_analyses_for_model(
 
 def make_plots():
     inputs = _get_inputs()
-    incidence_vec = inputs["incidence_vec"]
-    gen_time_dist_vec = inputs["gen_time_dist_vec"]
     _make_gen_time_dist_plot(
-        gen_time_dist_vec=gen_time_dist_vec,
+        gen_time_dist_vec=inputs["gen_time_dist_vec"],
         save_path=inputs["fig_paths"]["gen_time_dist"],
     )
     _make_rep_no_plot(
         doy_vec=inputs["doy_vec"],
-        incidence_vec=incidence_vec,
+        incidence_vec=inputs["incidence_vec"],
         model_names=["Autoregressive model", "Suitability model"],
         data_paths=[
             inputs["results_paths"]["autoregressive"],
@@ -196,8 +217,9 @@ def make_plots():
     )
     _make_risk_plot(
         doy_vec=inputs["doy_vec"],
-        incidence_vec=incidence_vec,
+        incidence_vec=inputs["incidence_vec"],
         model_names=["Autoregressive model", "Suitability model"],
+        existing_declarations=inputs["existing_declarations"],
         data_paths=[
             inputs["results_paths"]["autoregressive"],
             inputs["results_paths"]["suitability"],
@@ -205,8 +227,9 @@ def make_plots():
         save_path=inputs["fig_paths"]["risk"],
     )
     _make_declaration_plot(
-        incidence_vec=incidence_vec,
+        incidence_vec=inputs["incidence_vec"],
         model_names=["Autoregressive model", "Suitability model"],
+        existing_declarations=inputs["existing_declarations"],
         data_paths=[
             inputs["results_paths"]["autoregressive"],
             inputs["results_paths"]["suitability"],
@@ -215,14 +238,14 @@ def make_plots():
     )
     _make_suitability_plot(
         doy_vec=inputs["doy_vec"],
-        incidence_vec=incidence_vec,
+        incidence_vec=inputs["incidence_vec"],
         suitability_mean_vec=inputs["suitability_mean_vec"],
         data_path=inputs["results_paths"]["suitability"],
         save_path=inputs["fig_paths"]["suitability"],
     )
     _make_scaling_factor_plot(
         doy_vec=inputs["doy_vec"],
-        incidence_vec=incidence_vec,
+        incidence_vec=inputs["incidence_vec"],
         data_path=inputs["results_paths"]["suitability"],
         save_path=inputs["fig_paths"]["scaling_factor"],
     )
@@ -266,28 +289,59 @@ def _make_rep_no_plot(*, doy_vec, incidence_vec, model_names, data_paths, save_p
     fig.savefig(save_path)
 
 
-def _make_risk_plot(*, doy_vec, incidence_vec, model_names, data_paths, save_path):
-    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"][: len(model_names)]
+def _make_risk_plot(
+    *, doy_vec, incidence_vec, model_names, existing_declarations, data_paths, save_path
+):
+    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"][: (len(model_names) + 3)]
     fig, ax = plt.subplots()
     plot_data_on_twin_ax(ax, doy_vec, incidence_vec)
     for model_name, data_path, color in zip(
-        model_names, data_paths, colors, strict=True
+        model_names, data_paths, colors[: len(model_names)], strict=True
     ):
         df = pd.read_csv(data_path)
         ax.plot(doy_vec, df["further_case_risk"], color=color, label=model_name)
+    ax.vlines(
+        existing_declarations["blood_resumed_rome"]["doy"],
+        0,
+        1,
+        colors=colors[-3],
+        linestyles="dashed",
+        label="Blood measures lifted (Rome)",
+    )
+    ax.vlines(
+        existing_declarations["blood_resumed_anzio"]["doy"],
+        0,
+        1,
+        colors=colors[-2],
+        linestyles="dashed",
+        label="Blood measures lifted (Anzio)",
+    )
+    ax.vlines(
+        existing_declarations["45_day_rule"]["doy"],
+        0,
+        1,
+        colors=colors[-1],
+        linestyles="dashed",
+        label="45-day rule",
+    )
     month_start_xticks(ax, interval_months=1)
     ax.set_ylim(0, 1)
     ax.set_ylabel("Risk of additional cases")
-    ax.legend()
+    ax.legend(loc="upper left")
     fig.savefig(save_path)
 
 
-def _make_declaration_plot(*, incidence_vec, model_names, data_paths, save_path):
+def _make_declaration_plot(
+    *, incidence_vec, model_names, existing_declarations, data_paths, save_path
+):
+    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"][: (len(model_names) + 2)]
     fig, ax = plt.subplots()
     perc_risk_thresholds = np.linspace(0.1, 10, 101)
     time_last_case = np.nonzero(incidence_vec)[0][-1]
     risk_days = np.arange(time_last_case + 1, len(incidence_vec))
-    for model_name, data_path in zip(model_names, data_paths, strict=True):
+    for model_name, color, data_path in zip(
+        model_names, colors[: len(model_names)], data_paths, strict=True
+    ):
         df = pd.read_csv(data_path)
         risk_vals = df["further_case_risk"].to_numpy()[risk_days]
         declaration_delays = calc_declaration_delay(
@@ -295,13 +349,29 @@ def _make_declaration_plot(*, incidence_vec, model_names, data_paths, save_path)
             perc_risk_threshold=perc_risk_thresholds,
             delay_of_first_risk=1,
         )
-        ax.plot(perc_risk_thresholds, declaration_delays, label=model_name)
+        ax.plot(perc_risk_thresholds, declaration_delays, color=color, label=model_name)
+    ax.hlines(
+        existing_declarations["blood_resumed_rome"]["days_from_last_case"],
+        perc_risk_thresholds[0],
+        perc_risk_thresholds[-1],
+        colors=colors[-2],
+        linestyles="dashed",
+        label="Blood measures lifted (Rome)",
+    )
+    ax.hlines(
+        existing_declarations["blood_resumed_anzio"]["days_from_last_case"],
+        perc_risk_thresholds[0],
+        perc_risk_thresholds[-1],
+        colors=colors[-1],
+        linestyles="dashed",
+        label="Blood measures lifted (Anzio)",
+    )
     ax.set_xticks(np.append(perc_risk_thresholds[0], ax.get_xticks()))
     ax.set_xlim(perc_risk_thresholds[0], perc_risk_thresholds[-1])
     ax.set_ylim(0, ax.get_ylim()[1])
     ax.set_xlabel("Risk threshold (%)")
     ax.set_ylabel("Days from final case to declaration")
-    ax.legend()
+    ax.legend(loc="lower left")
     fig.savefig(save_path)
 
 
