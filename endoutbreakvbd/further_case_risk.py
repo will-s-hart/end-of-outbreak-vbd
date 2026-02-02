@@ -1,7 +1,9 @@
+import itertools
 from typing import Annotated, Callable
 
 import numpy as np
 from annotated_types import Ge
+from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from endoutbreakvbd.model import renewal_model
@@ -68,45 +70,93 @@ def calc_further_case_risk_simulation(
     t_calc: nonnegint | np.ndarray[nonnegint],
     n_sims: int,
     rng: np.random.Generator,
+    parallel: bool = True,
 ) -> float | np.ndarray[float]:
     # Simulation-based calculation of risk of further cases on/after time t_calc
-    if not np.isscalar(t_calc):
-        return np.array(
-            [
-                calc_further_case_risk_simulation(
-                    incidence_vec=incidence_vec,
-                    rep_no_func=rep_no_func,
-                    gen_time_dist_vec=gen_time_dist_vec,
-                    t_calc=t_calc_curr,
-                    n_sims=n_sims,
-                    rng=rng,
-                )
-                for t_calc_curr in tqdm(t_calc)
-            ]
-        )
-    if t_calc == 0:
-        return 1
 
-    if len(incidence_vec) < t_calc:
+    t_calc_arr = np.atleast_1d(t_calc)
+    n_times = t_calc_arr.size
+    n_time_sim_pairs = n_times * n_sims
+    t_calc_max = t_calc_arr.max()
+
+    if len(incidence_vec) < t_calc_max:
         incidence_vec = np.append(
-            incidence_vec, np.zeros(t_calc - len(incidence_vec), dtype=int)
+            incidence_vec, np.zeros(t_calc_max - len(incidence_vec), dtype=int)
         )
-    further_cases_sims = np.full(n_sims, False)
-    for sim in range(n_sims):
-        incidence_vec_sim = renewal_model(
-            rep_no_func=rep_no_func,
-            gen_time_dist_vec=gen_time_dist_vec,
-            rng=rng,
-            t_stop=t_calc + len(gen_time_dist_vec),
-            incidence_init=incidence_vec[:t_calc],
-            _break_on_case=True,
+
+    tasks = []
+    child_rngs = rng.spawn(n_time_sim_pairs)
+    for ((t_idx, t), s_idx), child_rng in zip(
+        itertools.product(enumerate(t_calc_arr), range(n_sims)), child_rngs, strict=True
+    ):
+        tasks.append(
+            (
+                incidence_vec[:t],
+                rep_no_func,
+                gen_time_dist_vec,
+                t,
+                child_rng,
+                t_idx,
+                s_idx,
+            )
         )
-        further_cases_sims[sim] = np.any(incidence_vec_sim[t_calc:] > 0)
-    further_case_risk = np.mean(further_cases_sims)
+
+    if parallel:
+        results = list(
+            tqdm(
+                Parallel(
+                    n_jobs=-1,
+                    prefer="processes",
+                    return_as="generator",
+                    batch_size="auto",
+                )(delayed(_further_cases_one_sim)(task) for task in tasks),
+                total=n_time_sim_pairs,
+                desc="Simulating further case risk",
+            )
+        )
+    else:
+        results = list(
+            tqdm(
+                map(_further_cases_one_sim, tasks),
+                total=n_time_sim_pairs,
+                desc="Simulating further case risk",
+            )
+        )
+
+    further_cases_sims = np.full((n_times, n_sims), False)
+    for t_idx, s_idx, val in results:
+        further_cases_sims[t_idx, s_idx] = val
+    further_case_risk = np.mean(further_cases_sims, axis=1)
     return further_case_risk
+
+
+def _further_cases_one_sim(
+    args: tuple[
+        list[int] | np.ndarray[int],
+        Callable[[int | np.ndarray[int]], float | np.ndarray[float]],
+        list[float] | np.ndarray[float],
+        nonnegint,
+        np.random.Generator,
+        int,
+        int,
+    ],
+) -> tuple[int, int, bool]:
+    (incidence_init, rep_no_func, gen_time_dist_vec, t_calc, rng, t_idx, s_idx) = args
+    incidence_vec_sim = renewal_model(
+        rep_no_func=rep_no_func,
+        gen_time_dist_vec=gen_time_dist_vec,
+        rng=rng,
+        t_stop=t_calc + len(gen_time_dist_vec),
+        incidence_init=incidence_init,
+        _break_on_case=True,
+    )
+    further_cases_curr = bool(np.any(incidence_vec_sim[t_calc:] > 0))
+    return t_idx, s_idx, further_cases_curr
 
 
 def calc_declaration_delay(*, risk_vec, perc_risk_threshold, delay_of_first_risk):
     below_threshold = risk_vec < (np.atleast_1d(perc_risk_threshold)[:, None] / 100)
     declaration_delay = np.argmax(below_threshold, axis=1) + delay_of_first_risk
+    if np.isscalar(perc_risk_threshold):
+        declaration_delay = declaration_delay.item()
     return declaration_delay

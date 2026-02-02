@@ -1,10 +1,12 @@
 import argparse
+import functools
 import pathlib
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from endoutbreakvbd import (
@@ -12,6 +14,7 @@ from endoutbreakvbd import (
     calc_further_case_risk_analytical,
     calc_further_case_risk_simulation,
     renewal_model,
+    rep_no_from_grid,
 )
 from endoutbreakvbd.chikungunya import get_parameters, get_suitability_data
 from endoutbreakvbd.utils import month_start_xticks, plot_data_on_twin_ax
@@ -29,14 +32,12 @@ def _get_inputs():
     rep_no_factor = 2
     rep_no_vec = rep_no_factor * suitability_vec
 
-    def rep_no_func_doy(doy):
-        return np.interp(doy, doy_vec, rep_no_vec, period=365)
-
-    def rep_no_func_getter(doy_start):
-        def _rep_no_func(t):
-            return rep_no_func_doy(doy_start + t)
-
-        return _rep_no_func
+    rep_no_func_doy = functools.partial(
+        rep_no_from_grid, doy_grid=doy_vec, rep_no_grid=rep_no_vec, doy_start=0
+    )
+    rep_no_from_doy_start = functools.partial(
+        rep_no_from_grid, doy_grid=doy_vec, rep_no_grid=rep_no_vec
+    )
 
     example_outbreak_doy_start_vals = (
         np.nonzero(rep_no_vec > 1.2)[0][0] + 1,
@@ -45,7 +46,7 @@ def _get_inputs():
     example_outbreak_incidence_vec = [1]
     example_outbreak_perc_risk_threshold_vals = (1, 2.5, 5)
 
-    many_outbreak_no_sims = 100000
+    many_outbreak_n_sims = 100000
     many_outbreak_outbreak_size_threshold = 2
     many_outbreak_perc_risk_threshold = 5
 
@@ -73,11 +74,11 @@ def _get_inputs():
         "doy_vec": doy_vec,
         "rep_no_factor": rep_no_factor,
         "rep_no_func_doy": rep_no_func_doy,
-        "rep_no_func_getter": rep_no_func_getter,
+        "rep_no_from_doy_start": rep_no_from_doy_start,
         "example_outbreak_doy_start_vals": example_outbreak_doy_start_vals,
         "example_outbreak_incidence_vec": example_outbreak_incidence_vec,
         "example_outbreak_perc_risk_threshold_vals": example_outbreak_perc_risk_threshold_vals,
-        "many_outbreak_no_sims": many_outbreak_no_sims,
+        "many_outbreak_n_sims": many_outbreak_n_sims,
         "many_outbreak_outbreak_size_threshold": many_outbreak_outbreak_size_threshold,
         "many_outbreak_perc_risk_threshold": many_outbreak_perc_risk_threshold,
         "results_paths": results_paths,
@@ -90,7 +91,7 @@ def run_analyses():
     rng = np.random.default_rng(2)
     _run_example_outbreak_risk_analysis(
         incidence_vec=inputs["example_outbreak_incidence_vec"],
-        rep_no_func_getter=inputs["rep_no_func_getter"],
+        rep_no_from_doy_start=inputs["rep_no_from_doy_start"],
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
         doy_start_vals=inputs["example_outbreak_doy_start_vals"],
         rng=rng,
@@ -99,15 +100,15 @@ def run_analyses():
     _run_example_outbreak_declaration_analysis(
         incidence_vec=inputs["example_outbreak_incidence_vec"],
         perc_risk_threshold_vals=inputs["example_outbreak_perc_risk_threshold_vals"],
-        rep_no_func_getter=inputs["rep_no_func_getter"],
+        rep_no_from_doy_start=inputs["rep_no_from_doy_start"],
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
         save_path=inputs["results_paths"]["example_outbreak_declaration"],
     )
     _run_many_outbreak_analysis(
-        no_sims=inputs["many_outbreak_no_sims"],
+        n_sims=inputs["many_outbreak_n_sims"],
         outbreak_size_threshold=inputs["many_outbreak_outbreak_size_threshold"],
         perc_risk_threshold=inputs["many_outbreak_perc_risk_threshold"],
-        rep_no_func_getter=inputs["rep_no_func_getter"],
+        rep_no_from_doy_start=inputs["rep_no_from_doy_start"],
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
         rng=rng,
         save_path=inputs["results_paths"]["many_outbreak"],
@@ -140,7 +141,7 @@ def make_plots():
 def _run_example_outbreak_risk_analysis(
     *,
     incidence_vec,
-    rep_no_func_getter,
+    rep_no_from_doy_start,
     gen_time_dist_vec,
     doy_start_vals,
     rng,
@@ -157,7 +158,7 @@ def _run_example_outbreak_risk_analysis(
     )
 
     for doy_start in doy_start_vals:
-        rep_no_func = rep_no_func_getter(doy_start)
+        rep_no_func = functools.partial(rep_no_from_doy_start, doy_start=doy_start)
 
         risk_vals = calc_further_case_risk_analytical(
             incidence_vec=incidence_vec,
@@ -170,8 +171,9 @@ def _run_example_outbreak_risk_analysis(
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
             t_calc=risk_days_sim,
-            n_sims=1000,
+            n_sims=10000,
             rng=rng,
+            parallel=True,
         )
         risk_df.loc[(doy_start, risk_days), "analytical"] = risk_vals
         risk_df.loc[(doy_start, risk_days_sim), "simulation"] = risk_vals_sim
@@ -182,7 +184,7 @@ def _run_example_outbreak_declaration_analysis(
     *,
     incidence_vec,
     perc_risk_threshold_vals,
-    rep_no_func_getter,
+    rep_no_from_doy_start,
     gen_time_dist_vec,
     save_path,
 ):
@@ -202,7 +204,7 @@ def _run_example_outbreak_declaration_analysis(
 
     for doy_last_case in doy_last_case_vec:
         doy_start = doy_last_case - len(incidence_vec) + 1
-        rep_no_func = rep_no_func_getter(doy_start)
+        rep_no_func = functools.partial(rep_no_from_doy_start, doy_start=doy_start)
         risk_vals = calc_further_case_risk_analytical(
             incidence_vec=incidence_vec,
             rep_no_func=rep_no_func,
@@ -222,60 +224,90 @@ def _run_example_outbreak_declaration_analysis(
 
 def _run_many_outbreak_analysis(
     *,
-    no_sims,
+    n_sims,
     outbreak_size_threshold,
     perc_risk_threshold,
-    rep_no_func_getter,
+    rep_no_from_doy_start,
     gen_time_dist_vec,
     rng,
     save_path,
 ):
-    df = pd.DataFrame(
-        index=range(no_sims),
-        columns=[
-            "first_case_day_of_year",
-            "final_case_day_of_year",
-            "delay_to_declaration",
-        ],
+    tasks = []
+    child_rngs = rng.spawn(n_sims)
+    for child_rng in child_rngs:
+        tasks.append(
+            (
+                outbreak_size_threshold,
+                perc_risk_threshold,
+                rep_no_from_doy_start,
+                gen_time_dist_vec,
+                child_rng,
+            )
+        )
+    results = list(
+        tqdm(
+            Parallel(
+                n_jobs=-1,
+                prefer="processes",
+                return_as="generator",
+                batch_size="auto",
+            )(delayed(_many_outbreak_analysis_one_sim)(task) for task in tasks),
+            total=n_sims,
+            desc="Simulating outbreaks",
+        )
     )
-    for sim_idx in tqdm(range(no_sims)):
-        outbreak_found = False
-        while not outbreak_found:
-            doy_start = rng.integers(1, 366)
-            rep_no_func = rep_no_func_getter(doy_start)
-            incidence_vec = renewal_model(
-                rep_no_func=rep_no_func,
-                t_stop=1000,
-                gen_time_dist_vec=gen_time_dist_vec,
-                rng=rng,
-                incidence_init=1,
-            )
-            if np.sum(incidence_vec) >= outbreak_size_threshold:
-                outbreak_found = True
-        time_last_case = np.nonzero(incidence_vec)[0][-1]
-        doy_last_case = doy_start + time_last_case
-        risk_days = np.arange(
-            time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2, dtype=int
-        )
-        risk_vals = calc_further_case_risk_analytical(
-            incidence_vec=incidence_vec,
-            rep_no_func=rep_no_func,
-            gen_time_dist_vec=gen_time_dist_vec,
-            t_calc=risk_days,
-        )
-        declaration_delay = calc_declaration_delay(
-            risk_vec=risk_vals,
-            perc_risk_threshold=perc_risk_threshold,
-            delay_of_first_risk=1,
-        )
-        df.loc[sim_idx, "first_case_day_of_year"] = doy_start
-        df.loc[sim_idx, "final_case_day_of_year"] = doy_last_case
-        df.loc[sim_idx, "delay_to_declaration"] = declaration_delay
-        if 150 < doy_last_case < 250 and declaration_delay == 0:
-            print(
-                "Possible error - zero days to declaration for outbreak ending mid-year"
-            )
+    doy_start_vals, doy_last_case_vals, declaration_delay_vals = zip(*results)
+    df = pd.DataFrame(
+        {
+            "first_case_day_of_year": doy_start_vals,
+            "final_case_day_of_year": doy_last_case_vals,
+            "delay_to_declaration": declaration_delay_vals,
+        },
+        index=range(n_sims),
+    )
     df.to_csv(save_path)
+
+
+def _many_outbreak_analysis_one_sim(args):
+    (
+        outbreak_size_threshold,
+        perc_risk_threshold,
+        rep_no_from_doy_start,
+        gen_time_dist_vec,
+        rng,
+    ) = args
+    outbreak_found = False
+    while not outbreak_found:
+        doy_start = rng.integers(1, 366)
+        rep_no_func = functools.partial(rep_no_from_doy_start, doy_start=doy_start)
+        incidence_vec = renewal_model(
+            rep_no_func=rep_no_func,
+            t_stop=1000,
+            gen_time_dist_vec=gen_time_dist_vec,
+            rng=rng,
+            incidence_init=1,
+        )
+        if np.sum(incidence_vec) >= outbreak_size_threshold:
+            outbreak_found = True
+    time_last_case = np.nonzero(incidence_vec)[0][-1]
+    doy_last_case = doy_start + time_last_case
+    risk_days = np.arange(
+        time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2, dtype=int
+    )
+    risk_vals = calc_further_case_risk_analytical(
+        incidence_vec=incidence_vec,
+        rep_no_func=rep_no_func,
+        gen_time_dist_vec=gen_time_dist_vec,
+        t_calc=risk_days,
+    )
+    declaration_delay = calc_declaration_delay(
+        risk_vec=risk_vals,
+        perc_risk_threshold=perc_risk_threshold,
+        delay_of_first_risk=1,
+    )
+    if 150 < doy_last_case < 250 and declaration_delay == 0:
+        print("Possible error - zero days to declaration for outbreak ending mid-year")
+    return doy_start, doy_last_case, declaration_delay
 
 
 def _make_rep_no_plot(*, rep_no_func_doy, doy_vec, example_doy_vals, save_path):
@@ -411,8 +443,8 @@ if __name__ == "__main__":
         action="store_true",
         help="Only generate plots (using saved results)",
     )
-    args = parser.parse_args()
-    if not args.plots_only:
+    args_in = parser.parse_args()
+    if not args_in.plots_only:
         run_analyses()
-    if not args.results_only:
+    if not args_in.results_only:
         make_plots()

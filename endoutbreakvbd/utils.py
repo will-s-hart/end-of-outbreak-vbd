@@ -2,6 +2,11 @@ import numpy as np
 import pandas as pd
 
 
+def rep_no_from_grid(t_vec, *, doy_grid, rep_no_grid, doy_start):
+    doy = doy_start + t_vec
+    return np.interp(doy, doy_grid, rep_no_grid, period=365)
+
+
 def month_start_xticks(ax, year=2017, interval_months=2):
     month_starts = pd.date_range(
         start=f"{year}-01-01", end=f"{year + 1}-01-01", freq=f"{interval_months}MS"
