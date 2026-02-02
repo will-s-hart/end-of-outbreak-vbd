@@ -24,7 +24,7 @@ def _fit_model(
     incidence_vec,
     gen_time_dist_vec,
     rep_no_vec_func,
-    quasi_real_time=False,
+    quasi_real_time,
     step_func=None,
     thin=1,
     rng=None,
@@ -59,7 +59,10 @@ def _fit_model(
         kwargs_sample = {**kwargs_sample, "random_seed": rng}
     t_stop = len(incidence_vec)
     gen_time_dist_vec = np.concatenate(
-        [gen_time_dist_vec, np.zeros(t_stop - 1 - len(gen_time_dist_vec))]
+        [
+            gen_time_dist_vec,
+            np.zeros(np.maximum(t_stop - 1 - len(gen_time_dist_vec), 0)),
+        ]
     )
 
     incidence_vec_local = np.zeros(t_stop)
@@ -114,6 +117,7 @@ def fit_random_walk_model(
     gen_time_dist_vec,
     random_walk_std=0.05,
     priors=None,
+    quasi_real_time=False,
     **kwargs,
 ):
     t_stop = len(incidence_vec)
@@ -142,6 +146,7 @@ def fit_random_walk_model(
         incidence_vec=incidence_vec,
         gen_time_dist_vec=gen_time_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
+        quasi_real_time=quasi_real_time,
         **kwargs,
     )
 
@@ -153,6 +158,7 @@ def fit_autoregressive_model(
     prior_median=1.0,
     prior_percentile_2_5=0.33,
     rho=0.975,
+    quasi_real_time=False,
     **kwargs,
 ):
     def rep_no_vec_func():
@@ -180,6 +186,7 @@ def fit_autoregressive_model(
         incidence_vec=incidence_vec,
         gen_time_dist_vec=gen_time_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
+        quasi_real_time=quasi_real_time,
         **kwargs,
     )
 
@@ -196,6 +203,7 @@ def fit_suitability_model(
     rep_no_factor_prior_median=2.0,
     rep_no_factor_prior_percentile_2_5=0.5,
     log_rep_no_factor_rho=0.975,
+    quasi_real_time=False,
     **kwargs,
 ):
     t_stop = len(incidence_vec)
@@ -264,5 +272,6 @@ def fit_suitability_model(
         incidence_vec=incidence_vec,
         gen_time_dist_vec=gen_time_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
+        quasi_real_time=quasi_real_time,
         **kwargs,
     )
