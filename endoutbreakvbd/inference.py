@@ -1,6 +1,8 @@
+import arviz_base as azb
 import numpy as np
 import pymc as pm
 import scipy.stats
+import xarray as xr
 
 
 def _lognormal_params_from_median_percentile_2_5(median, percentile_2_5):
@@ -22,11 +24,37 @@ def _fit_model(
     incidence_vec,
     gen_time_dist_vec,
     rep_no_vec_func,
+    quasi_real_time=False,
     step_func=None,
     thin=1,
     rng=None,
     **kwargs_sample,
 ):
+    if quasi_real_time:
+        posterior_list = []
+        for t in range(len(incidence_vec)):
+            posterior_curr = _fit_model(
+                incidence_vec=incidence_vec[: t + 1],
+                gen_time_dist_vec=gen_time_dist_vec,
+                rep_no_vec_func=rep_no_vec_func,
+                quasi_real_time=False,
+                step_func=step_func,
+                thin=thin,
+                rng=rng,
+                **kwargs_sample,
+            )
+            posterior_list.append(
+                posterior_curr[
+                    [
+                        var
+                        for var in posterior_curr.data_vars
+                        if "time" in posterior_curr[var].dims
+                    ]
+                ].isel(time=[t])
+            )
+        posterior = xr.concat(posterior_list, dim="time")
+        return posterior
+
     if rng is not None:
         kwargs_sample = {**kwargs_sample, "random_seed": rng}
     t_stop = len(incidence_vec)
@@ -47,7 +75,11 @@ def _fit_model(
             "Local incidence cannot be greater than zero when force of infection is 0."
         )
 
-    with pm.Model():
+    coords = {
+        "time": np.arange(t_stop),
+    }
+
+    with pm.Model(coords=coords):
         rep_no_vec = rep_no_vec_func()
 
         expected_incidence_local = rep_no_vec * foi_vec
@@ -64,7 +96,7 @@ def _fit_model(
     if thin > 1:
         trace = trace.isel(draw=slice(0, None, thin))
         trace = trace.assign_coords(draw=np.arange(len(trace.posterior.draw)))
-    return trace
+    return azb.convert_to_dataset(trace.posterior)
 
 
 def _extract_priors(var_names, priors=None):
@@ -90,11 +122,11 @@ def fit_random_walk_model(
         (rep_no_start,) = _extract_priors(["rep_no_start"], priors=priors)
 
         log_rep_no_jumps = pm.Normal(
-            "rep_no_jumps", mu=0, sigma=random_walk_std, shape=t_stop - 1
+            "log_rep_no_jump", mu=0, sigma=random_walk_std, shape=t_stop - 1
         )
 
         rep_no_vec = pm.Deterministic(
-            "rep_no_vec",
+            "rep_no",
             pm.math.exp(
                 pm.math.cumsum(
                     pm.math.concatenate(
@@ -102,6 +134,7 @@ def fit_random_walk_model(
                     )
                 )
             ),
+            dims=("time",),
         )
         return rep_no_vec
 
@@ -122,25 +155,24 @@ def fit_autoregressive_model(
     rho=0.975,
     **kwargs,
 ):
-    t_stop = len(incidence_vec)
-
     def rep_no_vec_func():
         lognormal_params = _lognormal_params_from_median_percentile_2_5(
             prior_median, prior_percentile_2_5
         )
 
         log_rep_no_vec = pm.AR(
-            "log_rep_no_vec",
+            "log_rep_no",
             sigma=lognormal_params["sigma"] * np.sqrt(1 - rho**2),
             rho=rho,
-            shape=t_stop,
+            dims=("time",),
             init_dist=pm.Normal.dist(
                 mu=lognormal_params["mu"], sigma=lognormal_params["sigma"]
             ),
         )
         rep_no_vec = pm.Deterministic(
-            "rep_no_vec",
+            "rep_no",
             pm.math.exp(log_rep_no_vec),
+            dims=("time",),
         )
         return rep_no_vec
 
@@ -174,18 +206,18 @@ def fit_suitability_model(
         )
         if rep_no_factor_model == "autoregressive":
             log_rep_no_factor_vec = pm.AR(
-                "log_rep_no_factor_vec",
+                "log_rep_no_factor",
                 sigma=rep_no_factor_lognormal_params["sigma"]
                 * np.sqrt(1 - log_rep_no_factor_rho**2),
                 rho=log_rep_no_factor_rho,
-                shape=t_stop,
+                dims=("time",),
                 init_dist=pm.Normal.dist(
                     mu=rep_no_factor_lognormal_params["mu"],
                     sigma=rep_no_factor_lognormal_params["sigma"],
                 ),
             )
             rep_no_factor_vec = pm.Deterministic(
-                "rep_no_factor_vec", pm.math.exp(log_rep_no_factor_vec)
+                "rep_no_factor", pm.math.exp(log_rep_no_factor_vec), dims=("time",)
             )
         elif rep_no_factor_model == "random_walk":
             log_rep_no_factor_start = pm.Normal(
@@ -194,10 +226,10 @@ def fit_suitability_model(
                 sigma=rep_no_factor_lognormal_params["sigma"],
             )
             log_rep_no_factor_jumps = pm.Normal(
-                "rep_no_jumps", mu=0, sigma=random_walk_std, shape=t_stop - 1
+                "log_rep_no_factor_jump", mu=0, sigma=random_walk_std, shape=t_stop - 1
             )
             rep_no_factor_vec = pm.Deterministic(
-                "rep_no_factor_vec",
+                "rep_no_factor",
                 pm.math.exp(
                     pm.math.cumsum(
                         pm.math.concatenate(
@@ -205,6 +237,7 @@ def fit_suitability_model(
                         )
                     )
                 ),
+                dims=("time",),
             )
         else:
             raise ValueError(
@@ -214,14 +247,17 @@ def fit_suitability_model(
             "suitability_ext",
             sigma=suitability_std * np.sqrt(1 - suitability_rho**2),
             rho=suitability_rho,
-            shape=t_stop,
+            dims=("time",),
             init_dist=pm.Normal.dist(mu=0, sigma=suitability_std),
         )
         suitability_vec = pm.Deterministic(
-            "suitability_vec",
+            "suitability",
             pm.math.clip(suitability_mean_vec + suitability_deviations, 1e-8, 1),
+            dims=("time",),
         )
-        rep_no_vec = pm.Deterministic("rep_no_vec", rep_no_factor_vec * suitability_vec)
+        rep_no_vec = pm.Deterministic(
+            "rep_no", rep_no_factor_vec * suitability_vec, dims=("time",)
+        )
         return rep_no_vec
 
     return _fit_model(

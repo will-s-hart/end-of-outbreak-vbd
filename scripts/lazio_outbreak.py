@@ -120,20 +120,20 @@ def _run_analyses_for_model(
     save_path_diagnostics,
 ):
     if model == "autoregressive":
-        idata = fit_autoregressive_model(
+        posterior = fit_autoregressive_model(
             incidence_vec=incidence_vec,
             gen_time_dist_vec=gen_time_dist_vec,
             **fit_model_kwargs,
         )
     elif model == "suitability":
-        idata = fit_suitability_model(
+        posterior = fit_suitability_model(
             incidence_vec=incidence_vec,
             gen_time_dist_vec=gen_time_dist_vec,
             **fit_model_kwargs,
         )
     else:
         raise ValueError(f"Unknown model: {model}")
-    rep_no_mat = azb.extract(idata, var_names="rep_no_vec").to_numpy()
+    rep_no_mat = azb.extract(posterior, var_names="rep_no").to_numpy()
     rep_no_mean_vec = rep_no_mat.mean(axis=1)
     rep_no_lower_vec = np.percentile(rep_no_mat, 2.5, axis=1)
     rep_no_upper_vec = np.percentile(rep_no_mat, 97.5, axis=1)
@@ -158,14 +158,14 @@ def _run_analyses_for_model(
         }
     ).set_index("day_of_outbreak")
     if model == "suitability":
-        suitability_mat = azb.extract(idata, var_names="suitability_vec").to_numpy()
+        suitability_mat = azb.extract(posterior, var_names="suitability").to_numpy()
         suitability_mean_vec = suitability_mat.mean(axis=1)
         suitability_lower_vec = np.percentile(suitability_mat, 2.5, axis=1)
         suitability_upper_vec = np.percentile(suitability_mat, 97.5, axis=1)
         df_out["suitability_mean"] = suitability_mean_vec
         df_out["suitability_lower"] = suitability_lower_vec
         df_out["suitability_upper"] = suitability_upper_vec
-        rep_no_factor_mat = azb.extract(idata, var_names="rep_no_factor_vec").to_numpy()
+        rep_no_factor_mat = azb.extract(posterior, var_names="rep_no_factor").to_numpy()
         rep_no_factor_mean_vec = rep_no_factor_mat.mean(axis=1)
         rep_no_factor_lower_vec = np.percentile(rep_no_factor_mat, 2.5, axis=1)
         rep_no_factor_upper_vec = np.percentile(rep_no_factor_mat, 97.5, axis=1)
@@ -174,8 +174,8 @@ def _run_analyses_for_model(
         df_out["rep_no_factor_upper"] = rep_no_factor_upper_vec
     df_out.to_csv(save_path)
     # Convergence diagnostics
-    rhat = azs.rhat(idata, var_names="rep_no_vec")["rep_no_vec"]
-    ess = azs.ess(idata, var_names="rep_no_vec")["rep_no_vec"]
+    rhat = azs.rhat(posterior, var_names="rep_no")["rep_no"]
+    ess = azs.ess(posterior, var_names="rep_no")["rep_no"]
     df_diagnostics = pd.DataFrame(
         {
             "stat": [
