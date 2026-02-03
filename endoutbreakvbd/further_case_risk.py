@@ -6,7 +6,7 @@ from annotated_types import Ge
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from endoutbreakvbd.model import renewal_model
+from endoutbreakvbd.model import run_renewal_model
 
 nonnegint = Annotated[int, Ge(0)]
 
@@ -142,7 +142,7 @@ def _further_cases_one_sim(
     ],
 ) -> tuple[int, int, bool]:
     (incidence_init, rep_no_func, gen_time_dist_vec, t_calc, rng, t_idx, s_idx) = args
-    incidence_vec_sim = renewal_model(
+    incidence_vec_sim = run_renewal_model(
         rep_no_func=rep_no_func,
         gen_time_dist_vec=gen_time_dist_vec,
         rng=rng,
@@ -150,8 +150,8 @@ def _further_cases_one_sim(
         incidence_init=incidence_init,
         _break_on_case=True,
     )
-    further_cases_curr = bool(np.any(incidence_vec_sim[t_calc:] > 0))
-    return t_idx, s_idx, further_cases_curr
+    further_cases = bool(np.any(incidence_vec_sim[t_calc:] > 0))
+    return t_idx, s_idx, further_cases
 
 
 def calc_declaration_delay(*, risk_vec, perc_risk_threshold, delay_of_first_risk):

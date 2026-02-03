@@ -1,4 +1,5 @@
 import argparse
+import functools
 import pathlib
 
 import arviz_base as azb
@@ -6,15 +7,18 @@ import arviz_stats as azs
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import scipy.interpolate
 
-from endoutbreakvbd import calc_declaration_delay, calc_further_case_risk_analytical
+from endoutbreakvbd import (
+    calc_declaration_delay,
+    calc_further_case_risk_analytical,
+    rep_no_from_grid,
+)
 from endoutbreakvbd.chikungunya import get_data, get_parameters, get_suitability_data
 from endoutbreakvbd.inference import fit_autoregressive_model, fit_suitability_model
 from endoutbreakvbd.utils import month_start_xticks, plot_data_on_twin_ax
 
 
-def _get_inputs():
+def _get_inputs(quasi_real_time):
     parameters = get_parameters()
     gen_time_dist_vec = parameters["gen_time_dist_vec"]
 
@@ -54,7 +58,8 @@ def _get_inputs():
         },
     }
 
-    results_dir = pathlib.Path(__file__).parents[1] / "results/lazio_outbreak"
+    analysis_label = "lazio_outbreak" + ("_qrt" if quasi_real_time else "")
+    results_dir = pathlib.Path(__file__).parents[1] / "results" / analysis_label
     results_dir.mkdir(parents=True, exist_ok=True)
     results_paths = {
         "autoregressive": results_dir / "autoregressive.csv",
@@ -63,7 +68,7 @@ def _get_inputs():
         "suitability_diagnostics": results_dir / "suitability_diagnostics.csv",
     }
 
-    fig_dir = pathlib.Path(__file__).parents[1] / "figures/lazio_outbreak"
+    fig_dir = pathlib.Path(__file__).parents[1] / "figures" / analysis_label
     fig_dir.mkdir(parents=True, exist_ok=True)
     fig_paths = {
         "gen_time_dist": fig_dir / "gen_time_dist.svg",
@@ -86,14 +91,14 @@ def _get_inputs():
     }
 
 
-def run_analyses():
-    inputs = _get_inputs()
+def run_analyses(quasi_real_time=False):
+    inputs = _get_inputs(quasi_real_time=quasi_real_time)
     rng = np.random.default_rng(2)
     _run_analyses_for_model(
         model="autoregressive",
         incidence_vec=inputs["incidence_vec"],
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
-        fit_model_kwargs={"rng": rng},
+        fit_model_kwargs={"rng": rng, "quasi_real_time": quasi_real_time},
         save_path=inputs["results_paths"]["autoregressive"],
         save_path_diagnostics=inputs["results_paths"]["autoregressive_diagnostics"],
     )
@@ -104,6 +109,7 @@ def run_analyses():
         fit_model_kwargs={
             "suitability_mean_vec": inputs["suitability_mean_vec"],
             "rng": rng,
+            "quasi_real_time": quasi_real_time,
         },
         save_path=inputs["results_paths"]["suitability"],
         save_path_diagnostics=inputs["results_paths"]["suitability_diagnostics"],
@@ -139,12 +145,12 @@ def _run_analyses_for_model(
     rep_no_upper_vec = np.percentile(rep_no_mat, 97.5, axis=1)
     no_days = len(incidence_vec)
     t_vec = np.arange(no_days)
-    rep_no_func_estim = scipy.interpolate.interp1d(
-        t_vec, rep_no_mat, axis=0, bounds_error=True
+    rep_no_post_func = functools.partial(
+        rep_no_from_grid, rep_no_grid=rep_no_mat, periodic=False
     )
     risk_vec = calc_further_case_risk_analytical(
         incidence_vec=incidence_vec,
-        rep_no_func=rep_no_func_estim,
+        rep_no_func=rep_no_post_func,
         gen_time_dist_vec=gen_time_dist_vec,
         t_calc=t_vec,
     )
@@ -199,8 +205,8 @@ def _run_analyses_for_model(
     df_diagnostics.to_csv(save_path_diagnostics, index=False)
 
 
-def make_plots():
-    inputs = _get_inputs()
+def make_plots(quasi_real_time=False):
+    inputs = _get_inputs(quasi_real_time=quasi_real_time)
     _make_gen_time_dist_plot(
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
         save_path=inputs["fig_paths"]["gen_time_dist"],
@@ -428,8 +434,14 @@ if __name__ == "__main__":
         action="store_true",
         help="Only generate plots (using saved results)",
     )
+    parser.add_argument(
+        "-q",
+        "--quasi-real-time",
+        action="store_true",
+        help="Perform quasi-real-time analyses",
+    )
     args = parser.parse_args()
     if not args.plots_only:
-        run_analyses()
+        run_analyses(quasi_real_time=args.quasi_real_time)
     if not args.results_only:
-        make_plots()
+        make_plots(quasi_real_time=args.quasi_real_time)

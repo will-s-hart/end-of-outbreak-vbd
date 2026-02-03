@@ -2,9 +2,26 @@ import numpy as np
 import pandas as pd
 
 
-def rep_no_from_grid(t_vec, *, doy_grid, rep_no_grid, doy_start):
-    doy = doy_start + t_vec
-    return np.interp(doy, doy_grid, rep_no_grid, period=365)
+def rep_no_from_grid(
+    t_vec,
+    *,
+    rep_no_grid,
+    periodic,
+    doy_start=None,
+):
+    if periodic:
+        if doy_start is None:
+            raise ValueError("doy_start should be provided when periodic is True")
+        if len(rep_no_grid) != 365:
+            raise ValueError(
+                "For periodic interpolation, rep_no_grid must have length 365"
+            )
+        t_vec_grid_idx = (t_vec + (doy_start - 1)) % 365
+    else:
+        if any(t_vec < 0) or any(t_vec >= len(rep_no_grid)):
+            raise ValueError("t_vec contains indices outside the range of rep_no_grid")
+        t_vec_grid_idx = t_vec
+    return rep_no_grid[t_vec_grid_idx, ...]
 
 
 def month_start_xticks(ax, year=2017, interval_months=2):

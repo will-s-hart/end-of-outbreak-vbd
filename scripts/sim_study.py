@@ -13,8 +13,8 @@ from endoutbreakvbd import (
     calc_declaration_delay,
     calc_further_case_risk_analytical,
     calc_further_case_risk_simulation,
-    renewal_model,
     rep_no_from_grid,
+    run_renewal_model,
 )
 from endoutbreakvbd.chikungunya import get_parameters, get_suitability_data
 from endoutbreakvbd.utils import month_start_xticks, plot_data_on_twin_ax
@@ -24,24 +24,22 @@ def _get_inputs():
     parameters = get_parameters()
     gen_time_dist_vec = parameters["gen_time_dist_vec"]
 
-    doy_vec = np.arange(1, 366, dtype=int)
-
     df_suitability = get_suitability_data()
-    suitability_vec = df_suitability["suitability_smoothed"].to_numpy()
+    suitability_grid = df_suitability["suitability_smoothed"].to_numpy()
 
     rep_no_factor = 2
-    rep_no_vec = rep_no_factor * suitability_vec
+    rep_no_grid = rep_no_factor * suitability_grid
 
     rep_no_func_doy = functools.partial(
-        rep_no_from_grid, doy_grid=doy_vec, rep_no_grid=rep_no_vec, doy_start=0
+        rep_no_from_grid, rep_no_grid=rep_no_grid, periodic=True, doy_start=0
     )
     rep_no_from_doy_start = functools.partial(
-        rep_no_from_grid, doy_grid=doy_vec, rep_no_grid=rep_no_vec
+        rep_no_from_grid, rep_no_grid=rep_no_grid, periodic=True
     )
 
     example_outbreak_doy_start_vals = (
-        np.nonzero(rep_no_vec > 1.2)[0][0] + 1,
-        np.nonzero(rep_no_vec > 1.2)[0][-1] + 1,
+        np.nonzero(rep_no_grid > 1.2)[0][0] + 1,
+        np.nonzero(rep_no_grid > 1.2)[0][-1] + 1,
     )
     example_outbreak_incidence_vec = [1]
     example_outbreak_perc_risk_threshold_vals = (1, 2.5, 5)
@@ -71,7 +69,6 @@ def _get_inputs():
     return {
         "parameters": parameters,
         "gen_time_dist_vec": gen_time_dist_vec,
-        "doy_vec": doy_vec,
         "rep_no_factor": rep_no_factor,
         "rep_no_func_doy": rep_no_func_doy,
         "rep_no_from_doy_start": rep_no_from_doy_start,
@@ -119,7 +116,6 @@ def make_plots():
     inputs = _get_inputs()
     _make_rep_no_plot(
         rep_no_func_doy=inputs["rep_no_func_doy"],
-        doy_vec=inputs["doy_vec"],
         example_doy_vals=inputs["example_outbreak_doy_start_vals"],
         save_path=inputs["fig_paths"]["rep_no"],
     )
@@ -280,7 +276,7 @@ def _many_outbreak_analysis_one_sim(args):
     while not outbreak_found:
         doy_start = rng.integers(1, 366)
         rep_no_func = functools.partial(rep_no_from_doy_start, doy_start=doy_start)
-        incidence_vec = renewal_model(
+        incidence_vec = run_renewal_model(
             rep_no_func=rep_no_func,
             t_stop=1000,
             gen_time_dist_vec=gen_time_dist_vec,
@@ -310,8 +306,9 @@ def _many_outbreak_analysis_one_sim(args):
     return doy_start, doy_last_case, declaration_delay
 
 
-def _make_rep_no_plot(*, rep_no_func_doy, doy_vec, example_doy_vals, save_path):
+def _make_rep_no_plot(*, rep_no_func_doy, example_doy_vals, save_path):
     fig, ax = plt.subplots()
+    doy_vec = np.arange(1, 366, dtype=int)
     ax.plot(doy_vec, rep_no_func_doy(doy_vec))
     ax.plot(example_doy_vals, rep_no_func_doy(np.array(example_doy_vals)), "o")
     month_start_xticks(ax)

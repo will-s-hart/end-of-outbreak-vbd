@@ -3,6 +3,7 @@ import numpy as np
 import pymc as pm
 import scipy.stats
 import xarray as xr
+from tqdm import tqdm
 
 
 def _lognormal_params_from_median_percentile_2_5(median, percentile_2_5):
@@ -32,7 +33,9 @@ def _fit_model(
 ):
     if quasi_real_time:
         posterior_list = []
-        for t in range(len(incidence_vec)):
+        for t in tqdm(
+            range(len(incidence_vec)), desc="Inferring R_t using data up to each time"
+        ):
             posterior_curr = _fit_model(
                 incidence_vec=incidence_vec[: t + 1],
                 gen_time_dist_vec=gen_time_dist_vec,
@@ -41,7 +44,7 @@ def _fit_model(
                 step_func=step_func,
                 thin=thin,
                 rng=rng,
-                **kwargs_sample,
+                **{"quiet": True, "progressbar": False, **kwargs_sample},
             )
             posterior_list.append(
                 posterior_curr[
@@ -83,7 +86,7 @@ def _fit_model(
     }
 
     with pm.Model(coords=coords):
-        rep_no_vec = rep_no_vec_func()
+        rep_no_vec = rep_no_vec_func(t_stop)
 
         expected_incidence_local = rep_no_vec * foi_vec
 
@@ -120,9 +123,7 @@ def fit_random_walk_model(
     quasi_real_time=False,
     **kwargs,
 ):
-    t_stop = len(incidence_vec)
-
-    def rep_no_vec_func():
+    def rep_no_vec_func(t_stop):
         (rep_no_start,) = _extract_priors(["rep_no_start"], priors=priors)
 
         log_rep_no_jumps = pm.Normal(
@@ -161,7 +162,7 @@ def fit_autoregressive_model(
     quasi_real_time=False,
     **kwargs,
 ):
-    def rep_no_vec_func():
+    def rep_no_vec_func(_):
         lognormal_params = _lognormal_params_from_median_percentile_2_5(
             prior_median, prior_percentile_2_5
         )
@@ -206,9 +207,10 @@ def fit_suitability_model(
     quasi_real_time=False,
     **kwargs,
 ):
-    t_stop = len(incidence_vec)
-
-    def rep_no_vec_func():
+    def rep_no_vec_func(t_stop):
+        suitability_mean_vec_trunc = suitability_mean_vec[
+            :t_stop
+        ]  # need to truncate to current time in QRT setting
         rep_no_factor_lognormal_params = _lognormal_params_from_median_percentile_2_5(
             rep_no_factor_prior_median, rep_no_factor_prior_percentile_2_5
         )
@@ -260,7 +262,7 @@ def fit_suitability_model(
         )
         suitability_vec = pm.Deterministic(
             "suitability",
-            pm.math.clip(suitability_mean_vec + suitability_deviations, 1e-8, 1),
+            pm.math.clip(suitability_mean_vec_trunc + suitability_deviations, 1e-8, 1),
             dims=("time",),
         )
         rep_no_vec = pm.Deterministic(

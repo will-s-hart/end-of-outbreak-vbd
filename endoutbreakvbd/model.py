@@ -4,7 +4,7 @@ import numpy as np
 from annotated_types import Gt
 
 
-def renewal_model(
+def run_renewal_model(
     *,
     rep_no_func: Callable[[int | np.ndarray[int]], float | np.ndarray[float]],
     gen_time_dist_vec: list[float] | np.ndarray[float],
