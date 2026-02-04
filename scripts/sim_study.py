@@ -306,17 +306,19 @@ def _many_outbreak_analysis_one_sim(args):
     return doy_start, doy_last_case, declaration_delay
 
 
-def _make_rep_no_plot(*, rep_no_func_doy, example_doy_vals, save_path):
+def _make_rep_no_plot(*, rep_no_func_doy, example_doy_vals, save_path=None):
     fig, ax = plt.subplots()
     doy_vec = np.arange(1, 366, dtype=int)
     ax.plot(doy_vec, rep_no_func_doy(doy_vec))
     ax.plot(example_doy_vals, rep_no_func_doy(np.array(example_doy_vals)), "o")
     month_start_xticks(ax)
     ax.set_ylabel("Time-dependent reproduction number")
-    fig.savefig(save_path)
+    if save_path is not None:
+        fig.savefig(save_path)
+    return fig, ax
 
 
-def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path):
+def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path=None):
     risk_df = pd.read_csv(data_path, index_col=[0, 1])
     doy_start_vals = risk_df.index.get_level_values("start_day_of_year").unique()
     risk_days = risk_df.index.get_level_values("day_of_outbreak").unique()
@@ -346,10 +348,12 @@ def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path):
     ax.set_xlabel("Day of outbreak")
     ax.set_ylabel("Risk of additional cases")
     ax.legend()
-    fig.savefig(save_path)
+    if save_path is not None:
+        fig.savefig(save_path)
+    return fig, ax
 
 
-def _make_example_outbreak_declaration_plot(*, data_path, save_path):
+def _make_example_outbreak_declaration_plot(*, data_path, save_path=None):
     declaration_delay_df = pd.read_csv(data_path, index_col=[0, 1])
     perc_risk_threshold_vals = declaration_delay_df.index.get_level_values(
         "perc_risk_threshold"
@@ -373,10 +377,12 @@ def _make_example_outbreak_declaration_plot(*, data_path, save_path):
     ax.set_xlabel("Date of final case")
     ax.set_ylabel("Days from final case until declaration of end of outbreak")
     ax.legend()
-    fig.savefig(save_path)
+    if save_path is not None:
+        fig.savefig(save_path)
+    return fig, ax
 
 
-def _make_many_outbreak_plot(*, data_path, save_path):
+def _make_many_outbreak_plot(*, data_path, save_path=None):
     df = pd.read_csv(data_path)
     bin_width = 7
     df["final_case_doy_binned"] = pd.cut(
@@ -423,7 +429,9 @@ def _make_many_outbreak_plot(*, data_path, save_path):
     ax.set_ylabel("Days from final case until declaration")
     ax.set_xlim(121, 305)
     month_start_xticks(ax, interval_months=1)
-    fig.savefig(save_path)
+    if save_path is not None:
+        fig.savefig(save_path)
+    return fig, ax
 
 
 if __name__ == "__main__":

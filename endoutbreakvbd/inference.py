@@ -5,17 +5,12 @@ import scipy.stats
 import xarray as xr
 from tqdm import tqdm
 
-
-def _lognormal_params_from_median_percentile_2_5(median, percentile_2_5):
-    mu = np.log(median)
-    sigma = (mu - np.log(percentile_2_5)) / scipy.stats.norm.ppf(0.975)
-    return {"mu": mu, "sigma": sigma}
-
+from endoutbreakvbd.utils import lognormal_params_from_median_percentile_2_5
 
 DEFAULT_PRIORS = {
     "rep_no_start": (
         pm.LogNormal,
-        _lognormal_params_from_median_percentile_2_5(1, 0.2),
+        lognormal_params_from_median_percentile_2_5(median=1, percentile_2_5=0.2),
     ),
 }
 
@@ -162,11 +157,11 @@ def fit_autoregressive_model(
     quasi_real_time=False,
     **kwargs,
 ):
-    def rep_no_vec_func(_):
-        lognormal_params = _lognormal_params_from_median_percentile_2_5(
-            prior_median, prior_percentile_2_5
-        )
+    lognormal_params = lognormal_params_from_median_percentile_2_5(
+        median=prior_median, percentile_2_5=prior_percentile_2_5
+    )
 
+    def rep_no_vec_func(_):
         log_rep_no_vec = pm.AR(
             "log_rep_no",
             sigma=lognormal_params["sigma"] * np.sqrt(1 - rho**2),
@@ -207,13 +202,16 @@ def fit_suitability_model(
     quasi_real_time=False,
     **kwargs,
 ):
+    rep_no_factor_lognormal_params = lognormal_params_from_median_percentile_2_5(
+        median=rep_no_factor_prior_median,
+        percentile_2_5=rep_no_factor_prior_percentile_2_5,
+    )
+
     def rep_no_vec_func(t_stop):
         suitability_mean_vec_trunc = suitability_mean_vec[
             :t_stop
         ]  # need to truncate to current time in QRT setting
-        rep_no_factor_lognormal_params = _lognormal_params_from_median_percentile_2_5(
-            rep_no_factor_prior_median, rep_no_factor_prior_percentile_2_5
-        )
+
         if rep_no_factor_model == "autoregressive":
             log_rep_no_factor_vec = pm.AR(
                 "log_rep_no_factor",

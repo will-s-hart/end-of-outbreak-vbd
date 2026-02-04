@@ -257,17 +257,21 @@ def make_plots(quasi_real_time=False):
     )
 
 
-def _make_gen_time_dist_plot(*, gen_time_dist_vec, save_path):
+def _make_gen_time_dist_plot(*, gen_time_dist_vec, save_path=None):
     t_vec = np.arange(1, len(gen_time_dist_vec) + 1)
     fig, ax = plt.subplots()
     ax.bar(t_vec, gen_time_dist_vec, color="tab:blue")
     ax.set_xlim(0, 35)
     ax.set_xlabel("Generation time (days)")
     ax.set_ylabel("Probability")
-    fig.savefig(save_path)
+    if save_path is not None:
+        fig.savefig(save_path)
+    return fig, ax
 
 
-def _make_rep_no_plot(*, doy_vec, incidence_vec, model_names, data_paths, save_path):
+def _make_rep_no_plot(
+    *, doy_vec, incidence_vec, model_names, data_paths, save_path=None
+):
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"][: len(model_names)]
     fig, ax = plt.subplots()
     plot_data_on_twin_ax(ax, doy_vec, incidence_vec)
@@ -292,11 +296,19 @@ def _make_rep_no_plot(*, doy_vec, incidence_vec, model_names, data_paths, save_p
     ax.set_ylim(0, 8)
     ax.set_ylabel("Time-dependent reproduction number")
     ax.legend()
-    fig.savefig(save_path)
+    if save_path is not None:
+        fig.savefig(save_path)
+    return fig, ax
 
 
 def _make_risk_plot(
-    *, doy_vec, incidence_vec, model_names, existing_declarations, data_paths, save_path
+    *,
+    doy_vec,
+    incidence_vec,
+    model_names,
+    existing_declarations,
+    data_paths,
+    save_path=None,
 ):
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"][: (len(model_names) + 3)]
     fig, ax = plt.subplots()
@@ -306,39 +318,42 @@ def _make_risk_plot(
     ):
         df = pd.read_csv(data_path)
         ax.plot(doy_vec, df["further_case_risk"], color=color, label=model_name)
-    ax.vlines(
-        existing_declarations["blood_resumed_rome"]["doy"],
-        0,
-        1,
-        colors=colors[-3],
-        linestyles="dashed",
-        label="Blood measures lifted (Rome)",
-    )
-    ax.vlines(
-        existing_declarations["blood_resumed_anzio"]["doy"],
-        0,
-        1,
-        colors=colors[-2],
-        linestyles="dashed",
-        label="Blood measures lifted (Anzio)",
-    )
-    ax.vlines(
-        existing_declarations["45_day_rule"]["doy"],
-        0,
-        1,
-        colors=colors[-1],
-        linestyles="dashed",
-        label="45-day rule",
-    )
+    if existing_declarations:
+        ax.vlines(
+            existing_declarations["blood_resumed_rome"]["doy"],
+            0,
+            1,
+            colors=colors[-3],
+            linestyles="dashed",
+            label="Blood measures lifted (Rome)",
+        )
+        ax.vlines(
+            existing_declarations["blood_resumed_anzio"]["doy"],
+            0,
+            1,
+            colors=colors[-2],
+            linestyles="dashed",
+            label="Blood measures lifted (Anzio)",
+        )
+        ax.vlines(
+            existing_declarations["45_day_rule"]["doy"],
+            0,
+            1,
+            colors=colors[-1],
+            linestyles="dashed",
+            label="45-day rule",
+        )
     month_start_xticks(ax, interval_months=1)
     ax.set_ylim(0, 1)
     ax.set_ylabel("Risk of additional cases")
     ax.legend(loc="upper left")
-    fig.savefig(save_path)
+    if save_path is not None:
+        fig.savefig(save_path)
+    return fig, ax
 
 
 def _make_declaration_plot(
-    *, incidence_vec, model_names, existing_declarations, data_paths, save_path
+    *, incidence_vec, model_names, existing_declarations, data_paths, save_path=None
 ):
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"][: (len(model_names) + 2)]
     fig, ax = plt.subplots()
@@ -378,11 +393,13 @@ def _make_declaration_plot(
     ax.set_xlabel("Risk threshold (%)")
     ax.set_ylabel("Days from final case to declaration")
     ax.legend(loc="lower left")
-    fig.savefig(save_path)
+    if save_path is not None:
+        fig.savefig(save_path)
+    return fig, ax
 
 
 def _make_suitability_plot(
-    *, doy_vec, incidence_vec, suitability_mean_vec, data_path, save_path
+    *, doy_vec, incidence_vec, suitability_mean_vec, data_path, save_path=None
 ):
     df = pd.read_csv(data_path)
     fig, ax = plt.subplots()
@@ -399,10 +416,12 @@ def _make_suitability_plot(
     month_start_xticks(ax, interval_months=1)
     ax.set_ylim(0, 1)
     ax.set_ylabel("Suitability")
-    fig.savefig(save_path)
+    if save_path is not None:
+        fig.savefig(save_path)
+    return fig, ax
 
 
-def _make_scaling_factor_plot(*, doy_vec, incidence_vec, data_path, save_path):
+def _make_scaling_factor_plot(*, doy_vec, incidence_vec, data_path, save_path=None):
     df = pd.read_csv(data_path)
     fig, ax = plt.subplots()
     plot_data_on_twin_ax(ax, doy_vec, incidence_vec)
@@ -417,7 +436,9 @@ def _make_scaling_factor_plot(*, doy_vec, incidence_vec, data_path, save_path):
     month_start_xticks(ax, interval_months=1)
     ax.set_ylim(0, 7)
     ax.set_ylabel("Reproduction number scaling factor")
-    fig.savefig(save_path)
+    if save_path is not None:
+        fig.savefig(save_path)
+    return fig, ax
 
 
 if __name__ == "__main__":

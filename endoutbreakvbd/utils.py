@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import scipy.stats
 
 
 def rep_no_from_grid(
@@ -18,10 +19,16 @@ def rep_no_from_grid(
             )
         t_vec_grid_idx = (t_vec + (doy_start - 1)) % 365
     else:
-        if any(t_vec < 0) or any(t_vec >= len(rep_no_grid)):
+        if np.any(t_vec < 0) or np.any(t_vec >= len(rep_no_grid)):
             raise ValueError("t_vec contains indices outside the range of rep_no_grid")
         t_vec_grid_idx = t_vec
     return rep_no_grid[t_vec_grid_idx, ...]
+
+
+def lognormal_params_from_median_percentile_2_5(*, median, percentile_2_5):
+    mu = np.log(median)
+    sigma = (mu - np.log(percentile_2_5)) / scipy.stats.norm.ppf(0.975)
+    return {"mu": mu, "sigma": sigma}
 
 
 def month_start_xticks(ax, year=2017, interval_months=2):
