@@ -1,18 +1,29 @@
+from dataclasses import dataclass
+
 import arviz_base as azb
 import numpy as np
 import pymc as pm
-import scipy.stats
 import xarray as xr
 from tqdm import tqdm
 
 from endoutbreakvbd.utils import lognormal_params_from_median_percentile_2_5
 
-DEFAULT_PRIORS = {
-    "rep_no_start": (
-        pm.LogNormal,
-        lognormal_params_from_median_percentile_2_5(median=1, percentile_2_5=0.2),
-    ),
-}
+
+@dataclass(frozen=True)
+class Defaults:
+    rep_no_prior_median: float = 1.0
+    rep_no_prior_percentile_2_5: float = 0.2
+    rep_no_rho: float = 0.975
+    suitability_std: float = 0.05
+    suitability_rho: float = 0.975
+    # rep_no_factor_prior_median: float = 2.5
+    # rep_no_factor_prior_percentile_2_5: float = 1.25
+    rep_no_factor_prior_median: float = 1.0
+    rep_no_factor_prior_percentile_2_5: float = 0.2
+    log_rep_no_factor_rho: float = 0.975
+
+
+DEFAULTS = Defaults()
 
 
 def _fit_model(
@@ -104,12 +115,15 @@ def fit_autoregressive_model(
     *,
     incidence_vec,
     gen_time_dist_vec,
-    prior_median=1.0,
-    prior_percentile_2_5=0.33,
-    rho=0.975,
+    prior_median=None,
+    prior_percentile_2_5=None,
+    rho=None,
     quasi_real_time=False,
     **kwargs,
 ):
+    prior_median = prior_median or DEFAULTS.rep_no_prior_median
+    prior_percentile_2_5 = prior_percentile_2_5 or DEFAULTS.rep_no_prior_percentile_2_5
+    rho = rho or DEFAULTS.rep_no_rho
     lognormal_params = lognormal_params_from_median_percentile_2_5(
         median=prior_median, percentile_2_5=prior_percentile_2_5
     )
@@ -143,14 +157,24 @@ def fit_suitability_model(
     incidence_vec,
     gen_time_dist_vec,
     suitability_mean_vec,
-    suitability_std=0.05,
-    suitability_rho=0.975,
-    rep_no_factor_prior_median=2.0,
-    rep_no_factor_prior_percentile_2_5=0.5,
-    log_rep_no_factor_rho=0.975,
+    suitability_std=None,
+    suitability_rho=None,
+    rep_no_factor_prior_median=None,
+    rep_no_factor_prior_percentile_2_5=None,
+    log_rep_no_factor_rho=None,
     quasi_real_time=False,
     **kwargs,
 ):
+    suitability_std = suitability_std or DEFAULTS.suitability_std
+    suitability_rho = suitability_rho or DEFAULTS.suitability_rho
+    rep_no_factor_prior_median = (
+        rep_no_factor_prior_median or DEFAULTS.rep_no_factor_prior_median
+    )
+    rep_no_factor_prior_percentile_2_5 = (
+        rep_no_factor_prior_percentile_2_5
+        or DEFAULTS.rep_no_factor_prior_percentile_2_5
+    )
+    log_rep_no_factor_rho = log_rep_no_factor_rho or DEFAULTS.log_rep_no_factor_rho
     rep_no_factor_lognormal_params = lognormal_params_from_median_percentile_2_5(
         median=rep_no_factor_prior_median,
         percentile_2_5=rep_no_factor_prior_percentile_2_5,
