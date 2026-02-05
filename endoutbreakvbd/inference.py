@@ -100,53 +100,6 @@ def _fit_model(
     return azb.convert_to_dataset(trace.posterior)
 
 
-def _extract_priors(var_names, priors=None):
-    priors = {**DEFAULT_PRIORS, **(priors or {})}
-    prior_list = []
-    for var_name in var_names:
-        prior_func, prior_kwargs = priors[var_name]
-        prior_list.append(prior_func(var_name, **prior_kwargs))
-    return tuple(prior_list)
-
-
-def fit_random_walk_model(
-    *,
-    incidence_vec,
-    gen_time_dist_vec,
-    random_walk_std=0.05,
-    priors=None,
-    quasi_real_time=False,
-    **kwargs,
-):
-    def rep_no_vec_func(t_stop):
-        (rep_no_start,) = _extract_priors(["rep_no_start"], priors=priors)
-
-        log_rep_no_jumps = pm.Normal(
-            "log_rep_no_jump", mu=0, sigma=random_walk_std, shape=t_stop - 1
-        )
-
-        rep_no_vec = pm.Deterministic(
-            "rep_no",
-            pm.math.exp(
-                pm.math.cumsum(
-                    pm.math.concatenate(
-                        [[pm.math.log(rep_no_start)], log_rep_no_jumps], axis=0
-                    )
-                )
-            ),
-            dims=("time",),
-        )
-        return rep_no_vec
-
-    return _fit_model(
-        incidence_vec=incidence_vec,
-        gen_time_dist_vec=gen_time_dist_vec,
-        rep_no_vec_func=rep_no_vec_func,
-        quasi_real_time=quasi_real_time,
-        **kwargs,
-    )
-
-
 def fit_autoregressive_model(
     *,
     incidence_vec,
@@ -192,8 +145,6 @@ def fit_suitability_model(
     suitability_mean_vec,
     suitability_std=0.05,
     suitability_rho=0.975,
-    rep_no_factor_model="autoregressive",
-    random_walk_std=0.05,
     rep_no_factor_prior_median=2.0,
     rep_no_factor_prior_percentile_2_5=0.5,
     log_rep_no_factor_rho=0.975,
@@ -206,49 +157,23 @@ def fit_suitability_model(
     )
 
     def rep_no_vec_func(t_stop):
-        if rep_no_factor_model == "autoregressive":
-            log_rep_no_factor_deviation_vec = pm.AR(
-                "log_rep_no_factor_deviation",
-                sigma=rep_no_factor_lognormal_params["sigma"]
-                * np.sqrt(1 - log_rep_no_factor_rho**2),
-                rho=log_rep_no_factor_rho,
-                dims=("time",),
-                init_dist=pm.Normal.dist(
-                    mu=0, sigma=rep_no_factor_lognormal_params["sigma"]
-                ),
-            )
-            rep_no_factor_vec = pm.Deterministic(
-                "rep_no_factor",
-                pm.math.exp(
-                    rep_no_factor_lognormal_params["mu"]
-                    + log_rep_no_factor_deviation_vec
-                ),
-                dims=("time",),
-            )
-        elif rep_no_factor_model == "random_walk":
-            log_rep_no_factor_start = pm.Normal(
-                "log_rep_no_factor_start",
-                mu=rep_no_factor_lognormal_params["mu"],
-                sigma=rep_no_factor_lognormal_params["sigma"],
-            )
-            log_rep_no_factor_jumps = pm.Normal(
-                "log_rep_no_factor_jump", mu=0, sigma=random_walk_std, shape=t_stop - 1
-            )
-            rep_no_factor_vec = pm.Deterministic(
-                "rep_no_factor",
-                pm.math.exp(
-                    pm.math.cumsum(
-                        pm.math.concatenate(
-                            [[log_rep_no_factor_start], log_rep_no_factor_jumps], axis=0
-                        )
-                    )
-                ),
-                dims=("time",),
-            )
-        else:
-            raise ValueError(
-                "rep_no_factor_model must be one of 'autoregressive' or 'random_walk'"
-            )
+        log_rep_no_factor_deviation_vec = pm.AR(
+            "log_rep_no_factor_deviation",
+            sigma=rep_no_factor_lognormal_params["sigma"]
+            * np.sqrt(1 - log_rep_no_factor_rho**2),
+            rho=log_rep_no_factor_rho,
+            dims=("time",),
+            init_dist=pm.Normal.dist(
+                mu=0, sigma=rep_no_factor_lognormal_params["sigma"]
+            ),
+        )
+        rep_no_factor_vec = pm.Deterministic(
+            "rep_no_factor",
+            pm.math.exp(
+                rep_no_factor_lognormal_params["mu"] + log_rep_no_factor_deviation_vec
+            ),
+            dims=("time",),
+        )
         suitability_deviations = pm.AR(
             "suitability_deviation",
             sigma=suitability_std * np.sqrt(1 - suitability_rho**2),
