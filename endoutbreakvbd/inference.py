@@ -162,18 +162,16 @@ def fit_autoregressive_model(
     )
 
     def rep_no_vec_func(_):
-        log_rep_no_vec = pm.AR(
-            "log_rep_no",
+        log_rep_no_deviation_vec = pm.AR(
+            "log_rep_no_deviation",
             sigma=lognormal_params["sigma"] * np.sqrt(1 - rho**2),
             rho=rho,
             dims=("time",),
-            init_dist=pm.Normal.dist(
-                mu=lognormal_params["mu"], sigma=lognormal_params["sigma"]
-            ),
+            init_dist=pm.Normal.dist(mu=0, sigma=lognormal_params["sigma"]),
         )
         rep_no_vec = pm.Deterministic(
             "rep_no",
-            pm.math.exp(log_rep_no_vec),
+            pm.math.exp(lognormal_params["mu"] + log_rep_no_deviation_vec),
             dims=("time",),
         )
         return rep_no_vec
@@ -208,24 +206,24 @@ def fit_suitability_model(
     )
 
     def rep_no_vec_func(t_stop):
-        suitability_mean_vec_trunc = suitability_mean_vec[
-            :t_stop
-        ]  # need to truncate to current time in QRT setting
-
         if rep_no_factor_model == "autoregressive":
-            log_rep_no_factor_vec = pm.AR(
-                "log_rep_no_factor",
+            log_rep_no_factor_deviation_vec = pm.AR(
+                "log_rep_no_factor_deviation",
                 sigma=rep_no_factor_lognormal_params["sigma"]
                 * np.sqrt(1 - log_rep_no_factor_rho**2),
                 rho=log_rep_no_factor_rho,
                 dims=("time",),
                 init_dist=pm.Normal.dist(
-                    mu=rep_no_factor_lognormal_params["mu"],
-                    sigma=rep_no_factor_lognormal_params["sigma"],
+                    mu=0, sigma=rep_no_factor_lognormal_params["sigma"]
                 ),
             )
             rep_no_factor_vec = pm.Deterministic(
-                "rep_no_factor", pm.math.exp(log_rep_no_factor_vec), dims=("time",)
+                "rep_no_factor",
+                pm.math.exp(
+                    rep_no_factor_lognormal_params["mu"]
+                    + log_rep_no_factor_deviation_vec
+                ),
+                dims=("time",),
             )
         elif rep_no_factor_model == "random_walk":
             log_rep_no_factor_start = pm.Normal(
@@ -252,7 +250,7 @@ def fit_suitability_model(
                 "rep_no_factor_model must be one of 'autoregressive' or 'random_walk'"
             )
         suitability_deviations = pm.AR(
-            "suitability_ext",
+            "suitability_deviation",
             sigma=suitability_std * np.sqrt(1 - suitability_rho**2),
             rho=suitability_rho,
             dims=("time",),
@@ -260,7 +258,9 @@ def fit_suitability_model(
         )
         suitability_vec = pm.Deterministic(
             "suitability",
-            pm.math.clip(suitability_mean_vec_trunc + suitability_deviations, 1e-8, 1),
+            pm.math.clip(  # need to truncate mean suitability at t_stop in QRT mode
+                suitability_mean_vec[:t_stop] + suitability_deviations, 1e-8, 1
+            ),
             dims=("time",),
         )
         rep_no_vec = pm.Deterministic(
