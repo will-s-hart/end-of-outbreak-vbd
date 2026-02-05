@@ -272,7 +272,7 @@ def _make_gen_time_dist_plot(*, gen_time_dist_vec, save_path=None):
 def _make_rep_no_plot(
     *, doy_vec, incidence_vec, model_names, data_paths, save_path=None
 ):
-    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"][: len(model_names)]
+    colors = _get_colors()[: len(model_names)]
     fig, ax = plt.subplots()
     plot_data_on_twin_ax(ax, doy_vec, incidence_vec)
     for model_name, data_path, color in zip(
@@ -310,7 +310,7 @@ def _make_risk_plot(
     data_paths,
     save_path=None,
 ):
-    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"][: (len(model_names) + 3)]
+    colors = _get_colors()[: (len(model_names) + 3)]
     fig, ax = plt.subplots()
     plot_data_on_twin_ax(ax, doy_vec, incidence_vec)
     for model_name, data_path, color in zip(
@@ -319,28 +319,28 @@ def _make_risk_plot(
         df = pd.read_csv(data_path)
         ax.plot(doy_vec, df["further_case_risk"], color=color, label=model_name)
     if existing_declarations:
-        ax.vlines(
+        ax.axvline(
             existing_declarations["blood_resumed_rome"]["doy"],
             0,
             1,
-            colors=colors[-3],
-            linestyles="dashed",
+            color=colors[-3],
+            linestyle="dashed",
             label="Blood measures lifted (Rome)",
         )
-        ax.vlines(
+        ax.axvline(
             existing_declarations["blood_resumed_anzio"]["doy"],
             0,
             1,
-            colors=colors[-2],
-            linestyles="dashed",
+            color=colors[-2],
+            linestyle="dashed",
             label="Blood measures lifted (Anzio)",
         )
-        ax.vlines(
+        ax.axvline(
             existing_declarations["45_day_rule"]["doy"],
             0,
             1,
-            colors=colors[-1],
-            linestyles="dashed",
+            color=colors[-1],
+            linestyle="dashed",
             label="45-day rule",
         )
     month_start_xticks(ax, interval_months=1)
@@ -355,7 +355,7 @@ def _make_risk_plot(
 def _make_declaration_plot(
     *, incidence_vec, model_names, existing_declarations, data_paths, save_path=None
 ):
-    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"][: (len(model_names) + 2)]
+    colors = _get_colors()[: (len(model_names) + 2)]
     fig, ax = plt.subplots()
     perc_risk_thresholds = np.linspace(0.1, 10, 101)
     time_last_case = np.nonzero(incidence_vec)[0][-1]
@@ -371,22 +371,19 @@ def _make_declaration_plot(
             delay_of_first_risk=1,
         )
         ax.plot(perc_risk_thresholds, declaration_delays, color=color, label=model_name)
-    ax.hlines(
-        existing_declarations["blood_resumed_rome"]["days_from_last_case"],
-        perc_risk_thresholds[0],
-        perc_risk_thresholds[-1],
-        colors=colors[-2],
-        linestyles="dashed",
-        label="Blood measures lifted (Rome)",
-    )
-    ax.hlines(
-        existing_declarations["blood_resumed_anzio"]["days_from_last_case"],
-        perc_risk_thresholds[0],
-        perc_risk_thresholds[-1],
-        colors=colors[-1],
-        linestyles="dashed",
-        label="Blood measures lifted (Anzio)",
-    )
+    if existing_declarations:
+        ax.axhline(
+            existing_declarations["blood_resumed_rome"]["days_from_last_case"],
+            color=colors[-2],
+            linestyle="dashed",
+            label="Blood measures lifted (Rome)",
+        )
+        ax.axhline(
+            existing_declarations["blood_resumed_anzio"]["days_from_last_case"],
+            color=colors[-1],
+            linestyle="dashed",
+            label="Blood measures lifted (Anzio)",
+        )
     ax.set_xticks(np.append(perc_risk_thresholds[0], ax.get_xticks()))
     ax.set_xlim(perc_risk_thresholds[0], perc_risk_thresholds[-1])
     ax.set_ylim(0, ax.get_ylim()[1])
@@ -439,6 +436,10 @@ def _make_scaling_factor_plot(*, doy_vec, incidence_vec, data_path, save_path=No
     if save_path is not None:
         fig.savefig(save_path)
     return fig, ax
+
+
+def _get_colors():
+    return plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
 
 if __name__ == "__main__":
