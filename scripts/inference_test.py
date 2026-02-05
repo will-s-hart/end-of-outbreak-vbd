@@ -2,23 +2,18 @@ import argparse
 import functools
 import pathlib
 
-import arviz_base as azb
-import arviz_stats as azs
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import scipy.interpolate
 
 from endoutbreakvbd import calc_further_case_risk_analytical, rep_no_from_grid
 from endoutbreakvbd.chikungunya import get_parameters, get_suitability_data
-from endoutbreakvbd.inference import fit_autoregressive_model, fit_suitability_model
+from endoutbreakvbd.further_case_risk import calc_declaration_delay
+from endoutbreakvbd.inference import DEFAULTS
 from endoutbreakvbd.model import run_renewal_model
-from endoutbreakvbd.utils import (
-    lognormal_params_from_median_percentile_2_5,
-    month_start_xticks,
-    plot_data_on_twin_ax,
-)
+
+# from endoutbreakvbd.utils import lognormal_params_from_median_percentile_2_5
 from scripts.lazio_outbreak import (
+    _make_declaration_plot,
     _make_rep_no_plot,
     _make_risk_plot,
     _make_scaling_factor_plot,
@@ -35,14 +30,14 @@ def _get_inputs(quasi_real_time=False):
     suitability_mean_grid = df_suitability["suitability_smoothed"].to_numpy()
 
     suitability_model_params = {
-        "suitability_std": 0.05,
-        "suitability_rho": 0.975,
-        "rep_no_factor_prior_median": 2.0,
-        "rep_no_factor_prior_percentile_2_5": 0.5,
-        "log_rep_no_factor_rho": 0.975,
+        "suitability_std": DEFAULTS.suitability_std,
+        "suitability_rho": DEFAULTS.suitability_rho,
+        "rep_no_factor_prior_median": DEFAULTS.rep_no_factor_prior_median,
+        "rep_no_factor_prior_percentile_2_5": DEFAULTS.rep_no_factor_prior_percentile_2_5,
+        "log_rep_no_factor_rho": DEFAULTS.log_rep_no_factor_rho,
     }
 
-    doy_start = 160
+    doy_start = 152
 
     analysis_label = "inference_test" + ("_qrt" if quasi_real_time else "")
     results_dir = pathlib.Path(__file__).parents[1] / "results" / analysis_label
@@ -60,6 +55,7 @@ def _get_inputs(quasi_real_time=False):
     fig_paths = {
         "rep_no": fig_dir / "rep_no.svg",
         "risk": fig_dir / "risk.svg",
+        "declaration": fig_dir / "declaration.svg",
         "suitability": fig_dir / "suitability.svg",
         "scaling_factor": fig_dir / "scaling_factor.svg",
     }
@@ -77,7 +73,7 @@ def _get_inputs(quasi_real_time=False):
 
 def run_analyses(quasi_real_time=False):
     inputs = _get_inputs(quasi_real_time=quasi_real_time)
-    rng = np.random.default_rng(2)
+    rng = np.random.default_rng(3)
     data_df = _generate_outbreak_data(
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
         doy_start=inputs["doy_start"],
@@ -99,7 +95,7 @@ def run_analyses(quasi_real_time=False):
         incidence_vec=data_df["cases"].to_numpy(),
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
         fit_model_kwargs={
-            "suitability_mean_vec": data_df["suitability"].to_numpy(),
+            "suitability_mean_vec": data_df["suitability_mean"].to_numpy(),
             "rng": rng,
             "quasi_real_time": quasi_real_time,
         },
@@ -123,13 +119,13 @@ def _generate_outbreak_data(
     rep_no_factor_prior_percentile_2_5 = suitability_model_params[
         "rep_no_factor_prior_percentile_2_5"
     ]
-    rep_no_factor_prior_params = lognormal_params_from_median_percentile_2_5(
-        median=rep_no_factor_prior_median,
-        percentile_2_5=rep_no_factor_prior_percentile_2_5,
-    )
-    log_rep_no_factor_rho = suitability_model_params["log_rep_no_factor_rho"]
+    # rep_no_factor_prior_lognormal_params = lognormal_params_from_median_percentile_2_5(
+    #     median=rep_no_factor_prior_median,
+    #     percentile_2_5=rep_no_factor_prior_percentile_2_5,
+    # )
+    # log_rep_no_factor_rho = suitability_model_params["log_rep_no_factor_rho"]
 
-    t_max = 300
+    t_max = 500
     suitability_mean_vec = rep_no_from_grid(
         np.arange(t_max),
         rep_no_grid=suitability_mean_grid,
@@ -137,7 +133,9 @@ def _generate_outbreak_data(
         doy_start=doy_start,
     )
     outbreak_found = False
-    outbreak_threshold = 100
+    outbreak_min_size = 100
+    outbreak_max_size = 1000
+    attempts = 0
     while not outbreak_found:
         suitability_vec = _run_ar_sim(
             mean=suitability_mean_vec,
@@ -147,14 +145,15 @@ def _generate_outbreak_data(
             rng=rng,
         )
         suitability_vec = np.clip(suitability_vec, 0, 1)
-        log_rep_no_factor_vec = _run_ar_sim(
-            mean=rep_no_factor_prior_params["mu"],
-            std=rep_no_factor_prior_params["sigma"],
-            rho=log_rep_no_factor_rho,
-            t_max=t_max,
-            rng=rng,
-        )
-        rep_no_factor_vec = np.exp(log_rep_no_factor_vec)
+        # log_rep_no_factor_vec = _run_ar_sim(
+        #     mean=rep_no_factor_prior_lognormal_params["mu"],
+        #     std=rep_no_factor_prior_lognormal_params["sigma"],
+        #     rho=log_rep_no_factor_rho,
+        #     t_max=t_max,
+        #     rng=rng,
+        # )
+        # rep_no_factor_vec = np.exp(log_rep_no_factor_vec)
+        rep_no_factor_vec = np.concatenate((np.full(80, 3), np.full(t_max - 80, 1.5)))
 
         rep_no_vec = suitability_vec * rep_no_factor_vec
         rep_no_func = functools.partial(
@@ -163,8 +162,12 @@ def _generate_outbreak_data(
         incidence_vec = run_renewal_model(
             rep_no_func=rep_no_func, gen_time_dist_vec=gen_time_dist_vec, rng=rng
         )
-        if np.sum(incidence_vec) >= outbreak_threshold:
+        attempts += 1
+        if outbreak_min_size <= np.sum(incidence_vec) <= outbreak_max_size:
             outbreak_found = True
+            print(f"Outbreak found after {attempts} attempts")
+
+    incidence_vec = np.concatenate((incidence_vec, np.zeros(100)))
     t_end = len(incidence_vec)
     risk_vec = calc_further_case_risk_analytical(
         incidence_vec=incidence_vec,
@@ -174,7 +177,7 @@ def _generate_outbreak_data(
     )
     data_df = pd.DataFrame(
         {
-            "day_of_year": np.arange(doy_start, doy_start + t_end) % 365,
+            "day_of_year": np.arange(doy_start, doy_start + t_end),
             "cases": incidence_vec[:t_end],
             "rep_no": rep_no_vec[:t_end],
             "suitability": suitability_vec[:t_end],
@@ -265,6 +268,27 @@ def make_plots(quasi_real_time=False):
         ax.plot(doy_vec, actual_vec, color="black", label="True")
         ax.legend()
         fig.savefig(save_path)
+    fig, ax = _make_declaration_plot(
+        incidence_vec=incidence_vec,
+        model_names=["Autoregressive model", "Suitability model"],
+        existing_declarations=None,
+        data_paths=[
+            inputs["results_paths"]["autoregressive"],
+            inputs["results_paths"]["suitability"],
+        ],
+    )
+    perc_risk_thresholds = ax.get_lines()[0].get_xdata()
+    time_last_case = np.nonzero(incidence_vec)[0][-1]
+    risk_days = np.arange(time_last_case + 1, len(incidence_vec))
+    risk_vals = df_data["further_case_risk"].to_numpy()[risk_days]
+    declaration_delays = calc_declaration_delay(
+        risk_vec=risk_vals,
+        perc_risk_threshold=perc_risk_thresholds,
+        delay_of_first_risk=1,
+    )
+    ax.plot(perc_risk_thresholds, declaration_delays, color="black", label="True")
+    ax.legend()
+    fig.savefig(inputs["fig_paths"]["declaration"])
 
 
 if __name__ == "__main__":
