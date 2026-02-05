@@ -36,9 +36,7 @@ ruff = "*"
 ipykernel = "*"
 jupyter_bokeh = "*"
 snakemake = "*"
-
-# [tool.pixi.feature.dev.pypi-dependencies]
-# snakemake-executor-plugin-slurm = "*" # use pypi version because of https://github.com/snakemake/snakemake-executor-plugin-slurm/issues/356
+snakemake-executor-plugin-slurm = "*"
 
 [tool.pixi.environments]
 default = { features = ["dev"], solve-group = "prod" }
