@@ -5,6 +5,7 @@ import pandas as pd
 
 from endoutbreakvbd.further_case_risk import calc_declaration_delay
 from endoutbreakvbd.inputs import get_inputs_inference_test
+from endoutbreakvbd.utils import set_plot_config
 from scripts.lazio_outbreak_plots import (
     _make_declaration_plot,
     _make_rep_no_plot,
@@ -15,6 +16,7 @@ from scripts.lazio_outbreak_plots import (
 
 
 def make_plots(quasi_real_time=False):
+    set_plot_config()
     inputs = get_inputs_inference_test(quasi_real_time=quasi_real_time)
     df_data = pd.read_csv(inputs["results_paths"]["outbreak_data"], index_col=0)
     doy_vec = df_data["day_of_year"].to_numpy()

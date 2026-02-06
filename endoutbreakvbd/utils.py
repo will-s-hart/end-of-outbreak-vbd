@@ -1,6 +1,8 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.stats
+import seaborn as sns
 
 
 def rep_no_from_grid(
@@ -31,9 +33,31 @@ def lognormal_params_from_median_percentile_2_5(*, median, percentile_2_5):
     return {"mu": mu, "sigma": sigma}
 
 
+def set_plot_config():
+    rc_params = {
+        "figure.figsize": (6.5, 6.5),
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "savefig.transparent": True,
+        "savefig.format": "svg",
+        "svg.fonttype": "none",
+        "axes.titlesize": 16,
+        "axes.labelsize": 16,
+        "lines.linewidth": 2,
+        "lines.markersize": 8,
+        "xtick.labelsize": 16,
+        "ytick.labelsize": 16,
+        "legend.fontsize": 14,
+        "font.family": "sans-serif",
+        "font.sans-serif": "Arial",
+    }
+    plt.rcParams.update(rc_params)
+    sns.set_palette("colorblind")
+
+
 def month_start_xticks(ax, year=2017, interval_months=2):
     month_starts = pd.date_range(
-        start=f"{year}-01-01", end=f"{year + 1}-01-01", freq=f"{interval_months}MS"
+        start=f"{year}-01-01", end=f"{year + 1}-01-01", freq="MS"
     )
     month_starts_doy = month_starts.dayofyear.to_numpy(copy=True)
     month_starts_doy[-1] = 366
@@ -44,7 +68,10 @@ def month_start_xticks(ax, year=2017, interval_months=2):
     month_starts = month_starts[month_start_in_range]
     month_starts_doy = month_starts_doy[month_start_in_range]
     ax.set_xticks(month_starts_doy)
-    labels = [f"{d.day} {d:%b}" for d in month_starts]
+    labels = [
+        f"{d.day} {d:%b}" if (i % interval_months == 0) else ""
+        for i, d in enumerate(month_starts)
+    ]
     ax.set_xticklabels(labels, rotation=0)
 
 
@@ -55,4 +82,9 @@ def plot_data_on_twin_ax(ax, t_vec, incidence_vec):
     twin_ax.set_ylabel("Number of cases")
     twin_ax.yaxis.label.set_color("tab:gray")
     twin_ax.tick_params(axis="y", colors="tab:gray")
+    twin_ax.spines["right"].set_visible(True)
     return twin_ax
+
+
+def get_colors():
+    return plt.rcParams["axes.prop_cycle"].by_key()["color"]

@@ -4,10 +4,15 @@ import numpy as np
 import pandas as pd
 
 from endoutbreakvbd.inputs import get_inputs_sim_study
-from endoutbreakvbd.utils import month_start_xticks, plot_data_on_twin_ax
+from endoutbreakvbd.utils import (
+    month_start_xticks,
+    plot_data_on_twin_ax,
+    set_plot_config,
+)
 
 
 def make_plots():
+    set_plot_config()
     inputs = get_inputs_sim_study()
     _make_rep_no_plot(
         rep_no_func_doy=inputs["rep_no_func_doy"],
@@ -98,7 +103,7 @@ def _make_example_outbreak_declaration_plot(*, data_path, save_path=None):
         )
     month_start_xticks(ax)
     ax.set_xlabel("Date of final case")
-    ax.set_ylabel("Days from final case until declaration of end of outbreak")
+    ax.set_ylabel("Days from final case until declaration")
     ax.legend()
     if save_path is not None:
         fig.savefig(save_path)
@@ -144,14 +149,14 @@ def _make_many_outbreak_plot(*, data_path, save_path=None):
             capsize=3,
         )
 
-    sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
-    sm.set_array([])
-    cbar = plt.colorbar(sm, ax=ax)
-    cbar.set_ticks(np.linspace(0, norm.vmax, 11))
+    # sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+    # sm.set_array([])
+    # cbar = plt.colorbar(sm, ax=ax)
+    # cbar.set_ticks(np.linspace(0, norm.vmax, 11))
     ax.set_xlabel("Week of final case")
     ax.set_ylabel("Days from final case until declaration")
-    ax.set_xlim(121, 305)
-    month_start_xticks(ax, interval_months=1)
+    # ax.set_xlim(121, 305)
+    month_start_xticks(ax)
     if save_path is not None:
         fig.savefig(save_path)
     return fig, ax
