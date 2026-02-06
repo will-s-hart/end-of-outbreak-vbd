@@ -1,9 +1,6 @@
 import argparse
 import functools
-import pathlib
 
-import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
@@ -13,78 +10,14 @@ from endoutbreakvbd import (
     calc_declaration_delay,
     calc_further_case_risk_analytical,
     calc_further_case_risk_simulation,
-    rep_no_from_grid,
     run_renewal_model,
 )
-from endoutbreakvbd.chikungunya import get_parameters, get_suitability_data
-from endoutbreakvbd.utils import month_start_xticks, plot_data_on_twin_ax
-
-
-def _get_inputs():
-    parameters = get_parameters()
-    gen_time_dist_vec = parameters["gen_time_dist_vec"]
-
-    df_suitability = get_suitability_data()
-    suitability_grid = df_suitability["suitability_smoothed"].to_numpy()
-
-    rep_no_factor = 2
-    rep_no_grid = rep_no_factor * suitability_grid
-
-    rep_no_func_doy = functools.partial(
-        rep_no_from_grid, rep_no_grid=rep_no_grid, periodic=True, doy_start=0
-    )
-    rep_no_from_doy_start = functools.partial(
-        rep_no_from_grid, rep_no_grid=rep_no_grid, periodic=True
-    )
-
-    example_outbreak_doy_start_vals = (
-        np.nonzero(rep_no_grid > 1.2)[0][0] + 1,
-        np.nonzero(rep_no_grid > 1.2)[0][-1] + 1,
-    )
-    example_outbreak_incidence_vec = [1]
-    example_outbreak_perc_risk_threshold_vals = (1, 2.5, 5)
-
-    many_outbreak_n_sims = 100000
-    many_outbreak_outbreak_size_threshold = 2
-    many_outbreak_perc_risk_threshold = 5
-
-    results_dir = pathlib.Path(__file__).parents[1] / "results/sim_study"
-    results_dir.mkdir(parents=True, exist_ok=True)
-    results_paths = {
-        "example_outbreak_risk": results_dir / "example_outbreak_risk.csv",
-        "example_outbreak_declaration": results_dir
-        / "example_outbreak_declaration.csv",
-        "many_outbreak": results_dir / "many_outbreak.csv",
-    }
-
-    fig_dir = pathlib.Path(__file__).parents[1] / "figures/sim_study"
-    fig_dir.mkdir(parents=True, exist_ok=True)
-    fig_paths = {
-        "rep_no": fig_dir / "rep_no.svg",
-        "example_outbreak_risk": fig_dir / "example_outbreak_risk.svg",
-        "example_outbreak_declaration": fig_dir / "example_outbreak_declaration.svg",
-        "many_outbreak": fig_dir / "many_outbreak.svg",
-    }
-
-    return {
-        "parameters": parameters,
-        "gen_time_dist_vec": gen_time_dist_vec,
-        "rep_no_factor": rep_no_factor,
-        "rep_no_func_doy": rep_no_func_doy,
-        "rep_no_from_doy_start": rep_no_from_doy_start,
-        "example_outbreak_doy_start_vals": example_outbreak_doy_start_vals,
-        "example_outbreak_incidence_vec": example_outbreak_incidence_vec,
-        "example_outbreak_perc_risk_threshold_vals": example_outbreak_perc_risk_threshold_vals,
-        "many_outbreak_n_sims": many_outbreak_n_sims,
-        "many_outbreak_outbreak_size_threshold": many_outbreak_outbreak_size_threshold,
-        "many_outbreak_perc_risk_threshold": many_outbreak_perc_risk_threshold,
-        "results_paths": results_paths,
-        "fig_paths": fig_paths,
-    }
+from endoutbreakvbd.inputs import get_inputs_sim_study
+from scripts.sim_study_plots import make_plots
 
 
 def run_analyses():
-    inputs = _get_inputs()
+    inputs = get_inputs_sim_study()
     rng = np.random.default_rng(2)
     _run_example_outbreak_risk_analysis(
         incidence_vec=inputs["example_outbreak_incidence_vec"],
@@ -109,28 +42,6 @@ def run_analyses():
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
         rng=rng,
         save_path=inputs["results_paths"]["many_outbreak"],
-    )
-
-
-def make_plots():
-    inputs = _get_inputs()
-    _make_rep_no_plot(
-        rep_no_func_doy=inputs["rep_no_func_doy"],
-        example_doy_vals=inputs["example_outbreak_doy_start_vals"],
-        save_path=inputs["fig_paths"]["rep_no"],
-    )
-    _make_example_outbreak_risk_plot(
-        incidence_vec=inputs["example_outbreak_incidence_vec"],
-        data_path=inputs["results_paths"]["example_outbreak_risk"],
-        save_path=inputs["fig_paths"]["example_outbreak_risk"],
-    )
-    _make_example_outbreak_declaration_plot(
-        data_path=inputs["results_paths"]["example_outbreak_declaration"],
-        save_path=inputs["fig_paths"]["example_outbreak_declaration"],
-    )
-    _make_many_outbreak_plot(
-        data_path=inputs["results_paths"]["many_outbreak"],
-        save_path=inputs["fig_paths"]["many_outbreak"],
     )
 
 
@@ -306,134 +217,6 @@ def _many_outbreak_analysis_one_sim(args):
     return doy_start, doy_last_case, declaration_delay
 
 
-def _make_rep_no_plot(*, rep_no_func_doy, example_doy_vals, save_path=None):
-    fig, ax = plt.subplots()
-    doy_vec = np.arange(1, 366, dtype=int)
-    ax.plot(doy_vec, rep_no_func_doy(doy_vec))
-    ax.plot(example_doy_vals, rep_no_func_doy(np.array(example_doy_vals)), "o")
-    month_start_xticks(ax)
-    ax.set_ylabel("Time-dependent reproduction number")
-    if save_path is not None:
-        fig.savefig(save_path)
-    return fig, ax
-
-
-def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path=None):
-    risk_df = pd.read_csv(data_path, index_col=[0, 1])
-    doy_start_vals = risk_df.index.get_level_values("start_day_of_year").unique()
-    risk_days = risk_df.index.get_level_values("day_of_outbreak").unique()
-
-    fig, ax = plt.subplots()
-    plot_data_on_twin_ax(
-        ax, t_vec=np.arange(len(incidence_vec)), incidence_vec=incidence_vec
-    )
-    for doy_start, color in zip(
-        doy_start_vals,
-        ["tab:blue", "tab:orange"],
-        strict=True,
-    ):
-        date_start = pd.Timestamp(year=2017, month=1, day=1) + pd.Timedelta(
-            days=doy_start - 1
-        )
-        risk_vals = risk_df.loc[doy_start, "analytical"].to_numpy()
-        ax.plot(
-            risk_days,
-            risk_vals,
-            label=f"First case on {date_start.day} {date_start:%b}",
-            color=color,
-        )
-        risk_vals_sim = risk_df.loc[doy_start, "simulation"].to_numpy()
-        ax.plot(risk_days, risk_vals_sim, ".", color=color)
-    ax.set_ylim(0, 1)
-    ax.set_xlabel("Day of outbreak")
-    ax.set_ylabel("Risk of additional cases")
-    ax.legend()
-    if save_path is not None:
-        fig.savefig(save_path)
-    return fig, ax
-
-
-def _make_example_outbreak_declaration_plot(*, data_path, save_path=None):
-    declaration_delay_df = pd.read_csv(data_path, index_col=[0, 1])
-    perc_risk_threshold_vals = declaration_delay_df.index.get_level_values(
-        "perc_risk_threshold"
-    ).unique()
-    doy_last_case_vec = declaration_delay_df.index.get_level_values(
-        "final_case_day_of_year"
-    ).unique()
-
-    fig, ax = plt.subplots()
-
-    for perc_risk_threshold in perc_risk_threshold_vals:
-        declaration_delay_vec = declaration_delay_df.loc[
-            perc_risk_threshold, "delay_to_declaration"
-        ].to_numpy()
-        ax.plot(
-            doy_last_case_vec,
-            declaration_delay_vec,
-            label=f"{perc_risk_threshold}% risk threshold",
-        )
-    month_start_xticks(ax)
-    ax.set_xlabel("Date of final case")
-    ax.set_ylabel("Days from final case until declaration of end of outbreak")
-    ax.legend()
-    if save_path is not None:
-        fig.savefig(save_path)
-    return fig, ax
-
-
-def _make_many_outbreak_plot(*, data_path, save_path=None):
-    df = pd.read_csv(data_path)
-    bin_width = 7
-    df["final_case_doy_binned"] = pd.cut(
-        df["final_case_day_of_year"],
-        bins=range(1, 366, bin_width),
-        right=False,
-        include_lowest=True,
-    )
-    stats = (
-        df.groupby("final_case_doy_binned", observed=False)["delay_to_declaration"]
-        .quantile([0.025, 0.5, 0.975])
-        .unstack()
-    )
-    proportions = df["final_case_doy_binned"].value_counts(normalize=True).sort_index()
-    bin_centers = [interval.mid for interval in stats.index]
-
-    cmap = matplotlib.colormaps["Blues"]
-    # norm = matplotlib.colors.LogNorm(0.001, proportions.max())
-    norm = plt.Normalize(0, 0.01)
-    colors = cmap(norm(proportions.values))
-
-    fig, ax = plt.subplots()
-    for x, m, lo, hi, c in zip(
-        bin_centers,
-        stats[0.5],
-        stats[0.5] - stats[0.025],
-        stats[0.975] - stats[0.5],
-        colors,
-    ):
-        ax.errorbar(
-            x,
-            m,
-            yerr=[[lo], [hi]],
-            fmt="o",
-            color=c,
-            capsize=3,
-        )
-
-    sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
-    sm.set_array([])
-    cbar = plt.colorbar(sm, ax=ax)
-    cbar.set_ticks(np.linspace(0, norm.vmax, 11))
-    ax.set_xlabel("Week of final case")
-    ax.set_ylabel("Days from final case until declaration")
-    ax.set_xlim(121, 305)
-    month_start_xticks(ax, interval_months=1)
-    if save_path is not None:
-        fig.savefig(save_path)
-    return fig, ax
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -442,14 +225,7 @@ if __name__ == "__main__":
         action="store_true",
         help="Only run analyses and save results (no plots)",
     )
-    parser.add_argument(
-        "-p",
-        "--plots-only",
-        action="store_true",
-        help="Only generate plots (using saved results)",
-    )
     args_in = parser.parse_args()
-    if not args_in.plots_only:
-        run_analyses()
+    run_analyses()
     if not args_in.results_only:
         make_plots()

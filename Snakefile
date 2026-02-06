@@ -103,9 +103,9 @@ package_files = [
     f"endoutbreakvbd/{name}.py"
     for name in [
         "__init__",
-        "chikungunya",
         "further_case_risk",
         "inference",
+        "inputs",
         "model",
         "utils",
     ]
@@ -144,16 +144,16 @@ rule weather_suitability_data_results:
         """
 
 
-rule weather_suitability_data_figures:
+rule weather_suitability_data_plots:
     input:
         package_files,
-        "scripts/weather_suitability_data.py",
+        "scripts/weather_suitability_data_plots.py",
         results_files_weather_suitability_data,
     output:
         figure_files_weather_suitability_data,
     shell:
         """
-        pixi run python scripts/weather_suitability_data.py -p
+        pixi run python scripts/weather_suitability_data_plots.py
         """
 
 
@@ -170,17 +170,17 @@ rule sim_study_results:
         """
 
 
-rule sim_study_figures:
+rule sim_study_plots:
     input:
         package_files,
         results_files_weather_suitability_data,
-        "scripts/sim_study.py",
+        "scripts/sim_study_plots.py",
         results_files_sim_study,
     output:
         figure_files_sim_study,
     shell:
         """
-        pixi run python scripts/sim_study.py -p
+        pixi run python scripts/sim_study_plots.py
         """
 
 
@@ -201,11 +201,11 @@ rule lazio_outbreak_results:
         """
 
 
-rule lazio_outbreak_figures:
+rule lazio_outbreak_plots:
     input:
         package_files,
         results_files_weather_suitability_data,
-        "scripts/lazio_outbreak.py",
+        "scripts/lazio_outbreak_plots.py",
         get_results_files_lazio_outbreak(qrt="{qrt}"),
     output:
         get_figure_files_lazio_outbreak(qrt="{qrt}"),
@@ -215,7 +215,7 @@ rule lazio_outbreak_figures:
         ),
     shell:
         """
-        pixi run python scripts/lazio_outbreak.py -p {params.qrt_flag}
+        pixi run python scripts/lazio_outbreak_plots.py {params.qrt_flag}
         """
 
 
@@ -237,12 +237,12 @@ rule inference_test_results:
         """
 
 
-rule inference_test_figures:
+rule inference_test_plots:
     input:
         package_files,
         results_files_weather_suitability_data,
-        "scripts/inference_test.py",
-        "scripts/lazio_outbreak.py",
+        "scripts/inference_test_plots.py",
+        "scripts/lazio_outbreak_plots.py",
         get_results_files_inference_test(qrt="{qrt}"),
     output:
         get_figure_files_inference_test(qrt="{qrt}"),
@@ -252,5 +252,5 @@ rule inference_test_figures:
         ),
     shell:
         """
-        pixi run python scripts/inference_test.py -p {params.qrt_flag}
+        pixi run python scripts/inference_test_plots.py {params.qrt_flag}
         """

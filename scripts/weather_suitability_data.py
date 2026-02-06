@@ -2,53 +2,21 @@ import argparse
 import pathlib
 from datetime import datetime
 
-import matplotlib.pyplot as plt
 import meteostat
 import numpy as np
 import pandas as pd
 from statsmodels.regression.linear_model import OLS
 from statsmodels.tsa.deterministic import DeterministicProcess
 
-from endoutbreakvbd.utils import month_start_xticks
-
-
-def _get_inputs():
-    results_dir = pathlib.Path(__file__).parents[1] / "results/weather_suitability_data"
-    results_paths = {
-        "all": results_dir / "all.csv",
-        "2017": results_dir / "2017.csv",
-    }
-
-    fig_dir = pathlib.Path(__file__).parents[1] / "figures/weather_suitability_data"
-    fig_dir.mkdir(parents=True, exist_ok=True)
-    fig_paths = {
-        "temperature": fig_dir / "temperature.svg",
-        "suitability": fig_dir / "suitability.svg",
-    }
-
-    return {
-        "results_paths": results_paths,
-        "fig_paths": fig_paths,
-    }
+from endoutbreakvbd.inputs import get_inputs_weather_suitability_data
+from scripts.weather_suitability_data_plots import make_plots
 
 
 def run_analyses():
-    inputs = _get_inputs()
+    inputs = get_inputs_weather_suitability_data()
     _get_process_data(
         save_path_all=inputs["results_paths"]["all"],
         save_path_2017=inputs["results_paths"]["2017"],
-    )
-
-
-def make_plots():
-    inputs = _get_inputs()
-    _make_temperature_plot(
-        data_path_all=inputs["results_paths"]["all"],
-        save_path=inputs["fig_paths"]["temperature"],
-    )
-    _make_suitability_plot(
-        data_path_2017=inputs["results_paths"]["2017"],
-        save_path=inputs["fig_paths"]["suitability"],
     )
 
 
@@ -112,41 +80,6 @@ def _get_process_data(*, save_path_all, save_path_2017):
     df_out_2017.to_csv(save_path_2017)
 
 
-def _make_temperature_plot(*, data_path_all, save_path):
-    df_all = pd.read_csv(data_path_all, index_col="date", parse_dates=True)
-    # Split into 2017 and other years
-    df_2017 = df_all.loc["2017"]
-    df_other = df_all.loc[df_all.index.year != 2017]
-    fig, ax = plt.subplots()
-    ax.scatter(
-        df_other.index.dayofyear,
-        df_other["temperature"],
-        color="tab:blue",
-        alpha=0.3,
-        s=5,
-    )
-    ax.scatter(
-        df_2017.index.dayofyear, df_2017["temperature"], color="tab:orange", s=10
-    )
-    ax.plot(
-        df_2017.index.dayofyear,
-        df_2017["temperature_smoothed"],
-        color="tab:red",
-    )
-    month_start_xticks(ax, interval_months=2)
-    ax.set_ylabel("Temperature (°C)")
-    fig.savefig(save_path)
-
-
-def _make_suitability_plot(*, data_path_2017, save_path):
-    df_2017 = pd.read_csv(data_path_2017, index_col="date", parse_dates=True)
-    fig, ax = plt.subplots()
-    ax.plot(df_2017.index.dayofyear, df_2017["suitability_smoothed"])
-    month_start_xticks(ax, interval_months=2)
-    ax.set_ylabel("Relative reproduction number")
-    fig.savefig(save_path)
-
-
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument(
@@ -155,14 +88,7 @@ if __name__ == "__main__":
         action="store_true",
         help="Only run analyses and save results (no plots)",
     )
-    argparser.add_argument(
-        "-p",
-        "--plots-only",
-        action="store_true",
-        help="Only generate plots (using saved results)",
-    )
     args = argparser.parse_args()
-    if not args.plots_only:
-        run_analyses()
+    run_analyses()
     if not args.results_only:
         make_plots()

@@ -1,78 +1,20 @@
 import argparse
 import functools
-import pathlib
 
 import numpy as np
 import pandas as pd
 
 from endoutbreakvbd import calc_further_case_risk_analytical, rep_no_from_grid
-from endoutbreakvbd.chikungunya import get_parameters, get_suitability_data
-from endoutbreakvbd.further_case_risk import calc_declaration_delay
-from endoutbreakvbd.inference import DEFAULTS
+from endoutbreakvbd.inputs import get_inputs_inference_test
 from endoutbreakvbd.model import run_renewal_model
 
 # from endoutbreakvbd.utils import lognormal_params_from_median_percentile_2_5
-from scripts.lazio_outbreak import (
-    _make_declaration_plot,
-    _make_rep_no_plot,
-    _make_risk_plot,
-    _make_scaling_factor_plot,
-    _make_suitability_plot,
-    _run_analyses_for_model,
-)
-
-
-def _get_inputs(quasi_real_time=False):
-    parameters = get_parameters()
-    gen_time_dist_vec = parameters["gen_time_dist_vec"]
-
-    df_suitability = get_suitability_data()
-    suitability_mean_grid = df_suitability["suitability_smoothed"].to_numpy()
-
-    suitability_model_params = {
-        "suitability_std": DEFAULTS.suitability_std,
-        "suitability_rho": DEFAULTS.suitability_rho,
-        "rep_no_factor_prior_median": DEFAULTS.rep_no_factor_prior_median,
-        "rep_no_factor_prior_percentile_2_5": DEFAULTS.rep_no_factor_prior_percentile_2_5,
-        "log_rep_no_factor_rho": DEFAULTS.log_rep_no_factor_rho,
-    }
-
-    doy_start = 152
-
-    analysis_label = "inference_test" + ("_qrt" if quasi_real_time else "")
-    results_dir = pathlib.Path(__file__).parents[1] / "results" / analysis_label
-    results_dir.mkdir(parents=True, exist_ok=True)
-    results_paths = {
-        "outbreak_data": results_dir / "outbreak_data.csv",
-        "autoregressive": results_dir / "autoregressive.csv",
-        "autoregressive_diagnostics": results_dir / "autoregressive_diagnostics.csv",
-        "suitability": results_dir / "suitability.csv",
-        "suitability_diagnostics": results_dir / "suitability_diagnostics.csv",
-    }
-
-    fig_dir = pathlib.Path(__file__).parents[1] / "figures" / analysis_label
-    fig_dir.mkdir(parents=True, exist_ok=True)
-    fig_paths = {
-        "rep_no": fig_dir / "rep_no.svg",
-        "risk": fig_dir / "risk.svg",
-        "declaration": fig_dir / "declaration.svg",
-        "suitability": fig_dir / "suitability.svg",
-        "scaling_factor": fig_dir / "scaling_factor.svg",
-    }
-
-    return {
-        "parameters": parameters,
-        "gen_time_dist_vec": gen_time_dist_vec,
-        "suitability_mean_grid": suitability_mean_grid,
-        "suitability_model_params": suitability_model_params,
-        "doy_start": doy_start,
-        "results_paths": results_paths,
-        "fig_paths": fig_paths,
-    }
+from scripts.inference_test_plots import make_plots
+from scripts.lazio_outbreak import _run_analyses_for_model
 
 
 def run_analyses(quasi_real_time=False):
-    inputs = _get_inputs(quasi_real_time=quasi_real_time)
+    inputs = get_inputs_inference_test(quasi_real_time=quasi_real_time)
     rng = np.random.default_rng(3)
     data_df = _generate_outbreak_data(
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
@@ -115,10 +57,10 @@ def _generate_outbreak_data(
 ):
     suitability_std = suitability_model_params["suitability_std"]
     suitability_rho = suitability_model_params["suitability_rho"]
-    rep_no_factor_prior_median = suitability_model_params["rep_no_factor_prior_median"]
-    rep_no_factor_prior_percentile_2_5 = suitability_model_params[
-        "rep_no_factor_prior_percentile_2_5"
-    ]
+    # rep_no_factor_prior_median = suitability_model_params["rep_no_factor_prior_median"]
+    # rep_no_factor_prior_percentile_2_5 = suitability_model_params[
+    #     "rep_no_factor_prior_percentile_2_5"
+    # ]
     # rep_no_factor_prior_lognormal_params = lognormal_params_from_median_percentile_2_5(
     #     median=rep_no_factor_prior_median,
     #     percentile_2_5=rep_no_factor_prior_percentile_2_5,
@@ -167,7 +109,6 @@ def _generate_outbreak_data(
             outbreak_found = True
             print(f"Outbreak found after {attempts} attempts")
 
-    incidence_vec = np.concatenate((incidence_vec, np.zeros(100)))
     t_end = len(incidence_vec)
     risk_vec = calc_further_case_risk_analytical(
         incidence_vec=incidence_vec,
@@ -201,96 +142,6 @@ def _run_ar_sim(*, mean, std, rho, t_max, rng):
     return realised_vec
 
 
-def make_plots(quasi_real_time=False):
-    inputs = _get_inputs(quasi_real_time=quasi_real_time)
-    df_data = pd.read_csv(inputs["results_paths"]["outbreak_data"], index_col=0)
-    doy_vec = df_data["day_of_year"].to_numpy()
-    incidence_vec = df_data["cases"].to_numpy()
-    suitability_vec = df_data["suitability"].to_numpy()
-    suitability_mean_vec = df_data["suitability_mean"].to_numpy()
-    rep_no_factor_vec = df_data["rep_no_factor"].to_numpy()
-    rep_no_vec = df_data["rep_no"].to_numpy()
-    risk_vec = df_data["further_case_risk"].to_numpy()
-
-    for plot_func, plot_kwargs, actual_vec, save_path in [
-        (
-            _make_suitability_plot,
-            {
-                "doy_vec": doy_vec,
-                "incidence_vec": incidence_vec,
-                "suitability_mean_vec": suitability_mean_vec,
-                "data_path": inputs["results_paths"]["suitability"],
-            },
-            suitability_vec,
-            inputs["fig_paths"]["suitability"],
-        ),
-        (
-            _make_scaling_factor_plot,
-            {
-                "doy_vec": doy_vec,
-                "incidence_vec": incidence_vec,
-                "data_path": inputs["results_paths"]["suitability"],
-            },
-            rep_no_factor_vec,
-            inputs["fig_paths"]["scaling_factor"],
-        ),
-        (
-            _make_rep_no_plot,
-            {
-                "doy_vec": doy_vec,
-                "incidence_vec": incidence_vec,
-                "model_names": ["Autoregressive model", "Suitability model"],
-                "data_paths": [
-                    inputs["results_paths"]["autoregressive"],
-                    inputs["results_paths"]["suitability"],
-                ],
-            },
-            rep_no_vec,
-            inputs["fig_paths"]["rep_no"],
-        ),
-        (
-            _make_risk_plot,
-            {
-                "doy_vec": doy_vec,
-                "incidence_vec": incidence_vec,
-                "model_names": ["Autoregressive model", "Suitability model"],
-                "existing_declarations": None,
-                "data_paths": [
-                    inputs["results_paths"]["autoregressive"],
-                    inputs["results_paths"]["suitability"],
-                ],
-            },
-            risk_vec,
-            inputs["fig_paths"]["risk"],
-        ),
-    ]:
-        fig, ax = plot_func(**plot_kwargs)
-        ax.plot(doy_vec, actual_vec, color="black", label="True")
-        ax.legend()
-        fig.savefig(save_path)
-    fig, ax = _make_declaration_plot(
-        incidence_vec=incidence_vec,
-        model_names=["Autoregressive model", "Suitability model"],
-        existing_declarations=None,
-        data_paths=[
-            inputs["results_paths"]["autoregressive"],
-            inputs["results_paths"]["suitability"],
-        ],
-    )
-    perc_risk_thresholds = ax.get_lines()[0].get_xdata()
-    time_last_case = np.nonzero(incidence_vec)[0][-1]
-    risk_days = np.arange(time_last_case + 1, len(incidence_vec))
-    risk_vals = df_data["further_case_risk"].to_numpy()[risk_days]
-    declaration_delays = calc_declaration_delay(
-        risk_vec=risk_vals,
-        perc_risk_threshold=perc_risk_thresholds,
-        delay_of_first_risk=1,
-    )
-    ax.plot(perc_risk_thresholds, declaration_delays, color="black", label="True")
-    ax.legend()
-    fig.savefig(inputs["fig_paths"]["declaration"])
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -300,19 +151,12 @@ if __name__ == "__main__":
         help="Only run analyses and save results (no plots)",
     )
     parser.add_argument(
-        "-p",
-        "--plots-only",
-        action="store_true",
-        help="Only generate plots (using saved results)",
-    )
-    parser.add_argument(
         "-q",
         "--quasi-real-time",
         action="store_true",
         help="Perform quasi-real-time analyses",
     )
     args = parser.parse_args()
-    if not args.plots_only:
-        run_analyses(quasi_real_time=args.quasi_real_time)
+    run_analyses(quasi_real_time=args.quasi_real_time)
     if not args.results_only:
         make_plots(quasi_real_time=args.quasi_real_time)
