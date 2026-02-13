@@ -39,7 +39,7 @@ def _make_temperature_plot(*, data_path_all, save_path):
         df_2017["temperature_smoothed"],
         color="tab:red",
     )
-    month_start_xticks(ax)
+    month_start_xticks(ax, interval_months=2)
     ax.set_ylabel("Temperature (°C)")
     fig.savefig(save_path)
 
@@ -48,7 +48,7 @@ def _make_suitability_plot(*, data_path_2017, save_path):
     df_2017 = pd.read_csv(data_path_2017, index_col="date", parse_dates=True)
     fig, ax = plt.subplots()
     ax.plot(df_2017.index.dayofyear, df_2017["suitability_smoothed"])
-    month_start_xticks(ax)
+    month_start_xticks(ax, interval_months=2)
     ax.set_ylabel("Relative reproduction number")
     fig.savefig(save_path)
 

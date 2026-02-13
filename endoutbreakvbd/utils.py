@@ -35,7 +35,7 @@ def lognormal_params_from_median_percentile_2_5(*, median, percentile_2_5):
 
 def set_plot_config():
     rc_params = {
-        "figure.figsize": (6.5, 6.5),
+        "figure.figsize": (7, 7),
         "axes.spines.top": False,
         "axes.spines.right": False,
         "savefig.transparent": True,
@@ -55,7 +55,7 @@ def set_plot_config():
     sns.set_palette("colorblind")
 
 
-def month_start_xticks(ax, year=2017, interval_months=2):
+def month_start_xticks(ax, year=2017, interval_months=1):
     month_starts = pd.date_range(
         start=f"{year}-01-01", end=f"{year + 1}-01-01", freq="MS"
     )
@@ -83,6 +83,9 @@ def plot_data_on_twin_ax(ax, t_vec, incidence_vec):
     twin_ax.yaxis.label.set_color("tab:gray")
     twin_ax.tick_params(axis="y", colors="tab:gray")
     twin_ax.spines["right"].set_visible(True)
+    twin_ax.spines["right"].set_color("tab:gray")
+    twin_ax.spines["left"].set_visible(False)
+    twin_ax.spines["bottom"].set_visible(False)
     return twin_ax
 
 
