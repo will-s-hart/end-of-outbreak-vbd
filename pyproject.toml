@@ -37,6 +37,7 @@ meteostat = "*"
 ruff = "*"
 ipykernel = "*"
 jupyter_bokeh = "*"
+pytest = "*"
 snakemake = "*"
 snakemake-executor-plugin-slurm = "*"
 
