@@ -35,7 +35,10 @@ def calc_further_case_risk_analytical(
         return 1
 
     gen_time_max = len(gen_time_dist_vec)
-    t_last_case = np.max(np.nonzero(incidence_vec)[0])
+    nonzero_incidence_idx = np.nonzero(incidence_vec)[0]
+    if nonzero_incidence_idx.size == 0:
+        return 0
+    t_last_case = np.max(nonzero_incidence_idx)
     t_max = t_last_case + gen_time_max
     if t_calc > t_max:
         return 0
@@ -142,6 +145,13 @@ def _further_cases_one_sim(
     ],
 ) -> tuple[int, int, bool]:
     (incidence_init, rep_no_func, gen_time_dist_vec, t_calc, rng, t_idx, s_idx) = args
+    if len(incidence_init) != t_calc:
+        raise ValueError(
+            f"t_calc ({t_calc}) does not match length of incidence_vec "
+            f"({len(incidence_init)})"
+        )
+    if t_calc == 0:
+        return t_idx, s_idx, True
     incidence_vec_sim = run_renewal_model(
         rep_no_func=rep_no_func,
         gen_time_dist_vec=gen_time_dist_vec,
@@ -155,8 +165,15 @@ def _further_cases_one_sim(
 
 
 def calc_declaration_delay(*, risk_vec, perc_risk_threshold, delay_of_first_risk):
-    below_threshold = risk_vec < (np.atleast_1d(perc_risk_threshold)[:, None] / 100)
+    perc_risk_threshold = np.atleast_1d(perc_risk_threshold)
+    below_threshold = risk_vec < (perc_risk_threshold[:, None] / 100)
+    never_below_threshold = ~np.any(below_threshold, axis=1)
+    if np.any(never_below_threshold):
+        raise ValueError(
+            "Risk does not drop below one or more thresholds: "
+            f"{perc_risk_threshold[never_below_threshold]}"
+        )
     declaration_delay = np.argmax(below_threshold, axis=1) + delay_of_first_risk
-    if np.isscalar(perc_risk_threshold):
+    if declaration_delay.size == 1:
         declaration_delay = declaration_delay.item()
     return declaration_delay

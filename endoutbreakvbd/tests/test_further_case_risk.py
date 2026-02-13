@@ -62,6 +62,16 @@ def test_calc_further_case_risk_analytical_handles_posterior_matrix_rep_no():
     assert risk == pytest.approx(expected)
 
 
+def test_calc_further_case_risk_analytical_all_zero_incidence_returns_zero():
+    risk = fcr.calc_further_case_risk_analytical(
+        incidence_vec=[0, 0, 0],
+        rep_no_func=lambda t: 1.0,
+        gen_time_dist_vec=[1.0],
+        t_calc=1,
+    )
+    assert risk == 0
+
+
 def test_calc_further_case_risk_simulation_parallel_false_deterministic_zero_risk(rng):
     risk = fcr.calc_further_case_risk_simulation(
         incidence_vec=[1],
@@ -102,6 +112,21 @@ def test_further_cases_one_sim_uses_run_renewal_model(monkeypatch):
     assert out == (0, 0, True)
 
 
+def test_further_cases_one_sim_raises_when_t_calc_does_not_match_incidence_length():
+    with pytest.raises(ValueError, match="does not match length of incidence_vec"):
+        fcr._further_cases_one_sim(
+            (
+                np.array([1, 0]),
+                lambda t: 1.0,
+                np.array([1.0, 0.0]),
+                1,
+                np.random.default_rng(0),
+                0,
+                0,
+            )
+        )
+
+
 def test_calc_declaration_delay_scalar_threshold():
     delay = fcr.calc_declaration_delay(
         risk_vec=np.array([0.2, 0.04, 0.01]),
@@ -118,6 +143,15 @@ def test_calc_declaration_delay_vector_thresholds():
         delay_of_first_risk=1,
     )
     np.testing.assert_array_equal(delay, np.array([2, 3]))
+
+
+def test_calc_declaration_delay_raises_when_risk_never_below_threshold():
+    with pytest.raises(ValueError, match="does not drop below"):
+        fcr.calc_declaration_delay(
+            risk_vec=np.array([0.2, 0.15, 0.1]),
+            perc_risk_threshold=5,
+            delay_of_first_risk=1,
+        )
 
 
 def test_simulation_risk_t_calc_zero_should_not_crash(rng):

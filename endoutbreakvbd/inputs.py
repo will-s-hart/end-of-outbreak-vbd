@@ -231,11 +231,15 @@ def _get_2017_suitability_data():
 def _get_gen_time_dist():
     gen_time_max = 40
     gen_time_dist_cont = scipy.stats.gamma(a=8.53, scale=1.46)
-    gen_time_dist_vec = _discretise_cori(gen_time_dist_cont, max_val=gen_time_max)
+    gen_time_dist_vec = _discretise_cori(
+        dist_cont=gen_time_dist_cont, max_val=gen_time_max
+    )
     return gen_time_dist_vec
 
 
-def _discretise_cori(dist_cont, max_val=None, allow_zero=False):
+def _discretise_cori(
+    *, dist_cont: scipy.stats.rv_continuous, max_val: int, allow_zero: bool = False
+):
     """
     Function for discretising a continuous distribution using the method
     described in https://doi.org/10.1093/aje/kwt133 (web appendix 11).
@@ -245,6 +249,11 @@ def _discretise_cori(dist_cont, max_val=None, allow_zero=False):
         # To get probability mass function at time x, need to integrate this expression
         # with respect to y between y=x-1 and and y=x+1
         return (1 - abs(x - y)) * dist_cont.pdf(y)
+
+    if max_val < 0:
+        raise ValueError("max_val must be non-negative")
+    if not allow_zero and max_val < 1:
+        raise ValueError("max_val must be at least 1 when allow_zero is False")
 
     # Set up vector of x values and pre-allocate vector of probabilities
     x_vec = np.arange(0, max_val + 1, dtype=int)
