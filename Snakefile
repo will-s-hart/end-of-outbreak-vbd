@@ -43,10 +43,10 @@ results_files = (
     + results_files_inference_test
 )
 
-figure_files_weather_suitability_data = expand(
+plot_files_weather_suitability_data = expand(
     "figures/weather_suitability_data/{name}.svg", name=["temperature", "suitability"]
 )
-figure_files_sim_study = expand(
+plot_files_sim_study = expand(
     "figures/sim_study/{name}.svg",
     name=[
         "rep_no",
@@ -57,7 +57,7 @@ figure_files_sim_study = expand(
 )
 
 
-def get_figure_files_lazio_outbreak(qrt):
+def get_plot_files_lazio_outbreak(qrt):
     return expand(
         "figures/lazio_outbreak{qrt}/{name}.svg",
         qrt=qrt,
@@ -72,10 +72,10 @@ def get_figure_files_lazio_outbreak(qrt):
     )
 
 
-figure_files_lazio_outbreak = get_figure_files_lazio_outbreak(qrt=["", "_qrt"])
+plot_files_lazio_outbreak = get_plot_files_lazio_outbreak(qrt=["", "_qrt"])
 
 
-def get_figure_files_inference_test(qrt):
+def get_plot_files_inference_test(qrt):
     return expand(
         "figures/inference_test{qrt}/{name}.svg",
         qrt=qrt,
@@ -89,14 +89,19 @@ def get_figure_files_inference_test(qrt):
     )
 
 
-figure_files_inference_test = get_figure_files_inference_test(qrt=["", "_qrt"])
+plot_files_inference_test = get_plot_files_inference_test(qrt=["", "_qrt"])
+
+paper_figure_files = expand(
+    "figures/figure_{number}.svg", number=["1", "2", "3", "4", "S1", "S2"]
+)
+paper_figure_files_png = [x.replace(".svg", ".png") for x in paper_figure_files]
 
 
-figure_files = (
-    figure_files_weather_suitability_data
-    + figure_files_sim_study
-    + figure_files_lazio_outbreak
-    + figure_files_inference_test
+plot_files = (
+    plot_files_weather_suitability_data
+    + plot_files_sim_study
+    + plot_files_lazio_outbreak
+    + plot_files_inference_test
 )
 
 package_files = [
@@ -119,17 +124,38 @@ wildcard_constraints:
 
 rule all:
     input:
-        results_files + figure_files,
+        paper_figure_files,
 
 
-rule figures:
+rule paper_figures_png:
     input:
-        figure_files,
+        paper_figure_files,
+    output:
+        paper_figure_files_png,
+    shell:
+        r"""
+        for svg in {input}; do
+            png="${{svg%.svg}}.png"
+            echo "Converting $svg -> $png"
+            inkscape "$svg" --export-type=png --export-filename="$png"
+        done
+        """
 
 
 rule results:
     input:
         results_files,
+
+
+rule paper_figures:
+    input:
+        plot_files,
+    output:
+        paper_figure_files,
+    shell:
+        """
+        pixi run python scripts/compile_figures.py
+        """
 
 
 rule weather_suitability_data_results:
@@ -150,7 +176,7 @@ rule weather_suitability_data_plots:
         "scripts/weather_suitability_data_plots.py",
         results_files_weather_suitability_data,
     output:
-        figure_files_weather_suitability_data,
+        plot_files_weather_suitability_data,
     shell:
         """
         pixi run python scripts/weather_suitability_data_plots.py
@@ -177,7 +203,7 @@ rule sim_study_plots:
         "scripts/sim_study_plots.py",
         results_files_sim_study,
     output:
-        figure_files_sim_study,
+        plot_files_sim_study,
     shell:
         """
         pixi run python scripts/sim_study_plots.py
@@ -208,7 +234,7 @@ rule lazio_outbreak_plots:
         "scripts/lazio_outbreak_plots.py",
         get_results_files_lazio_outbreak(qrt="{qrt}"),
     output:
-        get_figure_files_lazio_outbreak(qrt="{qrt}"),
+        get_plot_files_lazio_outbreak(qrt="{qrt}"),
     params:
         qrt_flag=lambda wildcards: (
             "--quasi-real-time" if wildcards.qrt == "_qrt" else ""
@@ -245,7 +271,7 @@ rule inference_test_plots:
         "scripts/lazio_outbreak_plots.py",
         get_results_files_inference_test(qrt="{qrt}"),
     output:
-        get_figure_files_inference_test(qrt="{qrt}"),
+        get_plot_files_inference_test(qrt="{qrt}"),
     params:
         qrt_flag=lambda wildcards: (
             "--quasi-real-time" if wildcards.qrt == "_qrt" else ""
