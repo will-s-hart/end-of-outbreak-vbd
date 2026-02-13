@@ -23,12 +23,16 @@ class _DummyModel:
 def _setup_minimal_pm_for_fit_model(monkeypatch):
     state = {}
 
-    monkeypatch.setattr(inf.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords))
+    monkeypatch.setattr(
+        inf.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
+    )
 
     poisson_calls = []
 
     def fake_poisson(name, mu, observed):
-        poisson_calls.append({"name": name, "mu": np.array(mu), "observed": np.array(observed)})
+        poisson_calls.append(
+            {"name": name, "mu": np.array(mu), "observed": np.array(observed)}
+        )
 
     monkeypatch.setattr(inf.pm, "Poisson", fake_poisson)
 
@@ -143,7 +147,9 @@ def test_fit_autoregressive_model_uses_defaults(monkeypatch):
         captured["fit_model_kwargs"] = kwargs
         return "posterior"
 
-    monkeypatch.setattr(inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal)
+    monkeypatch.setattr(
+        inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal
+    )
     monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
 
     out = inf.fit_autoregressive_model(
@@ -166,7 +172,9 @@ def test_fit_autoregressive_model_respects_overrides(monkeypatch):
         captured["percentile_2_5"] = percentile_2_5
         return {"mu": 0.0, "sigma": 1.0}
 
-    monkeypatch.setattr(inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal)
+    monkeypatch.setattr(
+        inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal
+    )
     monkeypatch.setattr(inf, "_fit_model", lambda **kwargs: kwargs)
 
     out = inf.fit_autoregressive_model(
@@ -194,7 +202,9 @@ def test_fit_suitability_model_uses_defaults(monkeypatch):
         captured["fit_model_kwargs"] = kwargs
         return "posterior"
 
-    monkeypatch.setattr(inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal)
+    monkeypatch.setattr(
+        inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal
+    )
     monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
 
     out = inf.fit_suitability_model(
@@ -218,7 +228,9 @@ def test_fit_suitability_model_respects_overrides(monkeypatch):
         captured["percentile_2_5"] = percentile_2_5
         return {"mu": 0.0, "sigma": 1.0}
 
-    monkeypatch.setattr(inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal)
+    monkeypatch.setattr(
+        inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal
+    )
     monkeypatch.setattr(inf, "_fit_model", lambda **kwargs: kwargs)
 
     out = inf.fit_suitability_model(
@@ -252,7 +264,9 @@ def test_fit_suitability_model_rep_no_func_uses_clip(monkeypatch):
 
     monkeypatch.setattr(inf.pm, "math", _FakeMath)
     monkeypatch.setattr(inf.pm, "AR", lambda *args, **kwargs: np.zeros(4))
-    monkeypatch.setattr(inf.pm, "Deterministic", lambda name, value, dims=None: np.array(value))
+    monkeypatch.setattr(
+        inf.pm, "Deterministic", lambda name, value, dims=None: np.array(value)
+    )
 
     class _FakeNormal:
         @staticmethod

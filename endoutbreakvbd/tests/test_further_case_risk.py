@@ -49,7 +49,10 @@ def test_calc_further_case_risk_analytical_handles_posterior_matrix_rep_no():
     def rep_no_func(t):
         t_arr = np.atleast_1d(t)
         return np.column_stack(
-            [np.full(t_arr.size, 0.2, dtype=float), np.full(t_arr.size, 0.6, dtype=float)]
+            [
+                np.full(t_arr.size, 0.2, dtype=float),
+                np.full(t_arr.size, 0.6, dtype=float),
+            ]
         )
 
     risk = fcr.calc_further_case_risk_analytical(

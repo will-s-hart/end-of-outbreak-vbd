@@ -22,7 +22,9 @@ def test_rep_no_from_grid_nonperiodic_returns_expected_values():
 
 def test_rep_no_from_grid_nonperiodic_raises_on_out_of_range():
     with pytest.raises(ValueError, match="outside the range"):
-        rep_no_from_grid(np.array([-1, 1]), rep_no_grid=np.array([1.0, 2.0]), periodic=False)
+        rep_no_from_grid(
+            np.array([-1, 1]), rep_no_grid=np.array([1.0, 2.0]), periodic=False
+        )
 
 
 def test_rep_no_from_grid_periodic_requires_doy_start():
@@ -32,7 +34,9 @@ def test_rep_no_from_grid_periodic_requires_doy_start():
 
 def test_rep_no_from_grid_periodic_requires_365_grid():
     with pytest.raises(ValueError, match="length 365"):
-        rep_no_from_grid(np.array([0]), rep_no_grid=np.ones(364), periodic=True, doy_start=1)
+        rep_no_from_grid(
+            np.array([0]), rep_no_grid=np.ones(364), periodic=True, doy_start=1
+        )
 
 
 def test_rep_no_from_grid_periodic_wraparound():
