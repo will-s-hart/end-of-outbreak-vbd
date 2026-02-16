@@ -1,15 +1,17 @@
 import functools
 import pathlib
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import scipy.stats
+from numpy.typing import NDArray
 
 from endoutbreakvbd.inference import DEFAULTS
 from endoutbreakvbd.utils import rep_no_from_grid
 
 
-def get_inputs_weather_suitability_data():
+def get_inputs_weather_suitability_data() -> dict[str, dict[str, pathlib.Path]]:
     results_dir = pathlib.Path(__file__).parents[1] / "results/weather_suitability_data"
     results_paths = {
         "all": results_dir / "all.csv",
@@ -29,7 +31,7 @@ def get_inputs_weather_suitability_data():
     }
 
 
-def get_inputs_sim_study():
+def get_inputs_sim_study() -> dict[str, Any]:
     gen_time_dist_vec = _get_gen_time_dist()
 
     df_suitability = _get_2017_suitability_data()
@@ -90,7 +92,7 @@ def get_inputs_sim_study():
     }
 
 
-def get_inputs_inference_test(quasi_real_time=False):
+def get_inputs_inference_test(quasi_real_time: bool = False) -> dict[str, Any]:
     gen_time_dist_vec = _get_gen_time_dist()
 
     df_suitability = _get_2017_suitability_data()
@@ -137,7 +139,7 @@ def get_inputs_inference_test(quasi_real_time=False):
     }
 
 
-def get_inputs_lazio_outbreak(quasi_real_time=False):
+def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
     gen_time_dist_vec = _get_gen_time_dist()
 
     df_data = _get_lazio_outbreak_data()
@@ -208,7 +210,7 @@ def get_inputs_lazio_outbreak(quasi_real_time=False):
     }
 
 
-def _get_lazio_outbreak_data():
+def _get_lazio_outbreak_data() -> pd.DataFrame:
     df = pd.read_csv(
         pathlib.Path(__file__).parents[1] / "data/lazio_chik_2017.csv",
         index_col="onset_date",
@@ -218,7 +220,7 @@ def _get_lazio_outbreak_data():
     return df
 
 
-def _get_2017_suitability_data():
+def _get_2017_suitability_data() -> pd.DataFrame:
     df = pd.read_csv(
         pathlib.Path(__file__).parents[1] / "results/weather_suitability_data/2017.csv",
         index_col="date",
@@ -228,7 +230,7 @@ def _get_2017_suitability_data():
     return df
 
 
-def _get_gen_time_dist():
+def _get_gen_time_dist() -> NDArray[np.float64]:
     gen_time_max = 40
     gen_time_dist_cont = scipy.stats.gamma(a=8.53, scale=1.46)
     gen_time_dist_vec = _discretise_cori(
@@ -239,13 +241,13 @@ def _get_gen_time_dist():
 
 def _discretise_cori(
     *, dist_cont: scipy.stats.rv_continuous, max_val: int, allow_zero: bool = False
-):
+) -> NDArray[np.float64]:
     """
     Function for discretising a continuous distribution using the method
     described in https://doi.org/10.1093/aje/kwt133 (web appendix 11).
     """
 
-    def _integrand_func(x, y):
+    def _integrand_func(x: float, y: float) -> float:
         # To get probability mass function at time x, need to integrate this expression
         # with respect to y between y=x-1 and and y=x+1
         return (1 - abs(x - y)) * dist_cont.pdf(y)

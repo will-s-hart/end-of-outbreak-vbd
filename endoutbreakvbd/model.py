@@ -1,21 +1,14 @@
-from typing import Annotated, Protocol, TypeAlias, overload
+from typing import Annotated
 
 import numpy as np
 from annotated_types import Gt
-from numpy.typing import NDArray
 
-IntArray: TypeAlias = NDArray[np.int_]
-FloatArray: TypeAlias = NDArray[np.float64]
-GenTimeInput: TypeAlias = list[float] | FloatArray
-IncidenceInput: TypeAlias = int | list[int] | IntArray | None
-
-
-class RepNoFunc(Protocol):
-    @overload
-    def __call__(self, t: int, /) -> float: ...
-
-    @overload
-    def __call__(self, t: IntArray, /) -> FloatArray: ...
+from endoutbreakvbd.types import (
+    GenTimeInput,
+    IncidenceInitInput,
+    IntArray,
+    RepNoFunc,
+)
 
 
 def run_renewal_model(
@@ -24,7 +17,7 @@ def run_renewal_model(
     gen_time_dist_vec: GenTimeInput,
     rng: np.random.Generator,
     t_stop: Annotated[int, Gt(0)] = 1000,
-    incidence_init: IncidenceInput = None,
+    incidence_init: IncidenceInitInput = None,
     _break_on_case: bool = False,
 ) -> IntArray:
     gen_time_dist_vec = np.asarray(gen_time_dist_vec)

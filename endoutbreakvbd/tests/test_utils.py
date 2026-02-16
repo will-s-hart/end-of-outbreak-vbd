@@ -1,5 +1,5 @@
-import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -40,7 +40,7 @@ def test_rep_no_from_grid_periodic_requires_365_grid():
 
 
 def test_rep_no_from_grid_periodic_wraparound():
-    grid = np.arange(1, 366)
+    grid = np.arange(1, 366, dtype=float)
     t_vec = np.array([0, 1, 364, 365])
     out = rep_no_from_grid(t_vec, rep_no_grid=grid, periodic=True, doy_start=1)
     np.testing.assert_array_equal(out, np.array([1, 2, 365, 1]))

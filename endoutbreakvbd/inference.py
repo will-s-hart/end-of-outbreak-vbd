@@ -1,4 +1,6 @@
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any, cast
 
 import arviz_base as azb
 import numpy as np
@@ -6,6 +8,7 @@ import pymc as pm
 import xarray as xr
 from tqdm import tqdm
 
+from endoutbreakvbd.types import FloatArray, GenTimeInput, IncidenceSeriesInput
 from endoutbreakvbd.utils import lognormal_params_from_median_percentile_2_5
 
 
@@ -28,15 +31,15 @@ DEFAULTS = Defaults()
 
 def _fit_model(
     *,
-    incidence_vec,
-    gen_time_dist_vec,
-    rep_no_vec_func,
-    quasi_real_time,
-    step_func=None,
-    thin=1,
-    rng=None,
-    **kwargs_sample,
-):
+    incidence_vec: IncidenceSeriesInput,
+    gen_time_dist_vec: GenTimeInput,
+    rep_no_vec_func: Callable[[int], Any],
+    quasi_real_time: bool,
+    step_func: Callable[[], Any] | None = None,
+    thin: int = 1,
+    rng: np.random.Generator | int | None = None,
+    **kwargs_sample: Any,
+) -> xr.Dataset:
     if quasi_real_time:
         posterior_list = []
         for t in tqdm(
@@ -113,14 +116,14 @@ def _fit_model(
 
 def fit_autoregressive_model(
     *,
-    incidence_vec,
-    gen_time_dist_vec,
-    prior_median=None,
-    prior_percentile_2_5=None,
-    rho=None,
-    quasi_real_time=False,
-    **kwargs,
-):
+    incidence_vec: IncidenceSeriesInput,
+    gen_time_dist_vec: GenTimeInput,
+    prior_median: float | None = None,
+    prior_percentile_2_5: float | None = None,
+    rho: float | None = None,
+    quasi_real_time: bool = False,
+    **kwargs: Any,
+) -> xr.Dataset:
     prior_median = prior_median or DEFAULTS.rep_no_prior_median
     prior_percentile_2_5 = prior_percentile_2_5 or DEFAULTS.rep_no_prior_percentile_2_5
     rho = rho or DEFAULTS.rep_no_rho
@@ -128,7 +131,7 @@ def fit_autoregressive_model(
         median=prior_median, percentile_2_5=prior_percentile_2_5
     )
 
-    def rep_no_vec_func(_):
+    def rep_no_vec_func(_: int) -> Any:
         log_rep_no_deviation_vec = pm.AR(
             "log_rep_no_deviation",
             sigma=lognormal_params["sigma"] * np.sqrt(1 - rho**2),
@@ -138,7 +141,7 @@ def fit_autoregressive_model(
         )
         rep_no_vec = pm.Deterministic(
             "rep_no",
-            pm.math.exp(lognormal_params["mu"] + log_rep_no_deviation_vec),
+            pm.math.exp(lognormal_params["mu"] + cast(Any, log_rep_no_deviation_vec)),
             dims=("time",),
         )
         return rep_no_vec
@@ -154,17 +157,17 @@ def fit_autoregressive_model(
 
 def fit_suitability_model(
     *,
-    incidence_vec,
-    gen_time_dist_vec,
-    suitability_mean_vec,
-    suitability_std=None,
-    suitability_rho=None,
-    rep_no_factor_prior_median=None,
-    rep_no_factor_prior_percentile_2_5=None,
-    log_rep_no_factor_rho=None,
-    quasi_real_time=False,
-    **kwargs,
-):
+    incidence_vec: IncidenceSeriesInput,
+    gen_time_dist_vec: GenTimeInput,
+    suitability_mean_vec: list[float] | FloatArray,
+    suitability_std: float | None = None,
+    suitability_rho: float | None = None,
+    rep_no_factor_prior_median: float | None = None,
+    rep_no_factor_prior_percentile_2_5: float | None = None,
+    log_rep_no_factor_rho: float | None = None,
+    quasi_real_time: bool = False,
+    **kwargs: Any,
+) -> xr.Dataset:
     suitability_std = suitability_std or DEFAULTS.suitability_std
     suitability_rho = suitability_rho or DEFAULTS.suitability_rho
     rep_no_factor_prior_median = (
@@ -180,7 +183,9 @@ def fit_suitability_model(
         percentile_2_5=rep_no_factor_prior_percentile_2_5,
     )
 
-    def rep_no_vec_func(t_stop):
+    suitability_mean_vec_arr = np.asarray(suitability_mean_vec)
+
+    def rep_no_vec_func(t_stop: int) -> Any:
         log_rep_no_factor_deviation_vec = pm.AR(
             "log_rep_no_factor_deviation",
             sigma=rep_no_factor_lognormal_params["sigma"]
@@ -194,7 +199,8 @@ def fit_suitability_model(
         rep_no_factor_vec = pm.Deterministic(
             "rep_no_factor",
             pm.math.exp(
-                rep_no_factor_lognormal_params["mu"] + log_rep_no_factor_deviation_vec
+                rep_no_factor_lognormal_params["mu"]
+                + cast(Any, log_rep_no_factor_deviation_vec)
             ),
             dims=("time",),
         )
@@ -208,7 +214,9 @@ def fit_suitability_model(
         suitability_vec = pm.Deterministic(
             "suitability",
             pm.math.clip(  # need to truncate mean suitability at t_stop in QRT mode
-                suitability_mean_vec[:t_stop] + suitability_deviations, 1e-8, 1
+                suitability_mean_vec_arr[:t_stop] + cast(Any, suitability_deviations),
+                1e-8,
+                1,
             ),
             dims=("time",),
         )

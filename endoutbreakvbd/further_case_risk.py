@@ -1,23 +1,28 @@
 import itertools
-from typing import Annotated, TypeAlias, cast, overload
+from typing import Annotated, cast, overload
 
 import numpy as np
 from annotated_types import Ge
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from endoutbreakvbd.model import FloatArray, IntArray, RepNoFunc, run_renewal_model
+from endoutbreakvbd.model import run_renewal_model
+from endoutbreakvbd.types import (
+    FloatArray,
+    GenTimeInput,
+    IncidenceSeriesInput,
+    IntArray,
+    PercRiskThresholdInput,
+    RepNoFunc,
+)
 
 nonnegint = Annotated[int, Ge(0)]
-IncidenceInput: TypeAlias = list[int] | IntArray
-GenTimeInput: TypeAlias = list[float] | FloatArray
-PercRiskThresholdInput: TypeAlias = int | float | IntArray | FloatArray
 
 
 @overload
 def calc_further_case_risk_analytical(
     *,
-    incidence_vec: IncidenceInput,
+    incidence_vec: IncidenceSeriesInput,
     rep_no_func: RepNoFunc,
     gen_time_dist_vec: GenTimeInput,
     t_calc: nonnegint,
@@ -27,7 +32,7 @@ def calc_further_case_risk_analytical(
 @overload
 def calc_further_case_risk_analytical(
     *,
-    incidence_vec: IncidenceInput,
+    incidence_vec: IncidenceSeriesInput,
     rep_no_func: RepNoFunc,
     gen_time_dist_vec: GenTimeInput,
     t_calc: IntArray,
@@ -36,7 +41,7 @@ def calc_further_case_risk_analytical(
 
 def calc_further_case_risk_analytical(
     *,
-    incidence_vec: IncidenceInput,
+    incidence_vec: IncidenceSeriesInput,
     rep_no_func: RepNoFunc,
     gen_time_dist_vec: GenTimeInput,
     t_calc: nonnegint | IntArray,
@@ -113,7 +118,7 @@ def _calc_further_case_risk_analytical_scalar(
 @overload
 def calc_further_case_risk_simulation(
     *,
-    incidence_vec: IncidenceInput,
+    incidence_vec: IncidenceSeriesInput,
     rep_no_func: RepNoFunc,
     gen_time_dist_vec: GenTimeInput,
     t_calc: nonnegint,
@@ -126,7 +131,7 @@ def calc_further_case_risk_simulation(
 @overload
 def calc_further_case_risk_simulation(
     *,
-    incidence_vec: IncidenceInput,
+    incidence_vec: IncidenceSeriesInput,
     rep_no_func: RepNoFunc,
     gen_time_dist_vec: GenTimeInput,
     t_calc: IntArray,
@@ -138,7 +143,7 @@ def calc_further_case_risk_simulation(
 
 def calc_further_case_risk_simulation(
     *,
-    incidence_vec: IncidenceInput,
+    incidence_vec: IncidenceSeriesInput,
     rep_no_func: RepNoFunc,
     gen_time_dist_vec: GenTimeInput,
     t_calc: nonnegint | IntArray,
