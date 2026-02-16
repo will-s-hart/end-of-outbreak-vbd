@@ -20,22 +20,25 @@ def make_plots():
 
 def _make_temperature_plot(*, data_path_all, save_path):
     df_all = pd.read_csv(data_path_all, index_col="date", parse_dates=True)
+    df_all_index = pd.DatetimeIndex(df_all.index)
     # Split into 2017 and other years
     df_2017 = df_all.loc["2017"]
-    df_other = df_all.loc[df_all.index.year != 2017]
+    df_other = df_all.loc[df_all_index.year != 2017]
+    df_2017_index = pd.DatetimeIndex(df_2017.index)
+    df_other_index = pd.DatetimeIndex(df_other.index)
     fig, ax = plt.subplots()
     ax.scatter(
-        df_other.index.dayofyear,
+        df_other_index.dayofyear,
         df_other["temperature"],
         color="tab:blue",
         alpha=0.3,
         s=5,
     )
     ax.scatter(
-        df_2017.index.dayofyear, df_2017["temperature"], color="tab:orange", s=10
+        df_2017_index.dayofyear, df_2017["temperature"], color="tab:orange", s=10
     )
     ax.plot(
-        df_2017.index.dayofyear,
+        df_2017_index.dayofyear,
         df_2017["temperature_smoothed"],
         color="tab:red",
     )
@@ -46,8 +49,9 @@ def _make_temperature_plot(*, data_path_all, save_path):
 
 def _make_suitability_plot(*, data_path_2017, save_path):
     df_2017 = pd.read_csv(data_path_2017, index_col="date", parse_dates=True)
+    df_2017_index = pd.DatetimeIndex(df_2017.index)
     fig, ax = plt.subplots()
-    ax.plot(df_2017.index.dayofyear, df_2017["suitability_smoothed"])
+    ax.plot(df_2017_index.dayofyear, df_2017["suitability_smoothed"])
     month_start_xticks(ax, interval_months=2)
     ax.set_ylabel("Relative reproduction number")
     fig.savefig(save_path)

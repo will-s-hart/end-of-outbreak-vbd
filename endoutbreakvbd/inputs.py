@@ -214,7 +214,7 @@ def _get_lazio_outbreak_data():
         index_col="onset_date",
         parse_dates=True,
     )
-    df["doy"] = df.index.day_of_year
+    df["doy"] = pd.DatetimeIndex(df.index).day_of_year
     return df
 
 
@@ -224,7 +224,7 @@ def _get_2017_suitability_data():
         index_col="date",
         parse_dates=True,
     )
-    df["doy"] = df.index.day_of_year
+    df["doy"] = pd.DatetimeIndex(df.index).day_of_year
     return df
 
 

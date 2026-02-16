@@ -37,9 +37,11 @@ meteostat = "*"
 ruff = "*"
 ipykernel = "*"
 jupyter_bokeh = "*"
+pandas-stubs = "*"
 pytest = "*"
 snakemake = "*"
 snakemake-executor-plugin-slurm = "*"
+ty = "*"
 
 [tool.pixi.environments]
 default = { features = ["dev"], solve-group = "prod" }

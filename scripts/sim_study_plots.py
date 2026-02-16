@@ -36,7 +36,7 @@ def make_plots():
 
 def _make_rep_no_plot(*, rep_no_func_doy, example_doy_vals, save_path=None):
     fig, ax = plt.subplots()
-    doy_vec = np.arange(1, 366, dtype=int)
+    doy_vec = np.arange(1, 366)
     ax.plot(doy_vec, rep_no_func_doy(doy_vec))
     ax.plot(example_doy_vals, rep_no_func_doy(np.array(example_doy_vals)), "o")
     month_start_xticks(ax, interval_months=2)
@@ -121,7 +121,7 @@ def _make_many_outbreak_plot(*, data_path, save_path=None):
     )
     stats = (
         df.groupby("final_case_doy_binned", observed=False)["delay_to_declaration"]
-        .quantile([0.025, 0.5, 0.975])
+        .quantile(np.array([0.025, 0.5, 0.975]))
         .unstack()
     )
     proportions = df["final_case_doy_binned"].value_counts(normalize=True).sort_index()
@@ -130,7 +130,7 @@ def _make_many_outbreak_plot(*, data_path, save_path=None):
     cmap = matplotlib.colormaps["Blues"]
     # norm = matplotlib.colors.LogNorm(0.001, proportions.max())
     norm = plt.Normalize(0, 0.01)
-    colors = cmap(norm(proportions.values))
+    colors = cmap(norm(proportions.to_numpy()))
 
     fig, ax = plt.subplots()
     for x, m, lo, hi, c in zip(

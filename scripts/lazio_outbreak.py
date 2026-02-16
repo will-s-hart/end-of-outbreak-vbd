@@ -2,9 +2,9 @@ import argparse
 import functools
 
 import arviz_base as azb
-import arviz_stats as azs
 import numpy as np
 import pandas as pd
+from arviz_stats import ess, rhat
 
 from endoutbreakvbd import calc_further_case_risk_analytical, rep_no_from_grid
 from endoutbreakvbd.inference import fit_autoregressive_model, fit_suitability_model
@@ -101,8 +101,8 @@ def _run_analyses_for_model(
         df_out["rep_no_factor_upper"] = rep_no_factor_upper_vec
     df_out.to_csv(save_path)
     # Convergence diagnostics
-    rhat = azs.rhat(posterior, var_names="rep_no")["rep_no"]
-    ess = azs.ess(posterior, var_names="rep_no")["rep_no"]
+    rhat_vals = rhat(posterior, var_names="rep_no")["rep_no"]
+    ess_vals = ess(posterior, var_names="rep_no")["rep_no"]
     df_diagnostics = pd.DataFrame(
         {
             "stat": [
@@ -114,12 +114,12 @@ def _run_analyses_for_model(
                 "ess_min",
             ],
             "value": [
-                rhat.mean().item(),
-                rhat.median().item(),
-                rhat.max().item(),
-                ess.mean().item(),
-                ess.median().item(),
-                ess.min().item(),
+                rhat_vals.mean().item(),
+                rhat_vals.median().item(),
+                rhat_vals.max().item(),
+                ess_vals.mean().item(),
+                ess_vals.median().item(),
+                ess_vals.min().item(),
             ],
         }
     )

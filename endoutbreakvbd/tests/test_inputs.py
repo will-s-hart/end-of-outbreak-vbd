@@ -24,14 +24,16 @@ def test_discretise_cori_allow_zero_changes_output_length():
 
 def test_discretise_cori_requires_keyword_only_dist_cont():
     dist = scipy.stats.gamma(a=2.0, scale=1.0)
+    discretise_cori = getattr(inputs, "_discretise_cori")
     with pytest.raises(TypeError, match="positional arguments"):
-        inputs._discretise_cori(dist, max_val=10, allow_zero=True)
+        discretise_cori(dist, max_val=10, allow_zero=True)
 
 
 def test_discretise_cori_requires_max_val():
     dist = scipy.stats.gamma(a=2.0, scale=1.0)
+    discretise_cori = getattr(inputs, "_discretise_cori")
     with pytest.raises(TypeError, match="missing 1 required keyword-only argument"):
-        inputs._discretise_cori(dist_cont=dist)
+        discretise_cori(dist_cont=dist)
 
 
 def test_discretise_cori_requires_nonnegative_max_val():

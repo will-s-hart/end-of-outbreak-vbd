@@ -29,8 +29,9 @@ def test_calc_further_case_risk_analytical_vectorized_t_calc_shape():
         incidence_vec=[1],
         rep_no_func=lambda t: np.zeros_like(t, dtype=float),
         gen_time_dist_vec=[1.0],
-        t_calc=np.array([0, 1, 2]),
+        t_calc=np.array([0, 1, 2], dtype=int),
     )
+    assert isinstance(risk, np.ndarray)
     assert risk.shape == (3,)
     np.testing.assert_allclose(risk, np.array([1.0, 0.0, 0.0]))
 
@@ -80,11 +81,12 @@ def test_calc_further_case_risk_simulation_parallel_false_deterministic_zero_ris
         incidence_vec=[1],
         rep_no_func=lambda t: 0.0 if np.isscalar(t) else np.zeros_like(t, dtype=float),
         gen_time_dist_vec=[1.0],
-        t_calc=np.array([1, 2]),
+        t_calc=np.array([1, 2], dtype=int),
         n_sims=20,
         rng=rng,
         parallel=False,
     )
+    assert isinstance(risk, np.ndarray)
     assert risk.shape == (2,)
     np.testing.assert_allclose(risk, np.array([0.0, 0.0]))
 
@@ -162,9 +164,10 @@ def test_simulation_risk_t_calc_zero_should_not_crash(rng):
         incidence_vec=[1],
         rep_no_func=lambda t: 0.0 if np.isscalar(t) else np.zeros_like(t, dtype=float),
         gen_time_dist_vec=[1.0],
-        t_calc=np.array([0]),
+        t_calc=np.array([0], dtype=int),
         n_sims=5,
         rng=rng,
         parallel=False,
     )
+    assert isinstance(risk, np.ndarray)
     np.testing.assert_allclose(risk, np.array([1.0]))
