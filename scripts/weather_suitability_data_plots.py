@@ -12,6 +12,10 @@ def make_plots():
         data_path_all=inputs["results_paths"]["all"],
         save_path=inputs["fig_paths"]["temperature"],
     )
+    _make_suitability_model_plot(
+        df_suitability_grid=inputs["df_suitability_grid"],
+        save_path=inputs["fig_paths"]["suitability_model"],
+    )
     _make_suitability_plot(
         data_path_2017=inputs["results_paths"]["2017"],
         save_path=inputs["fig_paths"]["suitability"],
@@ -47,13 +51,24 @@ def _make_temperature_plot(*, data_path_all, save_path):
     fig.savefig(save_path)
 
 
+def _make_suitability_model_plot(*, df_suitability_grid, save_path):
+    fig, ax = plt.subplots()
+    ax.plot(df_suitability_grid["temperature"], df_suitability_grid["suitability"])
+    ax.set_xlim(10, 40)
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("Temperature (°C)")
+    ax.set_ylabel("Suitability for transmission")
+    fig.savefig(save_path)
+
+
 def _make_suitability_plot(*, data_path_2017, save_path):
     df_2017 = pd.read_csv(data_path_2017, index_col="date", parse_dates=True)
     df_2017_index = pd.DatetimeIndex(df_2017.index)
     fig, ax = plt.subplots()
     ax.plot(df_2017_index.dayofyear, df_2017["suitability_smoothed"])
     month_start_xticks(ax, interval_months=2)
-    ax.set_ylabel("Relative reproduction number")
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("Temperature suitability for transmission")
     fig.savefig(save_path)
 
 

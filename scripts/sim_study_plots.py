@@ -40,6 +40,7 @@ def _make_rep_no_plot(*, rep_no_func_doy, example_doy_vals, save_path=None):
     ax.plot(doy_vec, rep_no_func_doy(doy_vec))
     ax.plot(example_doy_vals, rep_no_func_doy(np.array(example_doy_vals)), "o")
     month_start_xticks(ax, interval_months=2)
+    ax.set_ylim(0, 2)
     ax.set_ylabel("Time-dependent reproduction number")
     if save_path is not None:
         fig.savefig(save_path)

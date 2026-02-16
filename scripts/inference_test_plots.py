@@ -54,10 +54,10 @@ def make_plots(quasi_real_time=False):
             {
                 "doy_vec": doy_vec,
                 "incidence_vec": incidence_vec,
-                "model_names": ["Autoregressive model", "Suitability model"],
+                "model_names": ["Suitability-based", "Autoregressive"],
                 "data_paths": [
-                    inputs["results_paths"]["autoregressive"],
                     inputs["results_paths"]["suitability"],
+                    inputs["results_paths"]["autoregressive"],
                 ],
             },
             rep_no_vec,
@@ -68,11 +68,11 @@ def make_plots(quasi_real_time=False):
             {
                 "doy_vec": doy_vec,
                 "incidence_vec": incidence_vec,
-                "model_names": ["Autoregressive model", "Suitability model"],
+                "model_names": ["Suitability-based", "Autoregressive"],
                 "existing_declarations": None,
                 "data_paths": [
-                    inputs["results_paths"]["autoregressive"],
                     inputs["results_paths"]["suitability"],
+                    inputs["results_paths"]["autoregressive"],
                 ],
             },
             risk_vec,
@@ -85,11 +85,11 @@ def make_plots(quasi_real_time=False):
         fig.savefig(save_path)
     fig, ax = _make_declaration_plot(
         incidence_vec=incidence_vec,
-        model_names=["Autoregressive model", "Suitability model"],
+        model_names=["Suitability-based", "Autoregressive"],
         existing_declarations=None,
         data_paths=[
-            inputs["results_paths"]["autoregressive"],
             inputs["results_paths"]["suitability"],
+            inputs["results_paths"]["autoregressive"],
         ],
     )
     perc_risk_thresholds = ax.get_lines()[0].get_xdata()

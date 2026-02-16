@@ -11,7 +11,20 @@ from endoutbreakvbd.inference import DEFAULTS
 from endoutbreakvbd.utils import rep_no_from_grid
 
 
-def get_inputs_weather_suitability_data() -> dict[str, dict[str, pathlib.Path]]:
+def get_inputs_weather_suitability_data() -> dict[str, Any]:
+
+    # Temperature-suitability mapping (need to square values for full
+    # transmission cycle)
+    # df_suitability_grid = pd.read_csv(
+    #     pathlib.Path(__file__).parents[1] / "data/mordecai_suitability_grid.csv"
+    # )
+    df_suitability_grid = pd.read_csv(  # from https://doi.org/10.1098/rsif.2025.0707
+        pathlib.Path(__file__).parents[1] / "data/tegar_suitability_grid.csv"
+    )
+    df_suitability_grid = df_suitability_grid.assign(
+        suitability=df_suitability_grid["suitability"] ** 2
+    )
+
     results_dir = pathlib.Path(__file__).parents[1] / "results/weather_suitability_data"
     results_paths = {
         "all": results_dir / "all.csv",
@@ -22,12 +35,14 @@ def get_inputs_weather_suitability_data() -> dict[str, dict[str, pathlib.Path]]:
     fig_dir.mkdir(parents=True, exist_ok=True)
     fig_paths = {
         "temperature": fig_dir / "temperature.svg",
+        "suitability_model": fig_dir / "suitability_model.svg",
         "suitability": fig_dir / "suitability.svg",
     }
 
     return {
         "results_paths": results_paths,
         "fig_paths": fig_paths,
+        "df_suitability_grid": df_suitability_grid,
     }
 
 

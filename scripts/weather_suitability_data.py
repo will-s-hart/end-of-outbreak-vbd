@@ -15,12 +15,13 @@ from scripts.weather_suitability_data_plots import make_plots
 def run_analyses():
     inputs = get_inputs_weather_suitability_data()
     _get_process_data(
+        df_suitability_grid=inputs["df_suitability_grid"],
         save_path_all=inputs["results_paths"]["all"],
         save_path_2017=inputs["results_paths"]["2017"],
     )
 
 
-def _get_process_data(*, save_path_all, save_path_2017):
+def _get_process_data(*, df_suitability_grid, save_path_all, save_path_2017):
     # Retrieve temperature data
     df_data = (
         meteostat.Daily(
@@ -55,16 +56,9 @@ def _get_process_data(*, save_path_all, save_path_2017):
     df_smoothed = pd.DataFrame(
         {"temperature": model.predict(x_full)}, index=df_full.index
     )
-    # Define temperature-suitability mapping (need to square values for full
-    # transmission cycle)
-    # df_suitability_grid = pd.read_csv(
-    #     pathlib.Path(__file__).parents[1] / "data/mordecai_suitability_grid.csv"
-    # )
-    df_suitability_grid = pd.read_csv(  # from https://doi.org/10.1098/rsif.2025.0707
-        pathlib.Path(__file__).parents[1] / "data/tegar_suitability_grid.csv"
-    )
+    # Define temperature-suitability mapping
     temperature_grid = df_suitability_grid["temperature"].to_numpy(dtype=float)
-    suitability_grid = df_suitability_grid["suitability"].to_numpy(dtype=float) ** 2
+    suitability_grid = df_suitability_grid["suitability"].to_numpy(dtype=float)
     # Compute suitability for and save to CSV
     df_out_full = df_full.assign(temperature_smoothed=df_smoothed["temperature"])
     df_out_full = df_out_full.assign(

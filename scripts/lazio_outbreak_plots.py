@@ -24,31 +24,31 @@ def make_plots(quasi_real_time=False):
     _make_rep_no_plot(
         doy_vec=inputs["doy_vec"],
         incidence_vec=inputs["incidence_vec"],
-        model_names=["Autoregressive model", "Suitability model"],
+        model_names=["Suitability-based", "Autoregressive"],
         data_paths=[
-            inputs["results_paths"]["autoregressive"],
             inputs["results_paths"]["suitability"],
+            inputs["results_paths"]["autoregressive"],
         ],
         save_path=inputs["fig_paths"]["rep_no"],
     )
     _make_risk_plot(
         doy_vec=inputs["doy_vec"],
         incidence_vec=inputs["incidence_vec"],
-        model_names=["Autoregressive model", "Suitability model"],
+        model_names=["Suitability-based", "Autoregressive"],
         existing_declarations=inputs["existing_declarations"],
         data_paths=[
-            inputs["results_paths"]["autoregressive"],
             inputs["results_paths"]["suitability"],
+            inputs["results_paths"]["autoregressive"],
         ],
         save_path=inputs["fig_paths"]["risk"],
     )
     _make_declaration_plot(
         incidence_vec=inputs["incidence_vec"],
-        model_names=["Autoregressive model", "Suitability model"],
+        model_names=["Suitability-based", "Autoregressive"],
         existing_declarations=inputs["existing_declarations"],
         data_paths=[
-            inputs["results_paths"]["autoregressive"],
             inputs["results_paths"]["suitability"],
+            inputs["results_paths"]["autoregressive"],
         ],
         save_path=inputs["fig_paths"]["declaration"],
     )
@@ -72,7 +72,7 @@ def _make_gen_time_dist_plot(*, gen_time_dist_vec, save_path=None):
     fig, ax = plt.subplots()
     ax.bar(t_vec, gen_time_dist_vec, color="tab:blue")
     ax.set_xlim(0, 35)
-    ax.set_xlabel("Generation time (days)")
+    ax.set_xlabel("Serial interval (days)")
     ax.set_ylabel("Probability")
     if save_path is not None:
         fig.savefig(save_path)
@@ -222,7 +222,7 @@ def _make_suitability_plot(
     ax.plot(doy_vec, suitability_mean_vec, color="black", linestyle="dashed")
     month_start_xticks(ax)
     ax.set_ylim(0, 1)
-    ax.set_ylabel("Suitability")
+    ax.set_ylabel("Temperature suitability for transmission")
     if save_path is not None:
         fig.savefig(save_path)
     return fig, ax

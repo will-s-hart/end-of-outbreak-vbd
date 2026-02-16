@@ -138,6 +138,7 @@ def compile_paper_figures():
             figure_dir / f"{x}.svg"
             for x in [
                 "weather_suitability_data/temperature",
+                "weather_suitability_data/suitability_model",
                 "weather_suitability_data/suitability",
                 "lazio_outbreak/gen_time_dist",
             ]
