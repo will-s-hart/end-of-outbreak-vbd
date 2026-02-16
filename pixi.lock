@@ -7066,7 +7066,7 @@ packages:
 - pypi: ./
   name: endoutbreakvbd
   version: 0.0.0
-  sha256: ec14d8c966918378183dd1e5957c9858383c85edc5abde906d8eedcad8778fb7
+  sha256: 5a5c265e97981cd152fbed87d0b6067beb089ee23a9f4a11af656e068676be4b
   requires_python: '>=3.11'
 - conda: https://conda.anaconda.org/conda-forge/linux-64/epoxy-1.5.10-hb03c661_2.conda
   sha256: a5b51e491fec22bcc1765f5b2c8fff8a97428e9a5a7ee6730095fb9d091b0747

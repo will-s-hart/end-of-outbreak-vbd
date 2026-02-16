@@ -49,6 +49,9 @@ default = { features = ["dev"], solve-group = "prod" }
 [tool.pixi.feature.dev.tasks]
 lint = "ruff check"
 format = "ruff format"
+typecheck = "ty check"
+figures = "snakemake --cores 4 --allowed-rules weather_suitability_data_plots sim_study_plots lazio_outbreak_plots inference_test_plots paper_figures"
+png_figures = "snakemake --cores 4 paper_figures_png --allowed-rules paper_figures_png"
 
 [tool.hatch.build.targets.sdist]
 include = ["endoutbreakvbd/**"]
