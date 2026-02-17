@@ -173,20 +173,25 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
 
     time_last_case = np.nonzero(incidence_vec)[0][-1]
     doy_last_case = doy_start + time_last_case
-    doy_blood_resumed_rome = pd.Timestamp("2017-11-17").dayofyear
-    doy_blood_resumed_anzio = pd.Timestamp("2017-12-01").dayofyear
+    date_blood_resumed_rome = pd.Timestamp("2017-11-17")
+    date_blood_resumed_anzio = pd.Timestamp("2017-12-01")
+    doy_blood_resumed_rome = date_blood_resumed_rome.dayofyear
+    doy_blood_resumed_anzio = date_blood_resumed_anzio.dayofyear
     existing_declarations = {
         "blood_resumed_rome": {
+            "date": date_blood_resumed_rome,
             "doy": doy_blood_resumed_rome,
             "outbreak_day": doy_blood_resumed_rome - doy_start,
             "days_from_last_case": doy_blood_resumed_rome - doy_last_case,
         },
         "blood_resumed_anzio": {
+            "date": date_blood_resumed_anzio,
             "doy": doy_blood_resumed_anzio,
             "outbreak_day": doy_blood_resumed_anzio - doy_start,
             "days_from_last_case": doy_blood_resumed_anzio - doy_last_case,
         },
         "45_day_rule": {
+            "date": df_data.index[0] + pd.Timedelta(days=time_last_case + 45),
             "doy": doy_last_case + 45,
             "outbreak_day": time_last_case + 45,
             "days_from_last_case": 45,
