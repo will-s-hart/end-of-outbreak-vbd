@@ -74,9 +74,14 @@ def test_get_2017_suitability_data_has_expected_columns_and_doy():
 def test_get_inputs_weather_suitability_data_structure(monkeypatch):
     monkeypatch.setattr(inputs.pathlib.Path, "mkdir", lambda *args, **kwargs: None)
     out = inputs.get_inputs_weather_suitability_data()
-    assert set(out.keys()) == {"results_paths", "fig_paths"}
+    assert set(out.keys()) == {"results_paths", "fig_paths", "df_suitability_grid"}
     assert set(out["results_paths"].keys()) == {"all", "2017"}
-    assert set(out["fig_paths"].keys()) == {"temperature", "suitability"}
+    assert set(out["fig_paths"].keys()) == {
+        "temperature",
+        "suitability_model",
+        "suitability",
+    }
+    assert {"temperature", "suitability"}.issubset(out["df_suitability_grid"].columns)
 
 
 def test_get_inputs_sim_study_structure_and_callables(monkeypatch):
