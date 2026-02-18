@@ -51,12 +51,11 @@ def calc_further_case_risk_analytical(
     gen_time_dist_vec = np.asarray(gen_time_dist_vec)
 
     if np.isscalar(t_calc):
-        t_calc_scalar = cast(int, t_calc)
         return _calc_further_case_risk_analytical_scalar(
             incidence_vec=incidence_vec,
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
-            t_calc=t_calc_scalar,
+            t_calc=cast(int, t_calc),
         )
 
     return np.array(
@@ -79,14 +78,13 @@ def _calc_further_case_risk_analytical_scalar(
     gen_time_dist_vec: FloatArray,
     t_calc: int,
 ) -> float:
-    if t_calc == 0:
-        return 1.0
-
-    gen_time_max = len(gen_time_dist_vec)
     nonzero_incidence_idx = np.nonzero(incidence_vec)[0]
     if nonzero_incidence_idx.size == 0:
         return 0.0
+    if t_calc == 0:
+        return 1.0
     t_last_case = int(np.max(nonzero_incidence_idx))
+    gen_time_max = len(gen_time_dist_vec)
     t_max = t_last_case + gen_time_max
     if t_calc > t_max:
         return 0.0
@@ -110,8 +108,10 @@ def _calc_further_case_risk_analytical_scalar(
             incidence_vec_theor[:t][::-1] * gen_time_dist_vec[:t]
         )
     # Note mean() is used to average over different possible future reproduction
-    # numbers, optionally indexed along dimension 1 of rep_no_vec future
-    further_case_risk = 1 - np.exp(-np.dot(foi_vec_future, rep_no_vec_future)).mean()
+    # numbers, optionally indexed along dimensions 1,... of rep_no_vec future
+    further_case_risk = (
+        1 - np.exp(-np.tensordot(foi_vec_future, rep_no_vec_future, axes=(0, 0))).mean()
+    )
     return float(further_case_risk)
 
 

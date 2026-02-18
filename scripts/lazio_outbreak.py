@@ -1,12 +1,9 @@
 import argparse
-import functools
 
-import arviz_base as azb
 import numpy as np
 import pandas as pd
 from arviz_stats import ess, rhat
 
-from endoutbreakvbd import calc_further_case_risk_analytical, rep_no_from_grid
 from endoutbreakvbd.inference import fit_autoregressive_model, fit_suitability_model
 from endoutbreakvbd.inputs import get_inputs_lazio_outbreak
 from scripts.lazio_outbreak_plots import make_plots
@@ -47,62 +44,41 @@ def _run_analyses_for_model(
     save_path_diagnostics,
 ):
     if model == "autoregressive":
-        posterior = fit_autoregressive_model(
+        ds_posterior = fit_autoregressive_model(
             incidence_vec=incidence_vec,
             gen_time_dist_vec=gen_time_dist_vec,
             **fit_model_kwargs,
         )
     elif model == "suitability":
-        posterior = fit_suitability_model(
+        ds_posterior = fit_suitability_model(
             incidence_vec=incidence_vec,
             gen_time_dist_vec=gen_time_dist_vec,
             **fit_model_kwargs,
         )
     else:
         raise ValueError(f"Unknown model: {model}")
-    rep_no_mat = azb.extract(posterior, var_names="rep_no").to_numpy()
-    rep_no_mean_vec = rep_no_mat.mean(axis=1)
-    rep_no_lower_vec = np.percentile(rep_no_mat, 2.5, axis=1)
-    rep_no_upper_vec = np.percentile(rep_no_mat, 97.5, axis=1)
-    no_days = len(incidence_vec)
-    t_vec = np.arange(no_days)
-    rep_no_post_func = functools.partial(
-        rep_no_from_grid, rep_no_grid=rep_no_mat, periodic=False
-    )
-    risk_vec = calc_further_case_risk_analytical(
-        incidence_vec=incidence_vec,
-        rep_no_func=rep_no_post_func,
-        gen_time_dist_vec=gen_time_dist_vec,
-        t_calc=t_vec,
-    )
     df_out = pd.DataFrame(
         {
-            "day_of_outbreak": t_vec,
-            "reproduction_number_mean": rep_no_mean_vec,
-            "reproduction_number_lower": rep_no_lower_vec,
-            "reproduction_number_upper": rep_no_upper_vec,
-            "further_case_risk": risk_vec,
+            "day_of_outbreak": ds_posterior["time"].values,
+            "reproduction_number_mean": ds_posterior["rep_no_mean"].values,
+            "reproduction_number_lower": ds_posterior["rep_no_lower"].values,
+            "reproduction_number_upper": ds_posterior["rep_no_upper"].values,
+            "further_case_risk": ds_posterior["risk"].values,
         }
     ).set_index("day_of_outbreak")
     if model == "suitability":
-        suitability_mat = azb.extract(posterior, var_names="suitability").to_numpy()
-        suitability_mean_vec = suitability_mat.mean(axis=1)
-        suitability_lower_vec = np.percentile(suitability_mat, 2.5, axis=1)
-        suitability_upper_vec = np.percentile(suitability_mat, 97.5, axis=1)
-        df_out["suitability_mean"] = suitability_mean_vec
-        df_out["suitability_lower"] = suitability_lower_vec
-        df_out["suitability_upper"] = suitability_upper_vec
-        rep_no_factor_mat = azb.extract(posterior, var_names="rep_no_factor").to_numpy()
-        rep_no_factor_mean_vec = rep_no_factor_mat.mean(axis=1)
-        rep_no_factor_lower_vec = np.percentile(rep_no_factor_mat, 2.5, axis=1)
-        rep_no_factor_upper_vec = np.percentile(rep_no_factor_mat, 97.5, axis=1)
-        df_out["rep_no_factor_mean"] = rep_no_factor_mean_vec
-        df_out["rep_no_factor_lower"] = rep_no_factor_lower_vec
-        df_out["rep_no_factor_upper"] = rep_no_factor_upper_vec
+        df_out = df_out.assign(
+            suitability_mean=ds_posterior["suitability_mean"].values,
+            suitability_lower=ds_posterior["suitability_lower"].values,
+            suitability_upper=ds_posterior["suitability_upper"].values,
+            rep_no_factor_mean=ds_posterior["rep_no_factor_mean"].values,
+            rep_no_factor_lower=ds_posterior["rep_no_factor_lower"].values,
+            rep_no_factor_upper=ds_posterior["rep_no_factor_upper"].values,
+        )
     df_out.to_csv(save_path)
     # Convergence diagnostics
-    rhat_vals = rhat(posterior, var_names="rep_no")["rep_no"]
-    ess_vals = ess(posterior, var_names="rep_no")["rep_no"]
+    rhat_vals = rhat(ds_posterior, var_names="rep_no")["rep_no"]
+    ess_vals = ess(ds_posterior, var_names="rep_no")["rep_no"]
     df_diagnostics = pd.DataFrame(
         {
             "stat": [
