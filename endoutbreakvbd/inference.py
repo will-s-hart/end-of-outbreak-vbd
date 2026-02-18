@@ -56,6 +56,10 @@ def _fit_model(
         t_last_recorded = t_infer_to
 
     if quasi_real_time:
+        if len(incidence_vec) < 2:
+            raise ValueError(
+                "quasi_real_time inference requires at least 2 time points"
+            )
         posterior_list = []
         for t in tqdm(
             range(1, len(incidence_vec)),
