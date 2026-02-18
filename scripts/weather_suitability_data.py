@@ -1,5 +1,4 @@
 import argparse
-import pathlib
 from datetime import datetime
 
 import meteostat
