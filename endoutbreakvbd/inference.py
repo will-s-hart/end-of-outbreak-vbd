@@ -46,6 +46,15 @@ def _fit_model(
     rng: np.random.Generator | int | None = None,
     **kwargs_sample: Any,
 ) -> xr.Dataset:
+
+    if rng is not None:
+        kwargs_sample = {**kwargs_sample, "random_seed": rng}
+    t_last_recorded = len(incidence_vec)
+    t_infer_to = t_infer_to or t_last_recorded
+    if t_infer_to < t_last_recorded:
+        incidence_vec = incidence_vec[:t_infer_to]
+        t_last_recorded = t_infer_to
+
     if quasi_real_time:
         posterior_list = []
         for t in tqdm(
@@ -57,7 +66,7 @@ def _fit_model(
                 gen_time_dist_vec=gen_time_dist_vec,
                 rep_no_vec_func=rep_no_vec_func,
                 quasi_real_time=False,
-                t_infer_to=t + len(gen_time_dist_vec),
+                t_infer_to=np.minimum(t + len(gen_time_dist_vec), t_infer_to),
                 step_func=step_func,
                 thin=thin,
                 rng=rng,
@@ -70,18 +79,10 @@ def _fit_model(
                         for var in ds_posterior_curr.data_vars
                         if "time" in ds_posterior_curr[var].dims
                     ]
-                ].isel(time=[t])
+                ].isel(time=([0, 1] if t == 1 else [t]))
             )
         posterior = xr.concat(posterior_list, dim="time")
         return posterior
-
-    if rng is not None:
-        kwargs_sample = {**kwargs_sample, "random_seed": rng}
-    t_last_recorded = len(incidence_vec)
-    t_infer_to = t_infer_to or t_last_recorded
-    if t_infer_to < t_last_recorded:
-        incidence_vec = incidence_vec[:t_infer_to]
-        t_last_recorded = t_infer_to
 
     gen_time_dist_vec_ext = np.concatenate(
         [
