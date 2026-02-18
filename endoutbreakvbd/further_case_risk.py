@@ -102,6 +102,8 @@ def _calc_further_case_risk_analytical_scalar(
     gen_time_dist_vec = np.concatenate([gen_time_dist_vec, np.zeros(t_last_case)])
 
     rep_no_vec_future = rep_no_func(np.arange(t_calc, t_max + 1))
+    if np.isscalar(rep_no_vec_future):
+        rep_no_vec_future = np.full(t_max - t_calc + 1, rep_no_vec_future, dtype=float)
     foi_vec_future = np.zeros(t_max - t_calc + 1)
     for t in range(t_calc, t_max + 1):
         foi_vec_future[t - t_calc] = np.sum(
