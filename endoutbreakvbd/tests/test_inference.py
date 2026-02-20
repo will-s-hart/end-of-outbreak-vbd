@@ -1,4 +1,5 @@
 from dataclasses import FrozenInstanceError
+from typing import Any
 
 import numpy as np
 import pytest
@@ -71,7 +72,7 @@ def _setup_minimal_pm_for_fit_model(monkeypatch):
 
 
 def _setup_pm_rep_no_depends_on_observed_sum(monkeypatch):
-    state = {"observed_sum": 0.0}
+    state: dict[str, Any] = {"observed_sum": 0.0}
 
     monkeypatch.setattr(
         inf.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
@@ -338,13 +339,14 @@ def test_fit_suitability_model_respects_overrides(monkeypatch):
     monkeypatch.setattr(
         inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal
     )
+
     def fake_fit_model(**kwargs):
         captured["fit_model_kwargs"] = kwargs
         return _fake_suitability_posterior(len(kwargs["incidence_vec"]))
 
     monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
 
-    out = inf.fit_suitability_model(
+    inf.fit_suitability_model(
         incidence_vec=np.array([1, 0]),
         gen_time_dist_vec=np.array([1.0]),
         suitability_mean_vec=np.array([0.2, 0.3]),
