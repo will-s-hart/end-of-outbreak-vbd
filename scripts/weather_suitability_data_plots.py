@@ -55,7 +55,7 @@ def _make_suitability_model_plot(*, df_suitability_grid, save_path):
     fig, ax = plt.subplots()
     ax.plot(df_suitability_grid["temperature"], df_suitability_grid["suitability"])
     ax.set_xlim(10, 40)
-    ax.set_ylim(0, 1)
+    ax.set_ylim(0, 1.01)
     ax.set_xlabel("Temperature (°C)")
     ax.set_ylabel("Suitability for transmission")
     fig.savefig(save_path)
@@ -67,7 +67,7 @@ def _make_suitability_plot(*, data_path_2017, save_path):
     fig, ax = plt.subplots()
     ax.plot(df_2017_index.dayofyear, df_2017["suitability_smoothed"])
     month_start_xticks(ax, interval_months=2)
-    ax.set_ylim(0, 1)
+    ax.set_ylim(0, 1.01)
     ax.set_ylabel("Temperature suitability for transmission")
     fig.savefig(save_path)
 

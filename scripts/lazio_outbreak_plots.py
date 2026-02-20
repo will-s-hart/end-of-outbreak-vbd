@@ -103,7 +103,7 @@ def _make_rep_no_plot(
             alpha=0.3,
         )
     month_start_xticks(ax)
-    ax.set_ylim(0, 8)
+    ax.set_ylim(0, np.minimum(ax.get_ylim()[1], 10))
     ax.set_ylabel("Time-dependent reproduction number")
     ax.legend()
     if save_path is not None:
@@ -154,7 +154,7 @@ def _make_risk_plot(
             label="45-day rule",
         )
     month_start_xticks(ax)
-    ax.set_ylim(0, 1)
+    ax.set_ylim(0, 1.01)
     ax.set_ylabel("Risk of additional cases")
     ax.legend(loc="upper left")
     if save_path is not None:
@@ -221,7 +221,7 @@ def _make_suitability_plot(
     )
     ax.plot(doy_vec, suitability_mean_vec, color="black", linestyle="dashed")
     month_start_xticks(ax)
-    ax.set_ylim(0, 1)
+    ax.set_ylim(0, 1.01)
     ax.set_ylabel("Temperature suitability for transmission")
     if save_path is not None:
         fig.savefig(save_path)
@@ -241,7 +241,7 @@ def _make_scaling_factor_plot(*, doy_vec, incidence_vec, data_path, save_path=No
         alpha=0.3,
     )
     month_start_xticks(ax)
-    ax.set_ylim(0, 7)
+    ax.set_ylim(0, np.minimum(ax.get_ylim()[1], 10))
     ax.set_ylabel("Reproduction number scaling factor")
     if save_path is not None:
         fig.savefig(save_path)
