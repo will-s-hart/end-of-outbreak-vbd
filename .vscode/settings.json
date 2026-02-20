@@ -3,5 +3,8 @@
         "endoutbreakvbd/tests"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "python-envs.defaultEnvManager": "renan-r-santos.pixi-code:pixi",
+    "python-envs.defaultPackageManager": "renan-r-santos.pixi-code:pixi",
+    "python-envs.pythonProjects": []
 }
