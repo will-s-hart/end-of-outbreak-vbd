@@ -24,6 +24,7 @@ def run_analyses():
         rep_no_from_doy_start=inputs["rep_no_from_doy_start"],
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
         doy_start_vals=inputs["example_outbreak_doy_start_vals"],
+        n_sims=inputs["example_outbreak_n_sims"],
         rng=rng,
         save_path=inputs["results_paths"]["example_outbreak_risk"],
     )
@@ -40,8 +41,10 @@ def run_analyses():
         perc_risk_threshold=inputs["many_outbreak_perc_risk_threshold"],
         rep_no_from_doy_start=inputs["rep_no_from_doy_start"],
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
+        example_outbreak_idx=inputs["many_outbreak_example_outbreak_idx"],
         rng=rng,
-        save_path=inputs["results_paths"]["many_outbreak"],
+        save_path=inputs["results_paths"]["many_outbreak_declaration"],
+        save_path_example=inputs["results_paths"]["many_outbreak_example"],
     )
 
 
@@ -51,13 +54,12 @@ def _run_example_outbreak_risk_analysis(
     rep_no_from_doy_start,
     gen_time_dist_vec,
     doy_start_vals,
+    n_sims,
     rng,
     save_path,
 ):
-    risk_days = np.arange(1, len(incidence_vec) + len(gen_time_dist_vec) + 1, dtype=int)
-    risk_days_sim = np.arange(
-        1, len(incidence_vec) + len(gen_time_dist_vec) + 1, dtype=int
-    )
+    risk_days = np.arange(1, len(incidence_vec) + len(gen_time_dist_vec) + 1)
+    risk_days_sim = np.arange(1, len(incidence_vec) + len(gen_time_dist_vec) + 1)
     risk_df = pd.DataFrame(
         index=pd.MultiIndex.from_product(
             [doy_start_vals, risk_days], names=["start_day_of_year", "day_of_outbreak"]
@@ -78,7 +80,7 @@ def _run_example_outbreak_risk_analysis(
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
             t_calc=risk_days_sim,
-            n_sims=10000,
+            n_sims=n_sims,
             rng=rng,
             parallel=True,
         )
@@ -97,10 +99,10 @@ def _run_example_outbreak_declaration_analysis(
 ):
     time_last_case = np.nonzero(incidence_vec)[0][-1]
     risk_days = np.arange(
-        time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2, dtype=int
+        time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2
     )
 
-    doy_last_case_vec = np.arange(1, 366, dtype=int)
+    doy_last_case_vec = np.arange(1, 366)
     declaration_delay_df = pd.DataFrame(
         index=pd.MultiIndex.from_product(
             [perc_risk_threshold_vals, doy_last_case_vec],
@@ -136,18 +138,24 @@ def _run_many_outbreak_analysis(
     perc_risk_threshold,
     rep_no_from_doy_start,
     gen_time_dist_vec,
+    example_outbreak_idx,
     rng,
     save_path,
+    save_path_example,
 ):
     tasks = []
+    full_output_flags = [
+        True if i == example_outbreak_idx else False for i in range(n_sims)
+    ]
     child_rngs = rng.spawn(n_sims)
-    for child_rng in child_rngs:
+    for child_rng, full_output in zip(child_rngs, full_output_flags):
         tasks.append(
             (
                 outbreak_size_threshold,
                 perc_risk_threshold,
                 rep_no_from_doy_start,
                 gen_time_dist_vec,
+                full_output,
                 child_rng,
             )
         )
@@ -163,16 +171,25 @@ def _run_many_outbreak_analysis(
             desc="Simulating outbreaks",
         )
     )
-    doy_start_vals, doy_last_case_vals, declaration_delay_vals = zip(*results)
+    (
+        doy_start_vals,
+        no_cases_vals,
+        doy_last_case_vals,
+        declaration_delay_vals,
+        output_vals,
+    ) = zip(*results)
     df = pd.DataFrame(
         {
             "first_case_day_of_year": doy_start_vals,
+            "number_of_cases": no_cases_vals,
             "final_case_day_of_year": doy_last_case_vals,
             "delay_to_declaration": declaration_delay_vals,
         },
         index=range(n_sims),
     )
     df.to_csv(save_path)
+    example_output = output_vals[example_outbreak_idx]
+    example_output.to_csv(save_path_example)
 
 
 def _many_outbreak_analysis_one_sim(args):
@@ -181,6 +198,7 @@ def _many_outbreak_analysis_one_sim(args):
         perc_risk_threshold,
         rep_no_from_doy_start,
         gen_time_dist_vec,
+        full_output,
         rng,
     ) = args
     outbreak_found = False
@@ -199,7 +217,7 @@ def _many_outbreak_analysis_one_sim(args):
     time_last_case = np.nonzero(incidence_vec)[0][-1]
     doy_last_case = doy_start + time_last_case
     risk_days = np.arange(
-        time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2, dtype=int
+        time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2
     )
     risk_vals = calc_further_case_risk_analytical(
         incidence_vec=incidence_vec,
@@ -214,7 +232,24 @@ def _many_outbreak_analysis_one_sim(args):
     )
     if 150 < doy_last_case < 250 and declaration_delay == 0:
         print("Possible error - zero days to declaration for outbreak ending mid-year")
-    return doy_start, doy_last_case, declaration_delay
+    no_cases = np.sum(incidence_vec)
+    if full_output:
+        risk_vals_all = calc_further_case_risk_analytical(
+            incidence_vec=incidence_vec,
+            rep_no_func=rep_no_func,
+            gen_time_dist_vec=gen_time_dist_vec,
+            t_calc=np.arange(len(incidence_vec)),
+        )
+        output = pd.DataFrame(
+            {
+                "day_of_year": np.arange(doy_start, doy_start + len(incidence_vec)),
+                "cases": incidence_vec,
+                "further_case_risk": risk_vals_all,
+            }
+        )
+    else:
+        output = None
+    return doy_start, no_cases, doy_last_case, declaration_delay, output
 
 
 if __name__ == "__main__":

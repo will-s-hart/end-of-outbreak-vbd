@@ -128,7 +128,12 @@ def compile_paper_figures():
         save_path=figure_dir / "figure_1.svg",
         panel_paths=[
             figure_dir / "sim_study" / f"{x}.svg"
-            for x in ["rep_no", "example_outbreak_risk", "many_outbreak"]
+            for x in [
+                "rep_no",
+                "example_outbreak_risk",
+                "many_outbreak_example",
+                "many_outbreak_declaration",
+            ]
         ],
     )
     # Figure 2

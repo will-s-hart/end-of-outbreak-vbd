@@ -68,10 +68,12 @@ def get_inputs_sim_study() -> dict[str, Any]:
     )
     example_outbreak_incidence_vec = [1]
     example_outbreak_perc_risk_threshold_vals = (1, 2.5, 5)
+    example_outbreak_n_sims = 10000
 
     many_outbreak_n_sims = 100000
     many_outbreak_outbreak_size_threshold = 2
     many_outbreak_perc_risk_threshold = 5
+    many_outbreak_example_outbreak_idx = 3
 
     results_dir = pathlib.Path(__file__).parents[1] / "results/sim_study"
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -80,6 +82,8 @@ def get_inputs_sim_study() -> dict[str, Any]:
         "example_outbreak_declaration": results_dir
         / "example_outbreak_declaration.csv",
         "many_outbreak": results_dir / "many_outbreak.csv",
+        "many_outbreak_example": results_dir / "many_outbreak_example.csv",
+        "many_outbreak_declaration": results_dir / "many_outbreak_declaration.csv",
     }
 
     fig_dir = pathlib.Path(__file__).parents[1] / "figures/sim_study"
@@ -88,7 +92,8 @@ def get_inputs_sim_study() -> dict[str, Any]:
         "rep_no": fig_dir / "rep_no.svg",
         "example_outbreak_risk": fig_dir / "example_outbreak_risk.svg",
         "example_outbreak_declaration": fig_dir / "example_outbreak_declaration.svg",
-        "many_outbreak": fig_dir / "many_outbreak.svg",
+        "many_outbreak_example": fig_dir / "many_outbreak_example.svg",
+        "many_outbreak_declaration": fig_dir / "many_outbreak_declaration.svg",
     }
 
     return {
@@ -99,9 +104,11 @@ def get_inputs_sim_study() -> dict[str, Any]:
         "example_outbreak_doy_start_vals": example_outbreak_doy_start_vals,
         "example_outbreak_incidence_vec": example_outbreak_incidence_vec,
         "example_outbreak_perc_risk_threshold_vals": example_outbreak_perc_risk_threshold_vals,
+        "example_outbreak_n_sims": example_outbreak_n_sims,
         "many_outbreak_n_sims": many_outbreak_n_sims,
         "many_outbreak_outbreak_size_threshold": many_outbreak_outbreak_size_threshold,
         "many_outbreak_perc_risk_threshold": many_outbreak_perc_risk_threshold,
+        "many_outbreak_example_outbreak_idx": many_outbreak_example_outbreak_idx,
         "results_paths": results_paths,
         "fig_paths": fig_paths,
     }

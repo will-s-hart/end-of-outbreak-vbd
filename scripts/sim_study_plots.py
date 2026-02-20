@@ -28,9 +28,15 @@ def make_plots():
         data_path=inputs["results_paths"]["example_outbreak_declaration"],
         save_path=inputs["fig_paths"]["example_outbreak_declaration"],
     )
-    _make_many_outbreak_plot(
-        data_path=inputs["results_paths"]["many_outbreak"],
-        save_path=inputs["fig_paths"]["many_outbreak"],
+    _make_many_outbreak_example_plot(
+        perc_risk_threshold=inputs["many_outbreak_perc_risk_threshold"],
+        data_path=inputs["results_paths"]["many_outbreak_example"],
+        save_path=inputs["fig_paths"]["many_outbreak_example"],
+    )
+    _make_many_outbreak_declaration_plot(
+        example_outbreak_idx=inputs["many_outbreak_example_outbreak_idx"],
+        data_path=inputs["results_paths"]["many_outbreak_declaration"],
+        save_path=inputs["fig_paths"]["many_outbreak_declaration"],
     )
 
 
@@ -40,7 +46,7 @@ def _make_rep_no_plot(*, rep_no_func_doy, example_doy_vals, save_path=None):
     ax.plot(doy_vec, rep_no_func_doy(doy_vec))
     ax.plot(example_doy_vals, rep_no_func_doy(np.array(example_doy_vals)), "o")
     month_start_xticks(ax, interval_months=2)
-    ax.set_ylim(0, 2)
+    ax.set_ylim(0, 2.02)
     ax.set_ylabel("Time-dependent reproduction number")
     if save_path is not None:
         fig.savefig(save_path)
@@ -73,7 +79,7 @@ def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path=None
         )
         risk_vals_sim = risk_df.loc[doy_start, "simulation"].to_numpy()
         ax.plot(risk_days, risk_vals_sim, ".", color=color)
-    ax.set_ylim(0, 1)
+    ax.set_ylim(0, 1.01)
     ax.set_xlabel("Day of outbreak")
     ax.set_ylabel("Risk of additional cases")
     ax.legend()
@@ -111,7 +117,23 @@ def _make_example_outbreak_declaration_plot(*, data_path, save_path=None):
     return fig, ax
 
 
-def _make_many_outbreak_plot(*, data_path, save_path=None):
+def _make_many_outbreak_example_plot(*, perc_risk_threshold, data_path, save_path=None):
+    df = pd.read_csv(data_path)
+    fig, ax = plt.subplots()
+    plot_data_on_twin_ax(ax, t_vec=df["day_of_year"], incidence_vec=df["cases"])
+    ax.plot(df["day_of_year"], df["further_case_risk"], color="tab:blue")
+    ax.axhline(perc_risk_threshold / 100, color="tab:red", linestyle="--")
+    month_start_xticks(ax)
+    ax.set_ylim(0, 1.01)
+    ax.set_ylabel("Risk of additional cases")
+    if save_path is not None:
+        fig.savefig(save_path)
+    return fig, ax
+
+
+def _make_many_outbreak_declaration_plot(
+    *, example_outbreak_idx, data_path, save_path=None
+):
     df = pd.read_csv(data_path)
     bin_width = 7
     df["final_case_doy_binned"] = pd.cut(
@@ -149,7 +171,17 @@ def _make_many_outbreak_plot(*, data_path, save_path=None):
             color=c,
             capsize=3,
         )
-
+    example_outbreak_delay = df.loc[example_outbreak_idx, "delay_to_declaration"]
+    example_outbreak_final_case_bin_center = df.loc[
+        example_outbreak_idx, "final_case_doy_binned"
+    ].mid
+    ax.plot(
+        example_outbreak_final_case_bin_center,
+        example_outbreak_delay,
+        marker="x",
+        color="tab:red",
+        linewidth=2,
+    )
     # sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
     # sm.set_array([])
     # cbar = plt.colorbar(sm, ax=ax)
