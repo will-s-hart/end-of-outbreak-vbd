@@ -6,7 +6,8 @@ results_files_sim_study = expand(
     name=[
         "example_outbreak_risk",
         "example_outbreak_declaration",
-        "many_outbreak",
+        "many_outbreak_example",
+        "many_outbreak_declaration",
     ],
 )
 
@@ -52,7 +53,8 @@ plot_files_sim_study = expand(
         "rep_no",
         "example_outbreak_risk",
         "example_outbreak_declaration",
-        "many_outbreak",
+        "many_outbreak_example",
+        "many_outbreak_declaration",
     ],
 )
 
