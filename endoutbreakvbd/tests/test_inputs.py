@@ -1,3 +1,5 @@
+# Note that AI tools were used to generate tests
+
 import numpy as np
 import pytest
 import scipy.stats

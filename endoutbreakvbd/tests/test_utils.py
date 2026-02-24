@@ -1,3 +1,5 @@
+# Note that AI tools were used to generate tests
+
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np

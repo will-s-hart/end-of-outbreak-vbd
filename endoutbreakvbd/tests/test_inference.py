@@ -1,3 +1,5 @@
+# Note that AI tools were used to generate tests
+
 from dataclasses import FrozenInstanceError
 from typing import Any
 

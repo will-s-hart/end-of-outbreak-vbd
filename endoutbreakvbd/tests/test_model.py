@@ -1,3 +1,5 @@
+# Note that AI tools were used to generate tests
+
 import numpy as np
 
 from endoutbreakvbd.model import run_renewal_model
