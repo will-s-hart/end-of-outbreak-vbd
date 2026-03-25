@@ -21,7 +21,7 @@ from endoutbreakvbd.utils import (
 class Defaults:
     rep_no_prior_median: float = 1.0
     rep_no_prior_percentile_2_5: float = 0.2
-    rep_no_rho: float = 0.975
+    log_rep_no_rho: float | list[float] = 0.975
     suitability_std: float = 0.05
     suitability_rho: float = 0.975
     # rep_no_factor_prior_median: float = 2.5
@@ -159,21 +159,24 @@ def fit_autoregressive_model(
     gen_time_dist_vec: GenTimeInput,
     prior_median: float | None = None,
     prior_percentile_2_5: float | None = None,
-    rho: float | None = None,
+    rho: float | list[float] | None = None,
     quasi_real_time: bool = False,
     **kwargs: Any,
 ) -> xr.Dataset:
     prior_median = prior_median or DEFAULTS.rep_no_prior_median
     prior_percentile_2_5 = prior_percentile_2_5 or DEFAULTS.rep_no_prior_percentile_2_5
-    rho = rho or DEFAULTS.rep_no_rho
+    rho = rho or DEFAULTS.log_rep_no_rho
     lognormal_params = lognormal_params_from_median_percentile_2_5(
         median=prior_median, percentile_2_5=prior_percentile_2_5
+    )
+    log_rep_no_sigma_innov = _ar_innovation_std(
+        stationary_std=lognormal_params["sigma"], rho=rho
     )
 
     def rep_no_vec_func(_: int) -> Any:
         log_rep_no_deviation_vec = pm.AR(
             "log_rep_no_deviation",
-            sigma=lognormal_params["sigma"] * np.sqrt(1 - rho**2),
+            sigma=log_rep_no_sigma_innov,
             rho=rho,
             dims=("time",),
             init_dist=pm.Normal.dist(mu=0, sigma=lognormal_params["sigma"]),
@@ -288,3 +291,15 @@ def fit_suitability_model(
         .drop_vars("quantile"),
     )
     return ds_posterior
+
+
+def _ar_innovation_std(*, stationary_std: float, rho: float | list[float]) -> float:
+    if np.isscalar(rho):
+        rho = [rho]
+    if len(rho) == 1:
+        return stationary_std * np.sqrt(1 - rho[0] ** 2)
+    elif len(rho) == 2:
+        return stationary_std * np.sqrt(
+            1 - (rho[0] ** 2 * (1 + rho[1])) / (1 - rho[1]) - rho[1] ** 2
+        )
+    raise ValueError("Only AR(1) and AR(2) are supported")

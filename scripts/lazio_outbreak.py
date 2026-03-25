@@ -9,14 +9,18 @@ from endoutbreakvbd.inputs import get_inputs_lazio_outbreak
 from scripts.lazio_outbreak_plots import make_plots
 
 
-def run_analyses(quasi_real_time=False):
+def run_analyses(quasi_real_time=False, ar2=False):
     inputs = get_inputs_lazio_outbreak(quasi_real_time=quasi_real_time)
     rng = np.random.default_rng(2)
     _run_analyses_for_model(
         model="autoregressive",
         incidence_vec=inputs["incidence_vec"],
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
-        fit_model_kwargs={"rng": rng, "quasi_real_time": quasi_real_time},
+        fit_model_kwargs={
+            "rng": rng,
+            "quasi_real_time": quasi_real_time,
+            "rho": [0.8, 0.175] if ar2 else None,
+        },
         save_path=inputs["results_paths"]["autoregressive"],
         save_path_diagnostics=inputs["results_paths"]["autoregressive_diagnostics"],
     )
@@ -116,7 +120,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Perform quasi-real-time analyses",
     )
+    parser.add_argument(
+        "--ar2",
+        action="store_true",
+        help="Use AR(2) instead of AR(1) model",
+    )
     args = parser.parse_args()
-    run_analyses(quasi_real_time=args.quasi_real_time)
+    run_analyses(quasi_real_time=args.quasi_real_time, ar2=args.ar2)
     if not args.results_only:
         make_plots(quasi_real_time=args.quasi_real_time)
