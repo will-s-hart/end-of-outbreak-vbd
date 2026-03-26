@@ -65,7 +65,7 @@ def _make_suitability_plot(*, data_path_2017, save_path):
     df_2017 = pd.read_csv(data_path_2017, index_col="date", parse_dates=True)
     df_2017_index = pd.DatetimeIndex(df_2017.index)
     fig, ax = plt.subplots()
-    ax.plot(df_2017_index.dayofyear, df_2017["suitability_smoothed"])
+    ax.plot(df_2017_index.dayofyear, df_2017["suitability_smoothed_lagged"])
     month_start_xticks(ax, interval_months=2)
     ax.set_ylim(0, 1.01)
     ax.set_ylabel("Temperature suitability for transmission")

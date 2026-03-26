@@ -15,12 +15,15 @@ def run_analyses():
     inputs = get_inputs_weather_suitability_data()
     _get_process_data(
         df_suitability_grid=inputs["df_suitability_grid"],
+        suitability_lag_days=inputs["suitability_lag_days"],
         save_path_all=inputs["results_paths"]["all"],
         save_path_2017=inputs["results_paths"]["2017"],
     )
 
 
-def _get_process_data(*, df_suitability_grid, save_path_all, save_path_2017):
+def _get_process_data(
+    *, df_suitability_grid, suitability_lag_days, save_path_all, save_path_2017
+):
     # Retrieve temperature data
     df_data = (
         meteostat.Daily(
@@ -61,12 +64,17 @@ def _get_process_data(*, df_suitability_grid, save_path_all, save_path_2017):
     # Compute suitability for and save to CSV
     df_out_full = df_full.assign(temperature_smoothed=df_smoothed["temperature"])
     df_out_full = df_out_full.assign(
-        suitability=np.interp(
+        suitability_instantaneous=np.interp(
             df_out_full["temperature"], temperature_grid, suitability_grid
         ),
-        suitability_smoothed=np.interp(
+        suitability_smoothed_instantaneous=np.interp(
             df_out_full["temperature_smoothed"], temperature_grid, suitability_grid
         ),
+    )
+    df_out_full = df_out_full.assign(
+        suitability_smoothed_lagged=df_out_full[
+            "suitability_smoothed_instantaneous"
+        ].shift(suitability_lag_days)
     )
     df_out_2017 = df_out_full.loc["2017"]
     df_out_full.to_csv(save_path_all)

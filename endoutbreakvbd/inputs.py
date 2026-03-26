@@ -25,6 +25,11 @@ def get_inputs_weather_suitability_data() -> dict[str, Any]:
         suitability=df_suitability_grid["suitability"] ** 2
     )
 
+    # Assume suitability lags temperature by intrinsic incubation period +
+    # 0.5 * (gen time - intrinsic incubation period) = 3 + 0.5 * (12.5 - 3) = 8 days
+    # (https://doi.org/10.1016/j.antiviral.2013.06.009)
+    suitability_lag_days = 8
+
     results_dir = pathlib.Path(__file__).parents[1] / "results/weather_suitability_data"
     results_paths = {
         "all": results_dir / "all.csv",
@@ -43,6 +48,7 @@ def get_inputs_weather_suitability_data() -> dict[str, Any]:
         "results_paths": results_paths,
         "fig_paths": fig_paths,
         "df_suitability_grid": df_suitability_grid,
+        "suitability_lag_days": suitability_lag_days,
     }
 
 
@@ -50,7 +56,7 @@ def get_inputs_sim_study() -> dict[str, Any]:
     gen_time_dist_vec = _get_gen_time_dist()
 
     df_suitability = _get_2017_suitability_data()
-    suitability_grid = df_suitability["suitability_smoothed"].to_numpy()
+    suitability_grid = df_suitability["suitability_smoothed_lagged"].to_numpy()
 
     rep_no_factor = 2
     rep_no_grid = rep_no_factor * suitability_grid
@@ -118,7 +124,7 @@ def get_inputs_inference_test(quasi_real_time: bool = False) -> dict[str, Any]:
     gen_time_dist_vec = _get_gen_time_dist()
 
     df_suitability = _get_2017_suitability_data()
-    suitability_mean_grid = df_suitability["suitability_smoothed"].to_numpy()
+    suitability_mean_grid = df_suitability["suitability_smoothed_lagged"].to_numpy()
 
     suitability_model_params = {
         "suitability_std": DEFAULTS.suitability_std,
@@ -173,7 +179,7 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
 
     df_suitability = _get_2017_suitability_data()
     suitability_mean_vec = (
-        df_suitability["suitability_smoothed"]
+        df_suitability["suitability_smoothed_lagged"]
         .loc[df_suitability["doy"].isin(doy_vec)]
         .to_numpy()
     )
