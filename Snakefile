@@ -35,7 +35,7 @@ def get_results_files_inference_test(qrt):
     )
 
 
-results_files_inference_test = get_results_files_inference_test(qrt=["", "_qrt"])
+results_files_inference_test = get_results_files_inference_test(qrt=[""])
 
 results_files = (
     results_files_weather_suitability_data

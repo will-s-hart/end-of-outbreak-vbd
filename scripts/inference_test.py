@@ -75,7 +75,7 @@ def _generate_outbreak_data(
         doy_start=doy_start,
     )
     outbreak_found = False
-    outbreak_min_size = 100
+    outbreak_min_size = 500
     outbreak_max_size = 1000
     attempts = 0
     while not outbreak_found:
@@ -95,7 +95,7 @@ def _generate_outbreak_data(
         #     rng=rng,
         # )
         # rep_no_factor_vec = np.exp(log_rep_no_factor_vec)
-        rep_no_factor_vec = np.concatenate((np.full(80, 3), np.full(t_max - 80, 1.5)))
+        rep_no_factor_vec = np.concatenate((np.full(80, 3), np.full(t_max - 80, 1.1)))
 
         rep_no_vec = suitability_vec * rep_no_factor_vec
         rep_no_func = functools.partial(
