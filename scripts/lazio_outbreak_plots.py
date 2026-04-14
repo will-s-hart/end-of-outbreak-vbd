@@ -129,21 +129,21 @@ def _make_risk_plot(
         df = pd.read_csv(data_path)
         ax.plot(doy_vec, df["further_case_risk"], color=color, label=model_name)
     if existing_declarations:
-        ax.axvline(
-            existing_declarations["blood_resumed_rome"]["doy"],
-            0,
-            1,
-            color=colors[-3],
-            linestyle="dashed",
-            label="Blood measures lifted (Rome)",
-        )
+        # ax.axvline(
+        #     existing_declarations["blood_resumed_rome"]["doy"],
+        #     0,
+        #     1,
+        #     color=colors[-3],
+        #     linestyle="dashed",
+        #     label="Blood measures lifted (Rome)",
+        # )
         ax.axvline(
             existing_declarations["blood_resumed_anzio"]["doy"],
             0,
             1,
             color=colors[-2],
             linestyle="dashed",
-            label="Blood measures lifted (Anzio)",
+            label="Blood measures lifted",
         )
         ax.axvline(
             existing_declarations["45_day_rule"]["doy"],
@@ -155,7 +155,7 @@ def _make_risk_plot(
         )
     month_start_xticks(ax)
     ax.set_ylim(0, 1.01)
-    ax.set_ylabel("Risk of additional cases")
+    ax.set_ylabel("Probability of additional cases")
     ax.legend(loc="upper left")
     if save_path is not None:
         fig.savefig(save_path)
@@ -182,17 +182,17 @@ def _make_declaration_plot(
         )
         ax.plot(perc_risk_thresholds, declaration_delays, color=color, label=model_name)
     if existing_declarations:
-        ax.axhline(
-            existing_declarations["blood_resumed_rome"]["days_from_last_case"],
-            color=colors[-2],
-            linestyle="dashed",
-            label="Blood measures lifted (Rome)",
-        )
+        # ax.axhline(
+        #     existing_declarations["blood_resumed_rome"]["days_from_last_case"],
+        #     color=colors[-2],
+        #     linestyle="dashed",
+        #     label="Blood measures lifted (Rome)",
+        # )
         ax.axhline(
             existing_declarations["blood_resumed_anzio"]["days_from_last_case"],
             color=colors[-1],
             linestyle="dashed",
-            label="Blood measures lifted (Anzio)",
+            label="Blood measures lifted",
         )
     ax.set_xticks(np.append(perc_risk_thresholds[0], ax.get_xticks()))
     ax.set_xlim(perc_risk_thresholds[0], perc_risk_thresholds[-1])

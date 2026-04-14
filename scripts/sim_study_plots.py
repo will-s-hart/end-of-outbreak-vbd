@@ -54,14 +54,16 @@ def _make_rep_no_plot(*, rep_no_func_doy, example_doy_vals, save_path=None):
 
 
 def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path=None):
+    nontrivial_outbreak = np.sum(incidence_vec) > 1
     risk_df = pd.read_csv(data_path, index_col=[0, 1])
     doy_start_vals = risk_df.index.get_level_values("start_day_of_year").unique()
     risk_days = risk_df.index.get_level_values("day_of_outbreak").unique()
 
     fig, ax = plt.subplots()
-    plot_data_on_twin_ax(
-        ax, t_vec=np.arange(len(incidence_vec)), incidence_vec=incidence_vec
-    )
+    if nontrivial_outbreak:
+        plot_data_on_twin_ax(
+            ax, t_vec=np.arange(len(incidence_vec)), incidence_vec=incidence_vec
+        )
     for doy_start, color in zip(
         doy_start_vals,
         ["tab:blue", "tab:orange"],
@@ -74,14 +76,18 @@ def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path=None
         ax.plot(
             risk_days,
             risk_vals,
-            label=f"First case on {date_start.day} {date_start:%b}",
+            label=f"Initial case on {date_start.day} {date_start:%b}",
             color=color,
         )
         risk_vals_sim = risk_df.loc[doy_start, "simulation"].to_numpy()
         ax.plot(risk_days, risk_vals_sim, ".", color=color)
     ax.set_ylim(0, 1.01)
-    ax.set_xlabel("Day of outbreak")
-    ax.set_ylabel("Risk of additional cases")
+    ax.set_xlabel(
+        "Day of outbreak" if nontrivial_outbreak else "Days since initial case"
+    )
+    if not nontrivial_outbreak:
+        ax.set_xlim(0, ax.get_xlim()[1])
+    ax.set_ylabel("Probability of additional cases")
     ax.legend()
     if save_path is not None:
         fig.savefig(save_path)
@@ -125,7 +131,7 @@ def _make_many_outbreak_example_plot(*, perc_risk_threshold, data_path, save_pat
     ax.axhline(perc_risk_threshold / 100, color="tab:red", linestyle="--")
     month_start_xticks(ax)
     ax.set_ylim(0, 1.01)
-    ax.set_ylabel("Risk of additional cases")
+    ax.set_ylabel("Probability of additional cases")
     if save_path is not None:
         fig.savefig(save_path)
     return fig, ax
