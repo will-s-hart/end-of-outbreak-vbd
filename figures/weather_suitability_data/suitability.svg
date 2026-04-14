@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-03-26T11:02:33.916972</dc:date>
+    <dc:date>2026-04-13T15:35:54.631392</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -43,118 +43,118 @@ z
     <g id="xtick_1">
      <g id="line2d_1">
       <defs>
-       <path id="m9fd8304ebf" d="M 0 0 
+       <path id="m4868870f4b" d="M 0 0 
 L 0 3.5 
 " style="stroke: #000000; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#m9fd8304ebf" x="80.754545" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="80.754545" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_1">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="80.754545" y="467.0125" transform="rotate(-0 80.754545 467.0125)">1 Jan</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="80.754545" y="467.7175" transform="rotate(-0 80.754545 467.7175)">1 Jan</text>
      </g>
     </g>
     <g id="xtick_2">
      <g id="line2d_2">
       <g>
-       <use xlink:href="#m9fd8304ebf" x="110.995804" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="110.995804" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
     <g id="xtick_3">
      <g id="line2d_3">
       <g>
-       <use xlink:href="#m9fd8304ebf" x="138.31049" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="138.31049" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_2">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="138.31049" y="467.0125" transform="rotate(-0 138.31049 467.0125)">1 Mar</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="138.31049" y="467.7175" transform="rotate(-0 138.31049 467.7175)">1 Mar</text>
      </g>
     </g>
     <g id="xtick_4">
      <g id="line2d_4">
       <g>
-       <use xlink:href="#m9fd8304ebf" x="168.551748" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="168.551748" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
     <g id="xtick_5">
      <g id="line2d_5">
       <g>
-       <use xlink:href="#m9fd8304ebf" x="197.817483" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="197.817483" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_3">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="197.817483" y="467.06" transform="rotate(-0 197.817483 467.06)">1 May</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="197.817483" y="467.7175" transform="rotate(-0 197.817483 467.7175)">1 May</text>
      </g>
     </g>
     <g id="xtick_6">
      <g id="line2d_6">
       <g>
-       <use xlink:href="#m9fd8304ebf" x="228.058741" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="228.058741" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
     <g id="xtick_7">
      <g id="line2d_7">
       <g>
-       <use xlink:href="#m9fd8304ebf" x="257.324476" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="257.324476" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_4">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="257.324476" y="467.0125" transform="rotate(-0 257.324476 467.0125)">1 Jul</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="257.324476" y="467.7175" transform="rotate(-0 257.324476 467.7175)">1 Jul</text>
      </g>
     </g>
     <g id="xtick_8">
      <g id="line2d_8">
       <g>
-       <use xlink:href="#m9fd8304ebf" x="287.565734" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="287.565734" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
     <g id="xtick_9">
      <g id="line2d_9">
       <g>
-       <use xlink:href="#m9fd8304ebf" x="317.806993" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="317.806993" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_5">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="317.806993" y="467.2075" transform="rotate(-0 317.806993 467.2075)">1 Sep</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="317.806993" y="467.7175" transform="rotate(-0 317.806993 467.7175)">1 Sep</text>
      </g>
     </g>
     <g id="xtick_10">
      <g id="line2d_10">
       <g>
-       <use xlink:href="#m9fd8304ebf" x="347.072727" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="347.072727" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
     <g id="xtick_11">
      <g id="line2d_11">
       <g>
-       <use xlink:href="#m9fd8304ebf" x="377.313986" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="377.313986" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_6">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="377.313986" y="467.0125" transform="rotate(-0 377.313986 467.0125)">1 Nov</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="377.313986" y="467.7175" transform="rotate(-0 377.313986 467.7175)">1 Nov</text>
      </g>
     </g>
     <g id="xtick_12">
      <g id="line2d_12">
       <g>
-       <use xlink:href="#m9fd8304ebf" x="406.57972" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="406.57972" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
     <g id="xtick_13">
      <g id="line2d_13">
       <g>
-       <use xlink:href="#m9fd8304ebf" x="436.820979" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m4868870f4b" x="436.820979" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_7">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="436.820979" y="467.0125" transform="rotate(-0 436.820979 467.0125)">1 Jan</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="436.820979" y="467.7175" transform="rotate(-0 436.820979 467.7175)">1 Jan</text>
      </g>
     </g>
    </g>
@@ -162,70 +162,70 @@ L 0 3.5
     <g id="ytick_1">
      <g id="line2d_14">
       <defs>
-       <path id="m8b0460a61b" d="M 0 0 
+       <path id="m401895f578" d="M 0 0 
 L -3.5 0 
 " style="stroke: #000000; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#m8b0460a61b" x="63" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m401895f578" x="63" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_8">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="454.28625" transform="rotate(-0 56 454.28625)">0.0</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="454.63875" transform="rotate(-0 56 454.63875)">0.0</text>
      </g>
     </g>
     <g id="ytick_2">
      <g id="line2d_15">
       <g>
-       <use xlink:href="#m8b0460a61b" x="63" y="371.712475" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m401895f578" x="63" y="371.712475" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_9">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="377.438725" transform="rotate(-0 56 377.438725)">0.2</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="377.791225" transform="rotate(-0 56 377.791225)">0.2</text>
      </g>
     </g>
     <g id="ytick_3">
      <g id="line2d_16">
       <g>
-       <use xlink:href="#m8b0460a61b" x="63" y="294.86495" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m401895f578" x="63" y="294.86495" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_10">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="300.5912" transform="rotate(-0 56 300.5912)">0.4</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="300.9437" transform="rotate(-0 56 300.9437)">0.4</text>
      </g>
     </g>
     <g id="ytick_4">
      <g id="line2d_17">
       <g>
-       <use xlink:href="#m8b0460a61b" x="63" y="218.017426" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m401895f578" x="63" y="218.017426" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_11">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="223.743676" transform="rotate(-0 56 223.743676)">0.6</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="224.096176" transform="rotate(-0 56 224.096176)">0.6</text>
      </g>
     </g>
     <g id="ytick_5">
      <g id="line2d_18">
       <g>
-       <use xlink:href="#m8b0460a61b" x="63" y="141.169901" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m401895f578" x="63" y="141.169901" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_12">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="146.896151" transform="rotate(-0 56 146.896151)">0.8</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="147.248651" transform="rotate(-0 56 147.248651)">0.8</text>
      </g>
     </g>
     <g id="ytick_6">
      <g id="line2d_19">
       <g>
-       <use xlink:href="#m8b0460a61b" x="63" y="64.322376" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m401895f578" x="63" y="64.322376" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_13">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="70.048626" transform="rotate(-0 56 70.048626)">1.0</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="70.401126" transform="rotate(-0 56 70.401126)">1.0</text>
      </g>
     </g>
     <g id="text_14">
-     <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="26.3925" y="254.52" transform="rotate(-90 26.3925 254.52)">Temperature suitability for transmission</text>
+     <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="23.2275" y="254.52" transform="rotate(-90 23.2275 254.52)">Temperature suitability for transmission</text>
     </g>
    </g>
    <g id="line2d_20">
@@ -339,7 +339,7 @@ L 384.142657 448.554457
 L 421.212587 448.56 
 L 435.845455 448.56 
 L 435.845455 448.56 
-" clip-path="url(#p6ab7e65d84)" style="fill: none; stroke: #0173b2; stroke-width: 2; stroke-linecap: square"/>
+" clip-path="url(#pa8ae1da5de)" style="fill: none; stroke: #0173b2; stroke-width: 2; stroke-linecap: square"/>
    </g>
    <g id="patch_3">
     <path d="M 63 448.56 
@@ -354,7 +354,7 @@ L 453.6 448.56
   </g>
  </g>
  <defs>
-  <clipPath id="p6ab7e65d84">
+  <clipPath id="pa8ae1da5de">
    <rect x="63" y="60.48" width="390.6" height="388.08"/>
   </clipPath>
  </defs>
