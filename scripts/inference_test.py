@@ -87,14 +87,6 @@ def _generate_outbreak_data(
             rng=rng,
         )
         suitability_vec = np.clip(suitability_vec, 0, 1)
-        # log_rep_no_factor_vec = _run_ar_sim(
-        #     mean=rep_no_factor_prior_lognormal_params["mu"],
-        #     std=rep_no_factor_prior_lognormal_params["sigma"],
-        #     rho=log_rep_no_factor_rho,
-        #     t_max=t_max,
-        #     rng=rng,
-        # )
-        # rep_no_factor_vec = np.exp(log_rep_no_factor_vec)
         rep_no_factor_vec = np.concatenate((np.full(80, 3), np.full(t_max - 80, 1.1)))
 
         rep_no_vec = suitability_vec * rep_no_factor_vec

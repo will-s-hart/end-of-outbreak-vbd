@@ -123,7 +123,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ar2",
         action="store_true",
-        help="Use AR(2) instead of AR(1) model",
+        help="Use AR(2) instead of AR(1) prior for autoregressive model",
     )
     args = parser.parse_args()
     run_analyses(quasi_real_time=args.quasi_real_time, ar2=args.ar2)

@@ -24,8 +24,6 @@ class Defaults:
     log_rep_no_rho: float | list[float] = 0.975
     suitability_std: float = 0.05
     suitability_rho: float = 0.975
-    # rep_no_factor_prior_median: float = 2.5
-    # rep_no_factor_prior_percentile_2_5: float = 1.25
     rep_no_factor_prior_median: float = 1.0
     rep_no_factor_prior_percentile_2_5: float = 0.2
     log_rep_no_factor_rho: float = 0.975
@@ -47,6 +45,7 @@ def _fit_model(
     **kwargs_sample: Any,
 ) -> xr.Dataset:
 
+    kwargs_sample = {"nuts_sampler": "nutpie", **kwargs_sample}
     if rng is not None:
         kwargs_sample = {**kwargs_sample, "random_seed": rng}
     t_last_recorded = len(incidence_vec)
@@ -254,10 +253,10 @@ def fit_suitability_model(
         )
         suitability_vec = pm.Deterministic(
             "suitability",
-            pm.math.clip(  # need to truncate mean suitability at t_infer_to in QRT mode
+            _softclip(
                 suitability_mean_vec[:t_infer_to] + cast(Any, suitability_deviations),
-                1e-8,
-                1,
+                lower=1e-8,
+                upper=1.0,
             ),
             dims=("time",),
         )
@@ -303,3 +302,11 @@ def _ar_innovation_std(*, stationary_std: float, rho: float | list[float]) -> fl
             1 - (rho[0] ** 2 * (1 + rho[1])) / (1 - rho[1]) - rho[1] ** 2
         )
     raise ValueError("Only AR(1) and AR(2) are supported")
+
+
+def _softclip(x: Any, *, lower: float, upper: float, tau: float = 0.001) -> Any:
+    return (
+        x
+        + tau * pm.math.log1pexp((lower - x) / tau)
+        - tau * pm.math.log1pexp((x - upper) / tau)
+    )
