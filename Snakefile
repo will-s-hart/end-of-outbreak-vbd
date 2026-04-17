@@ -91,7 +91,7 @@ def get_plot_files_inference_test(qrt):
     )
 
 
-plot_files_inference_test = get_plot_files_inference_test(qrt=["", "_qrt"])
+plot_files_inference_test = get_plot_files_inference_test(qrt=[""])
 
 paper_figure_files = expand(
     "figures/figure_{number}.svg", number=["1", "2", "3", "4", "S1", "S2"]
