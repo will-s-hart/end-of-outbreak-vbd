@@ -171,6 +171,7 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
     gen_time_dist_vec = _get_gen_time_dist()
 
     df_data = _get_lazio_outbreak_data()
+    start_date = df_data.index[0]
     doy_start = df_data["doy"].to_numpy()[0]
     incidence_vec = np.append(
         df_data["cases"].to_numpy(), np.zeros(len(gen_time_dist_vec) + 1, dtype=int)
@@ -233,6 +234,8 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
     }
 
     return {
+        "start_date": start_date,
+        "time_last_case": time_last_case,
         "gen_time_dist_vec": gen_time_dist_vec,
         "doy_vec": doy_vec,
         "incidence_vec": incidence_vec,
