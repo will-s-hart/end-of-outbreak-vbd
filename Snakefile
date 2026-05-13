@@ -94,7 +94,7 @@ def get_plot_files_inference_test(qrt):
 plot_files_inference_test = get_plot_files_inference_test(qrt=[""])
 
 paper_figure_files = expand(
-    "figures/figure_{number}.svg", number=["1", "2", "3", "4", "S1", "S2"]
+    "figures/figure_{number}.svg", number=["2", "3", "4", "S1", "S2", "S3"]
 )
 paper_figure_files_png = [x.replace(".svg", ".png") for x in paper_figure_files]
 

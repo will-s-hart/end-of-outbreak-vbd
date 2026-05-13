@@ -27,7 +27,7 @@ def make_plots(quasi_real_time=False):
     rep_no_vec = df_data["rep_no"].to_numpy()
     risk_vec = df_data["further_case_risk"].to_numpy()
 
-    for plot_func, plot_kwargs, actual_vec, save_path in [
+    for plot_func, plot_kwargs, actual_vec, legend_loc, save_path in [
         (
             _make_suitability_plot,
             {
@@ -37,6 +37,7 @@ def make_plots(quasi_real_time=False):
                 "data_path": inputs["results_paths"]["suitability"],
             },
             suitability_vec,
+            None,
             inputs["fig_paths"]["suitability"],
         ),
         (
@@ -47,6 +48,7 @@ def make_plots(quasi_real_time=False):
                 "data_path": inputs["results_paths"]["suitability"],
             },
             rep_no_factor_vec,
+            None,
             inputs["fig_paths"]["scaling_factor"],
         ),
         (
@@ -61,6 +63,7 @@ def make_plots(quasi_real_time=False):
                 ],
             },
             rep_no_vec,
+            None,
             inputs["fig_paths"]["rep_no"],
         ),
         (
@@ -76,12 +79,14 @@ def make_plots(quasi_real_time=False):
                 ],
             },
             risk_vec,
+            "upper left",
             inputs["fig_paths"]["risk"],
         ),
     ]:
         fig, ax = plot_func(**plot_kwargs)
+        ax.set_xlabel("Date")
         ax.plot(doy_vec, actual_vec, color="black", label="True")
-        ax.legend()
+        ax.legend(loc=legend_loc)
         fig.savefig(save_path)
     fig, ax = _make_declaration_plot(
         incidence_vec=incidence_vec,

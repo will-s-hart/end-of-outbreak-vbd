@@ -123,9 +123,9 @@ def compile_figure(
 
 def compile_paper_figures():
     figure_dir = pathlib.Path(__file__).parents[1] / "figures"
-    # Figure 1
+    # Figure 2
     compile_figure(
-        save_path=figure_dir / "figure_1.svg",
+        save_path=figure_dir / "figure_2.svg",
         panel_paths=[
             figure_dir / "sim_study" / f"{x}.svg"
             for x in [
@@ -136,9 +136,9 @@ def compile_paper_figures():
             ]
         ],
     )
-    # Figure 2
+    # Figure 3
     compile_figure(
-        save_path=figure_dir / "figure_2.svg",
+        save_path=figure_dir / "figure_3.svg",
         panel_paths=[
             figure_dir / f"{x}.svg"
             for x in [
@@ -149,27 +149,19 @@ def compile_paper_figures():
             ]
         ],
     )
-    # Figure 3
-    compile_figure(
-        save_path=figure_dir / "figure_3.svg",
-        panel_paths=[
-            figure_dir / "lazio_outbreak" / f"{x}.svg"
-            for x in ["suitability", "scaling_factor", "rep_no"]
-        ],
-    )
     # Figure 4
     compile_figure(
         save_path=figure_dir / "figure_4.svg",
         panel_paths=[
-            figure_dir / "lazio_outbreak" / f"{x}.svg" for x in ["risk", "declaration"]
+            figure_dir / "lazio_outbreak" / f"{x}.svg"
+            for x in ["suitability", "rep_no", "risk", "declaration"]
         ],
     )
     # Figure S1
     compile_figure(
         save_path=figure_dir / "figure_S1.svg",
         panel_paths=[
-            figure_dir / "inference_test" / f"{x}.svg"
-            for x in ["suitability", "scaling_factor", "rep_no", "risk", "declaration"]
+            figure_dir / "lazio_outbreak" / "scaling_factor.svg",
         ],
     )
     # Figure S2
@@ -177,6 +169,14 @@ def compile_paper_figures():
         save_path=figure_dir / "figure_S2.svg",
         panel_paths=[
             figure_dir / "lazio_outbreak_qrt" / f"{x}.svg"
+            for x in ["suitability", "scaling_factor", "rep_no", "risk", "declaration"]
+        ],
+    )
+    # Figure S3
+    compile_figure(
+        save_path=figure_dir / "figure_S3.svg",
+        panel_paths=[
+            figure_dir / "inference_test" / f"{x}.svg"
             for x in ["suitability", "scaling_factor", "rep_no", "risk", "declaration"]
         ],
     )

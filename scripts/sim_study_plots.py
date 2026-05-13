@@ -46,6 +46,7 @@ def _make_rep_no_plot(*, rep_no_func_doy, example_doy_vals, save_path=None):
     ax.plot(doy_vec, rep_no_func_doy(doy_vec))
     ax.plot(example_doy_vals, rep_no_func_doy(np.array(example_doy_vals)), "o")
     month_start_xticks(ax, interval_months=2)
+    ax.set_xlabel("Date")
     ax.set_ylim(0, 2.02)
     ax.set_ylabel("Time-dependent reproduction number")
     if save_path is not None:
@@ -130,6 +131,7 @@ def _make_many_outbreak_example_plot(*, perc_risk_threshold, data_path, save_pat
     ax.plot(df["day_of_year"], df["further_case_risk"], color="tab:blue")
     ax.axhline(perc_risk_threshold / 100, color="tab:red", linestyle="--")
     month_start_xticks(ax)
+    ax.set_xlabel("Date")
     ax.set_ylim(0, 1.01)
     ax.set_ylabel("Probability of additional cases")
     if save_path is not None:

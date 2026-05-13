@@ -47,6 +47,7 @@ def _make_temperature_plot(*, data_path_all, save_path):
         color="tab:red",
     )
     month_start_xticks(ax, interval_months=2)
+    ax.set_xlabel("Date")
     ax.set_ylabel("Temperature (°C)")
     fig.savefig(save_path)
 
@@ -67,6 +68,7 @@ def _make_suitability_plot(*, data_path_2017, save_path):
     fig, ax = plt.subplots()
     ax.plot(df_2017_index.dayofyear, df_2017["suitability_smoothed_lagged"])
     month_start_xticks(ax, interval_months=2)
+    ax.set_xlabel("Date")
     ax.set_ylim(0, 1.01)
     ax.set_ylabel("Temperature suitability for transmission")
     fig.savefig(save_path)
