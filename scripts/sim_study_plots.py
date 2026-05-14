@@ -195,7 +195,7 @@ def _make_many_outbreak_declaration_plot(
     # cbar = plt.colorbar(sm, ax=ax)
     # cbar.set_ticks(np.linspace(0, norm.vmax, 11))
     ax.set_xlabel("Week of final case")
-    ax.set_ylabel("Days from final case until declaration")
+    ax.set_ylabel("Days from final case until decision")
     # ax.set_xlim(121, 305)
     month_start_xticks(ax)
     if save_path is not None:

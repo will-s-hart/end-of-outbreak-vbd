@@ -200,7 +200,7 @@ def _make_declaration_plot(
     ax.set_xlim(perc_risk_thresholds[0], perc_risk_thresholds[-1])
     ax.set_ylim(0, ax.get_ylim()[1])
     ax.set_xlabel("Risk threshold (%)")
-    ax.set_ylabel("Days from final case to declaration")
+    ax.set_ylabel("Days from final case to decision")
     ax.legend(loc="lower left")
     if save_path is not None:
         fig.savefig(save_path)
