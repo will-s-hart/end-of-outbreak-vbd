@@ -1,3 +1,4 @@
+results_files_schematic = ["results/schematic/outbreak.csv"]
 results_files_weather_suitability_data = expand(
     "results/weather_suitability_data/{name}.csv", name=["all", "2017"]
 )
@@ -38,7 +39,8 @@ def get_results_files_inference_test(qrt):
 results_files_inference_test = get_results_files_inference_test(qrt=[""])
 
 results_files = (
-    results_files_weather_suitability_data
+    results_files_schematic
+    + results_files_weather_suitability_data
     + results_files_sim_study
     + results_files_lazio_outbreak
     + results_files_inference_test
@@ -93,9 +95,11 @@ def get_plot_files_inference_test(qrt):
 
 plot_files_inference_test = get_plot_files_inference_test(qrt=[""])
 
-paper_figure_files = expand(
+schematic_figure_file = "figures/figure_1.svg"
+paper_figure_files_compiled = expand(
     "figures/figure_{number}.svg", number=["2", "3", "4", "S1", "S2", "S3"]
 )
+paper_figure_files = [schematic_figure_file] + paper_figure_files_compiled
 paper_figure_files_png = [x.replace(".svg", ".png") for x in paper_figure_files]
 
 
@@ -153,10 +157,35 @@ rule paper_figures:
     input:
         plot_files,
     output:
-        paper_figure_files,
+        paper_figure_files_compiled,
     shell:
         """
         pixi run python scripts/compile_figures.py
+        """
+
+
+rule schematic_results:
+    input:
+        package_files,
+        "scripts/schematic.py",
+    output:
+        results_files_schematic,
+    shell:
+        """
+        pixi run python scripts/schematic.py -r
+        """
+
+
+rule schematic_plots:
+    input:
+        package_files,
+        "scripts/schematic_plots.py",
+        results_files_schematic,
+    output:
+        schematic_figure_file,
+    shell:
+        """
+        pixi run python scripts/schematic_plots.py
         """
 
 

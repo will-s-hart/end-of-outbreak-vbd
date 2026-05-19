@@ -11,6 +11,55 @@ from endoutbreakvbd.inference import DEFAULTS
 from endoutbreakvbd.utils import rep_no_from_grid
 
 
+def get_inputs_schematic() -> dict[str, Any]:
+    seasonal_amplitude = 2.5
+    seasonal_peak_doy = 180
+    seasonal_sigma = 65
+    doy_grid_full = np.arange(1, 366)
+    seasonal_full = seasonal_amplitude * np.exp(
+        -(((doy_grid_full - seasonal_peak_doy) / seasonal_sigma) ** 2)
+    )
+    outbreak_rep_no_vec = 1.05 * seasonal_full
+
+    si_gamma_shape = 2.5
+    si_gamma_scale = 4.5
+    si_max_days = 35
+    days = np.arange(si_max_days + 1)
+    gen_time_pmf = scipy.stats.gamma.pdf(
+        days + 0.5, a=si_gamma_shape, scale=si_gamma_scale
+    )
+    gen_time_dist_vec = gen_time_pmf / gen_time_pmf.sum()
+
+    results_dir = pathlib.Path(__file__).parents[1] / "results/schematic"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    fig_dir = pathlib.Path(__file__).parents[1] / "figures"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    return {
+        "seasonal_full": seasonal_full,
+        "seasonal_amplitude": seasonal_amplitude,
+        "outbreak_rep_no_vec": outbreak_rep_no_vec,
+        "gen_time_dist_vec": gen_time_dist_vec,
+        "outbreak_doy_start": 92,
+        "outbreak_seed": 1,
+        "outbreak_t_stop": 260,
+        "outbreak_size_min": 300,
+        "outbreak_size_max": 1000,
+        "outbreak_last_case_doy_min": 298,
+        "outbreak_last_case_doy_max": 315,
+        "outbreak_max_attempts": 10000,
+        "current_day_offset": 15,
+        "inference_seed": 42,
+        "rep_no_factor_prior_median": seasonal_amplitude,
+        "rep_no_factor_prior_percentile_2_5": 0.9 * seasonal_amplitude,
+        "log_rep_no_factor_rho": 0.95,
+        "suitability_std": 0.1,
+        "suitability_rho": 0.95,
+        "results_paths": {"outbreak": results_dir / "outbreak.csv"},
+        "fig_path": fig_dir / "figure_1.svg",
+    }
+
+
 def get_inputs_weather_suitability_data() -> dict[str, Any]:
 
     # Temperature-suitability mapping (need to square values for full
