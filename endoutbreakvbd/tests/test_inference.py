@@ -364,24 +364,25 @@ def test_fit_suitability_model_respects_overrides(monkeypatch):
     assert captured["fit_model_kwargs"]["quasi_real_time"] is False
 
 
-def test_fit_suitability_model_rep_no_func_uses_clip(monkeypatch):
-    clip_calls = []
+def test_fit_suitability_model_rep_no_func_uses_softclip(monkeypatch):
+    softclip_calls = []
+
+    def fake_softclip(x, *, lower, upper, tau=0.001):
+        softclip_calls.append((np.array(x), lower, upper))
+        return np.clip(x, lower, upper)
+
+    monkeypatch.setattr(inf, "_softclip", fake_softclip)
+    monkeypatch.setattr(inf.pm, "AR", lambda *args, **kwargs: np.zeros(4))
+    monkeypatch.setattr(
+        inf.pm, "Deterministic", lambda name, value, dims=None: np.array(value)
+    )
 
     class _FakeMath:
         @staticmethod
         def exp(x):
             return np.exp(x)
 
-        @staticmethod
-        def clip(x, min_val, max_val):
-            clip_calls.append((np.array(x), min_val, max_val))
-            return np.clip(x, min_val, max_val)
-
     monkeypatch.setattr(inf.pm, "math", _FakeMath)
-    monkeypatch.setattr(inf.pm, "AR", lambda *args, **kwargs: np.zeros(4))
-    monkeypatch.setattr(
-        inf.pm, "Deterministic", lambda name, value, dims=None: np.array(value)
-    )
 
     class _FakeNormal:
         @staticmethod
@@ -406,9 +407,9 @@ def test_fit_suitability_model_rep_no_func_uses_clip(monkeypatch):
     )
 
     assert isinstance(out, xr.Dataset)
-    assert len(clip_calls) == 1
-    clip_arr, lower, upper = clip_calls[0]
-    np.testing.assert_allclose(clip_arr, np.array([0.1, 0.2, 0.3, 0.4]))
+    assert len(softclip_calls) == 1
+    softclip_arr, lower, upper = softclip_calls[0]
+    np.testing.assert_allclose(softclip_arr, np.array([0.1, 0.2, 0.3, 0.4]))
     assert lower == 1e-8
-    assert upper == 1
+    assert upper == 1.0
     assert captured["rep_no_vec"].shape == (4,)

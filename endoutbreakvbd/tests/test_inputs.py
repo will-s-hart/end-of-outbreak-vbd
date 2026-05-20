@@ -67,7 +67,7 @@ def test_get_lazio_outbreak_data_has_expected_columns_and_doy():
 
 def test_get_2017_suitability_data_has_expected_columns_and_doy():
     df = inputs._get_2017_suitability_data()
-    assert "suitability_smoothed" in df.columns
+    assert "suitability_smoothed_lagged" in df.columns
     assert "doy" in df.columns
     assert df.index.name == "date"
     assert df["doy"].between(1, 366).all()
@@ -76,7 +76,12 @@ def test_get_2017_suitability_data_has_expected_columns_and_doy():
 def test_get_inputs_weather_suitability_data_structure(monkeypatch):
     monkeypatch.setattr(inputs.pathlib.Path, "mkdir", lambda *args, **kwargs: None)
     out = inputs.get_inputs_weather_suitability_data()
-    assert set(out.keys()) == {"results_paths", "fig_paths", "df_suitability_grid"}
+    assert set(out.keys()) == {
+        "results_paths",
+        "fig_paths",
+        "df_suitability_grid",
+        "suitability_lag_days",
+    }
     assert set(out["results_paths"].keys()) == {"all", "2017"}
     assert set(out["fig_paths"].keys()) == {
         "temperature",
