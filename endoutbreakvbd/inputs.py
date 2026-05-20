@@ -34,9 +34,7 @@ def get_inputs_schematic() -> dict[str, Any]:
     results_dir.mkdir(parents=True, exist_ok=True)
     fig_dir = pathlib.Path(__file__).parents[1] / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
-    intervention_graphic_path = (
-        fig_dir / "schematic" / "intervention_graphic.png"
-    )
+    intervention_graphic_path = fig_dir / "schematic" / "intervention_graphic.png"
     safe_graphic_path = fig_dir / "schematic" / "safe_graphic.png"
 
     return {
