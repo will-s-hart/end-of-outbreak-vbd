@@ -142,9 +142,9 @@ def _fake_suitability_posterior(t_stop):
 def test_defaults_dataclass_is_frozen():
     defaults = inf.Defaults()
     assert defaults.rep_no_prior_median == 1.0
-    assert defaults.rep_no_rho == 0.975
+    assert defaults.log_rep_no_rho == 0.975
     with pytest.raises(FrozenInstanceError):
-        setattr(defaults, "rep_no_rho", 0.9)
+        setattr(defaults, "log_rep_no_rho", 0.9)
 
 
 def test_fit_model_raises_when_local_incidence_positive_with_zero_foi():

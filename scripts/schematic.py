@@ -8,11 +8,11 @@ CSV consumed by `scripts/schematic_plots.py`.
 """
 
 import argparse
-import functools
 
 import numpy as np
 import pandas as pd
 
+from endoutbreakvbd._types import IntArray, RepNoOutput
 from endoutbreakvbd.inference import fit_suitability_model
 from endoutbreakvbd.inputs import get_inputs_schematic
 from endoutbreakvbd.model import run_renewal_model
@@ -77,12 +77,13 @@ def _simulate_outbreak(inputs):
     gen_time_dist_vec = inputs["gen_time_dist_vec"]
     doy_start = inputs["outbreak_doy_start"]
 
-    rep_no_func = functools.partial(
-        rep_no_from_grid,
-        rep_no_grid=outbreak_rep_no_vec,
-        periodic=True,
-        doy_start=doy_start,
-    )
+    def rep_no_func(t: int | IntArray) -> RepNoOutput:
+        return rep_no_from_grid(
+            t,
+            rep_no_grid=outbreak_rep_no_vec,
+            periodic=True,
+            doy_start=doy_start,
+        )
 
     rng = np.random.default_rng(inputs["outbreak_seed"])
     for attempt in range(inputs["outbreak_max_attempts"]):

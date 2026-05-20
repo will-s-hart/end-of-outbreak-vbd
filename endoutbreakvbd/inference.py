@@ -1,4 +1,3 @@
-import functools
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
@@ -10,7 +9,13 @@ import xarray as xr
 from tqdm import tqdm
 
 from endoutbreakvbd.further_case_risk import calc_further_case_risk_analytical
-from endoutbreakvbd._types import FloatArray, GenTimeInput, IncidenceSeriesInput
+from endoutbreakvbd._types import (
+    FloatArray,
+    GenTimeInput,
+    IncidenceSeriesInput,
+    IntArray,
+    RepNoOutput,
+)
 from endoutbreakvbd.utils import (
     lognormal_params_from_median_percentile_2_5,
     rep_no_from_grid,
@@ -139,9 +144,10 @@ def _fit_model(
     )
     # Compute daily risk of further cases
     rep_no_mat = ds_posterior["rep_no"].transpose("time", ...).values
-    rep_no_post_func = functools.partial(
-        rep_no_from_grid, rep_no_grid=rep_no_mat, periodic=False
-    )
+
+    def rep_no_post_func(t: int | IntArray) -> RepNoOutput:
+        return rep_no_from_grid(t, rep_no_grid=rep_no_mat, periodic=False)
+
     risk_vec = calc_further_case_risk_analytical(
         incidence_vec=incidence_vec,
         rep_no_func=rep_no_post_func,
@@ -293,7 +299,7 @@ def fit_suitability_model(
 
 
 def _ar_innovation_std(*, stationary_std: float, rho: float | list[float]) -> float:
-    if np.isscalar(rho):
+    if not isinstance(rho, list):
         rho = [rho]
     if len(rho) == 1:
         return stationary_std * np.sqrt(1 - rho[0] ** 2)

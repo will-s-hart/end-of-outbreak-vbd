@@ -4,6 +4,8 @@ Reads the outbreak CSV produced by `scripts/schematic.py` and draws the
 2x2 schematic panel layout with arrow chrome.
 """
 
+from typing import Any
+
 import matplotlib.image as mpimg
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -375,7 +377,7 @@ def _draw_inference_arrows(fig):
     c_top_y = c_y + c_h
     rail_y = (a_y + c_top_y) / 2
 
-    line_kwargs = dict(
+    line_kwargs: dict[str, Any] = dict(
         arrowstyle="-",
         linestyle="--",
         color="dimgray",

@@ -1,10 +1,10 @@
 import argparse
-import functools
 
 import numpy as np
 import pandas as pd
 
 from endoutbreakvbd import calc_further_case_risk_analytical, rep_no_from_grid
+from endoutbreakvbd._types import IntArray, RepNoOutput
 from endoutbreakvbd.inputs import get_inputs_inference_test
 from endoutbreakvbd.model import run_renewal_model
 
@@ -90,9 +90,10 @@ def _generate_outbreak_data(
         rep_no_factor_vec = np.concatenate((np.full(80, 3), np.full(t_max - 80, 1.1)))
 
         rep_no_vec = suitability_vec * rep_no_factor_vec
-        rep_no_func = functools.partial(
-            rep_no_from_grid, rep_no_grid=rep_no_vec, periodic=False
-        )
+
+        def rep_no_func(t: int | IntArray) -> RepNoOutput:
+            return rep_no_from_grid(t, rep_no_grid=rep_no_vec, periodic=False)
+
         incidence_vec = run_renewal_model(
             rep_no_func=rep_no_func, gen_time_dist_vec=gen_time_dist_vec, rng=rng
         )

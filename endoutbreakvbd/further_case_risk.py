@@ -155,16 +155,16 @@ def calc_further_case_risk_simulation(
 ) -> float | FloatArray:
     # Simulation-based calculation of risk of further cases on/after time t_calc
 
-    incidence_vec = np.asarray(incidence_vec)
+    incidence_arr: IntArray = np.asarray(incidence_vec, dtype=int)
     gen_time_dist_vec = np.asarray(gen_time_dist_vec)
     t_calc = np.atleast_1d(t_calc)
     n_times = int(t_calc.size)
     n_time_sim_pairs = n_times * n_sims
     t_calc_max = int(t_calc.max())
 
-    if incidence_vec.size < t_calc_max:
-        incidence_vec = np.append(
-            incidence_vec, np.zeros(t_calc_max - incidence_vec.size)
+    if incidence_arr.size < t_calc_max:
+        incidence_arr = np.append(
+            incidence_arr, np.zeros(t_calc_max - incidence_arr.size, dtype=int)
         )
 
     tasks: list[
@@ -177,7 +177,7 @@ def calc_further_case_risk_simulation(
         t = int(t_curr)
         tasks.append(
             (
-                incidence_vec[:t],
+                incidence_arr[:t],
                 rep_no_func,
                 gen_time_dist_vec,
                 t,
