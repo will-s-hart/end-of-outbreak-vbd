@@ -8,7 +8,7 @@ import seaborn as sns
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike
 
-from endoutbreakvbd.types import FloatArray, IntArray
+from endoutbreakvbd._types import FloatArray, IntArray
 
 
 @overload

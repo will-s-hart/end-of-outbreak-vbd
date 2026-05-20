@@ -7,7 +7,7 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from endoutbreakvbd.model import run_renewal_model
-from endoutbreakvbd.types import (
+from endoutbreakvbd._types import (
     FloatArray,
     GenTimeInput,
     IncidenceSeriesInput,

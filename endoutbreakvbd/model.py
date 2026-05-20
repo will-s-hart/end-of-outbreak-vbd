@@ -3,7 +3,7 @@ from typing import Annotated
 import numpy as np
 from annotated_types import Gt
 
-from endoutbreakvbd.types import (
+from endoutbreakvbd._types import (
     GenTimeInput,
     IncidenceInitInput,
     IntArray,

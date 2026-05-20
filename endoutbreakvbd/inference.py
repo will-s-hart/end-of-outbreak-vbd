@@ -10,7 +10,7 @@ import xarray as xr
 from tqdm import tqdm
 
 from endoutbreakvbd.further_case_risk import calc_further_case_risk_analytical
-from endoutbreakvbd.types import FloatArray, GenTimeInput, IncidenceSeriesInput
+from endoutbreakvbd._types import FloatArray, GenTimeInput, IncidenceSeriesInput
 from endoutbreakvbd.utils import (
     lognormal_params_from_median_percentile_2_5,
     rep_no_from_grid,
