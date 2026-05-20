@@ -181,6 +181,8 @@ rule schematic_plots:
         package_files,
         "scripts/schematic_plots.py",
         results_files_schematic,
+        "figures/schematic/intervention_graphic.png",
+        "figures/schematic/safe_graphic.png",
     output:
         schematic_figure_file,
     shell:

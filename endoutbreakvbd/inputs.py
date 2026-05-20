@@ -34,6 +34,10 @@ def get_inputs_schematic() -> dict[str, Any]:
     results_dir.mkdir(parents=True, exist_ok=True)
     fig_dir = pathlib.Path(__file__).parents[1] / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
+    intervention_graphic_path = (
+        fig_dir / "schematic" / "intervention_graphic.png"
+    )
+    safe_graphic_path = fig_dir / "schematic" / "safe_graphic.png"
 
     return {
         "seasonal_full": seasonal_full,
@@ -56,6 +60,8 @@ def get_inputs_schematic() -> dict[str, Any]:
         "suitability_std": 0.1,
         "suitability_rho": 0.95,
         "results_paths": {"outbreak": results_dir / "outbreak.csv"},
+        "intervention_graphic_path": intervention_graphic_path,
+        "safe_graphic_path": safe_graphic_path,
         "fig_path": fig_dir / "figure_1.svg",
     }
 

@@ -4,10 +4,12 @@ Reads the outbreak CSV produced by `scripts/schematic.py` and draws the
 2x2 schematic panel layout with arrow chrome.
 """
 
+import matplotlib.image as mpimg
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from matplotlib.path import Path
 
 from endoutbreakvbd.inputs import get_inputs_schematic
@@ -41,7 +43,7 @@ TITLE_BAR_H = 0.05
 ROUNDING = 0.010
 
 PANEL_H = (1 - TOP_MARGIN - BOTTOM_MARGIN - V_GAP) / 2
-LEFT_RIGHT_RATIO = 1.5
+LEFT_RIGHT_RATIO = 1.0
 _total_w = 1 - LEFT_MARGIN - RIGHT_MARGIN - H_GAP
 PANEL_W_RIGHT = _total_w / (1 + LEFT_RIGHT_RATIO)
 PANEL_W_LEFT = _total_w - PANEL_W_RIGHT
@@ -64,12 +66,13 @@ PANEL_BBOX = {
 }
 
 AX_PAD_LEFT = 0.045
-AX_PAD_RIGHT = 0.030
-AX_PAD_BOTTOM = 0.085
-AX_PAD_TOP = 0.025
+AX_PAD_RIGHT = 0.020
+AX_PAD_BOTTOM = 0.065
+AX_PAD_TOP = 0.010
 
 DOY_MIN = 91
 DOY_MAX = 335
+RISK_THRESHOLD = 0.05
 
 
 def make_plots():
@@ -80,8 +83,6 @@ def make_plots():
     incidence_vec = df["cases"].to_numpy()
     last_case_doy = doy_start + int(np.nonzero(incidence_vec)[0][-1])
     current_day_doy = last_case_doy + inputs["current_day_offset"]
-    t_calc = current_day_doy - doy_start
-    risk = float(df["further_case_risk"].iloc[t_calc])
 
     fig = plt.figure(figsize=(FIG_WIDTH, FIG_HEIGHT))
 
@@ -103,12 +104,18 @@ def make_plots():
         df=df,
         seasonal_full=inputs["seasonal_full"],
     )
-    _populate_panel_d(fig, risk=risk)
+    _populate_panel_d(
+        _add_panel_axes(fig, "D"),
+        df=df,
+        current_day_doy=current_day_doy,
+        intervention_graphic_path=inputs["intervention_graphic_path"],
+        safe_graphic_path=inputs["safe_graphic_path"],
+    )
 
     _draw_inference_arrows(fig)
     _draw_output_arrows(fig)
 
-    fig.savefig(inputs["fig_path"])
+    fig.savefig(inputs["fig_path"], dpi=300)
     plt.close(fig)
 
 
@@ -191,7 +198,7 @@ def _decorate_panel(fig, panel_key):
         title_y + TITLE_BAR_H / 2,
         title,
         color="white",
-        fontsize=15,
+        fontsize=14,
         fontweight="bold",
         ha="center",
         va="center",
@@ -199,13 +206,13 @@ def _decorate_panel(fig, panel_key):
     )
 
 
-def _add_panel_axes(fig, panel_key):
+def _add_panel_axes(fig, panel_key, *, left_pad=AX_PAD_LEFT):
     px, py, pw, ph = PANEL_BBOX[panel_key]
     return fig.add_axes(
         [
-            px + AX_PAD_LEFT,
+            px + left_pad,
             py + AX_PAD_BOTTOM,
-            pw - AX_PAD_LEFT - AX_PAD_RIGHT,
+            pw - left_pad - AX_PAD_RIGHT,
             ph - TITLE_BAR_H - AX_PAD_TOP - AX_PAD_BOTTOM,
         ]
     )
@@ -300,23 +307,62 @@ def _populate_panel_c(ax, *, df, seasonal_full):
     )
 
 
-def _populate_panel_d(fig, *, risk):
-    px, py, pw, ph = PANEL_BBOX["D"]
-    title_y = py + ph - TITLE_BAR_H
-    center_x = px + pw / 2
-    center_y = (py + title_y) / 2
-    fig.text(
-        center_x,
-        center_y,
-        "Probability that additional\n"
-        "cases will occur on or\n"
-        "after the current day\n"
-        f"= {risk:.3f}",
-        ha="center",
-        va="center",
-        fontsize=17,
-        color="black",
+def _populate_panel_d(
+    ax,
+    *,
+    df,
+    current_day_doy,
+    intervention_graphic_path,
+    safe_graphic_path,
+):
+    doy_inf = df["day_of_year"].to_numpy()
+    risk = df["further_case_risk"].to_numpy()
+    x_lower = 305  # 1 November (non-leap year)
+    mask = (doy_inf >= x_lower) & (doy_inf <= current_day_doy)
+
+    y_upper = float(np.ceil(risk[mask].max() * 40) / 40)
+
+    ax.axhspan(0, RISK_THRESHOLD, color="#9CCC65", alpha=0.45, zorder=0)
+    ax.axhspan(RISK_THRESHOLD, 1.0, color="#FFE082", alpha=0.45, zorder=0)
+    ax.axhline(RISK_THRESHOLD, color="#558B2F", linestyle=":", linewidth=1, zorder=1)
+    ax.plot(doy_inf[mask], risk[mask], color=PANEL_COLORS["D"], linewidth=2)
+    ax.axvline(current_day_doy, color="black", linestyle="--", linewidth=1.5)
+
+    ax.set_xlim(x_lower, DOY_MAX)
+    ax.set_ylim(0, y_upper)
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Probability of additional\ncases on/after date")
+    ax.set_yticks([])
+
+    ax.text(
+        current_day_doy - 0.5,
+        y_upper * 0.93,
+        "Current day",
+        ha="right",
+        va="top",
+        fontsize=12,
     )
+    intervention_img = mpimg.imread(intervention_graphic_path)
+    ax.add_artist(
+        AnnotationBbox(
+            OffsetImage(intervention_img, zoom=0.18),
+            (0.7, 0.56),
+            xycoords="axes fraction",
+            frameon=False,
+        )
+    )
+    safe_img = mpimg.imread(safe_graphic_path)
+    ax.add_artist(
+        AnnotationBbox(
+            OffsetImage(safe_img, zoom=0.75 * 0.18),
+            (0.71, 0.06),
+            xycoords="axes fraction",
+            frameon=False,
+        )
+    )
+
+    month_start_xticks(ax, year=2017, interval_months=1)
+    ax.tick_params(axis="x", labelsize=12)
 
 
 def _draw_inference_arrows(fig):
