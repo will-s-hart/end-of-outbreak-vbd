@@ -16,7 +16,7 @@ from endoutbreakvbd.inputs import get_inputs_sim_study
 from scripts.sim_study_plots import make_plots
 
 
-def run_analyses():
+def run_analyses(track_premature_declarations=False):
     inputs = get_inputs_sim_study()
     rng = np.random.default_rng(2)
     _run_example_outbreak_risk_analysis(
@@ -42,6 +42,7 @@ def run_analyses():
         rep_no_from_doy_start=inputs["rep_no_from_doy_start"],
         gen_time_dist_vec=inputs["gen_time_dist_vec"],
         example_outbreak_idx=inputs["many_outbreak_example_outbreak_idx"],
+        track_premature_declarations=track_premature_declarations,
         rng=rng,
         save_path=inputs["results_paths"]["many_outbreak_declaration"],
         save_path_example=inputs["results_paths"]["many_outbreak_example"],
@@ -139,6 +140,7 @@ def _run_many_outbreak_analysis(
     rep_no_from_doy_start,
     gen_time_dist_vec,
     example_outbreak_idx,
+    track_premature_declarations,
     rng,
     save_path,
     save_path_example,
@@ -155,6 +157,7 @@ def _run_many_outbreak_analysis(
                 perc_risk_threshold,
                 rep_no_from_doy_start,
                 gen_time_dist_vec,
+                track_premature_declarations,
                 full_output,
                 child_rng,
             )
@@ -177,6 +180,7 @@ def _run_many_outbreak_analysis(
         doy_last_case_vals,
         declaration_delay_vals,
         output_vals,
+        premature_declarations_vals,
     ) = zip(*results)
     df = pd.DataFrame(
         {
@@ -190,6 +194,20 @@ def _run_many_outbreak_analysis(
     df.to_csv(save_path)
     example_output = output_vals[example_outbreak_idx]
     example_output.to_csv(save_path_example)
+    if track_premature_declarations:
+        n_premature_declaration_outbreaks = np.sum(
+            np.array(premature_declarations_vals) > 0
+        )
+        print(
+            f"{n_premature_declaration_outbreaks} "
+            "outbreaks had a premature declaration "
+            f"({100 * n_premature_declaration_outbreaks / n_sims:.1f}%)"
+        )
+        n_premature_declarations = np.sum(premature_declarations_vals)
+        print(
+            f"{n_premature_declarations} premature declarations across all outbreaks "
+            f"({n_premature_declarations / n_sims:.1f} per outbreak)"
+        )
 
 
 def _many_outbreak_analysis_one_sim(args):
@@ -198,6 +216,7 @@ def _many_outbreak_analysis_one_sim(args):
         perc_risk_threshold,
         rep_no_from_doy_start,
         gen_time_dist_vec,
+        track_premature_declarations,
         full_output,
         rng,
     ) = args
@@ -233,23 +252,36 @@ def _many_outbreak_analysis_one_sim(args):
     if 150 < doy_last_case < 250 and declaration_delay == 0:
         print("Possible error - zero days to declaration for outbreak ending mid-year")
     no_cases = np.sum(incidence_vec)
-    if full_output:
-        risk_vals_all = calc_further_case_risk_analytical(
+    output = None
+    premature_declarations = None
+    if full_output or track_premature_declarations:
+        risk_vals_to_last_case = calc_further_case_risk_analytical(
             incidence_vec=incidence_vec,
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
-            t_calc=np.arange(len(incidence_vec)),
+            t_calc=np.arange(time_last_case + 1),
         )
+    if full_output:
+        risk_vals_all = np.concatenate([risk_vals_to_last_case, risk_vals])
         output = pd.DataFrame(
             {
                 "day_of_year": np.arange(doy_start, doy_start + len(incidence_vec)),
                 "cases": incidence_vec,
-                "further_case_risk": risk_vals_all,
+                "further_case_risk": risk_vals_all[: len(incidence_vec)],
             }
         )
-    else:
-        output = None
-    return doy_start, no_cases, doy_last_case, declaration_delay, output
+    if track_premature_declarations:
+        premature_declarations = np.sum(
+            risk_vals_to_last_case < (perc_risk_threshold / 100)
+        )
+    return (
+        doy_start,
+        no_cases,
+        doy_last_case,
+        declaration_delay,
+        output,
+        premature_declarations,
+    )
 
 
 if __name__ == "__main__":
@@ -260,7 +292,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Only run analyses and save results (no plots)",
     )
+    parser.add_argument(
+        "-t",
+        "--track-premature-declarations",
+        action="store_true",
+        help="Track whether any outbreaks had a premature declaration",
+    )
     args_in = parser.parse_args()
-    run_analyses()
+    run_analyses(track_premature_declarations=args_in.track_premature_declarations)
     if not args_in.results_only:
         make_plots()
