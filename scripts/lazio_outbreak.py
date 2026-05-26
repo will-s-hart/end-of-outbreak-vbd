@@ -5,7 +5,7 @@ import pandas as pd
 from arviz_stats import ess, rhat
 
 from endoutbreakvbd.inference import fit_autoregressive_model, fit_suitability_model
-from endoutbreakvbd.inputs import get_inputs_lazio_outbreak
+from scripts.inputs import get_inputs_lazio_outbreak
 from scripts.lazio_outbreak_plots import make_plots
 
 

@@ -8,6 +8,7 @@ def test_public_api_exports_expected_symbols():
         "calc_declaration_delay",
         "calc_further_case_risk_analytical",
         "calc_further_case_risk_simulation",
+        "discretise_cori",
         "run_renewal_model",
         "rep_no_from_grid",
     }

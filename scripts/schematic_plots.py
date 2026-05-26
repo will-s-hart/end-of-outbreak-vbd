@@ -14,8 +14,8 @@ import pandas as pd
 from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from matplotlib.path import Path
 
-from endoutbreakvbd.inputs import get_inputs_schematic
 from endoutbreakvbd.utils import month_start_xticks, set_plot_config
+from scripts.inputs import get_inputs_schematic
 
 PANEL_COLORS = {
     "A": "#7E57C2",

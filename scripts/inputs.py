@@ -8,7 +8,7 @@ import scipy.stats
 from numpy.typing import NDArray
 
 from endoutbreakvbd.inference import DEFAULTS
-from endoutbreakvbd.utils import rep_no_from_grid
+from endoutbreakvbd.utils import discretise_cori, rep_no_from_grid
 
 
 def get_inputs_schematic() -> dict[str, Any]:
@@ -322,47 +322,7 @@ def _get_2017_suitability_data() -> pd.DataFrame:
 def _get_gen_time_dist() -> NDArray[np.float64]:
     gen_time_max = 40
     gen_time_dist_cont = scipy.stats.gamma(a=8.53, scale=1.46)
-    gen_time_dist_vec = _discretise_cori(
+    gen_time_dist_vec = discretise_cori(
         dist_cont=gen_time_dist_cont, max_val=gen_time_max
     )
     return gen_time_dist_vec
-
-
-def _discretise_cori(
-    *, dist_cont: scipy.stats.rv_continuous, max_val: int, allow_zero: bool = False
-) -> NDArray[np.float64]:
-    """
-    Function for discretising a continuous distribution using the method
-    described in https://doi.org/10.1093/aje/kwt133 (web appendix 11).
-    """
-
-    def _integrand_func(x: float, y: float) -> float:
-        # To get probability mass function at time x, need to integrate this expression
-        # with respect to y between y=x-1 and and y=x+1
-        return (1 - abs(x - y)) * dist_cont.pdf(y)
-
-    if max_val < 0:
-        raise ValueError("max_val must be non-negative")
-    if not allow_zero and max_val < 1:
-        raise ValueError("max_val must be at least 1 when allow_zero is False")
-
-    # Set up vector of x values and pre-allocate vector of probabilities
-    x_vec = np.arange(0, max_val + 1, dtype=int)
-    p_vec = np.zeros(len(x_vec))
-    # Calculate probability mass function at each x value
-    for i in range(len(x_vec)):  # pylint: disable=consider-using-enumerate
-        x = x_vec[i]
-        integrand = functools.partial(_integrand_func, x)
-        p_vec[i] = scipy.integrate.quad(
-            integrand,
-            x - 1 if x > 0 else 1e-12,
-            x + 1,
-        )[0]
-    if not allow_zero:
-        # Assign mass from 0 to 1
-        x_vec = x_vec[1:]
-        p_vec[1] = p_vec[1] + p_vec[0]
-        p_vec = p_vec[1:]
-    # Assign residual mass to x_max
-    p_vec[-1] = p_vec[-1] + 1 - np.sum(p_vec)
-    return p_vec

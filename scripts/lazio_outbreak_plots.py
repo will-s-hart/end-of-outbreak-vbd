@@ -5,13 +5,13 @@ import numpy as np
 import pandas as pd
 
 from endoutbreakvbd import calc_declaration_delay
-from endoutbreakvbd.inputs import get_inputs_lazio_outbreak
 from endoutbreakvbd.utils import (
     get_colors,
     month_start_xticks,
     plot_data_on_twin_ax,
     set_plot_config,
 )
+from scripts.inputs import get_inputs_lazio_outbreak
 
 
 def make_plots(quasi_real_time=False):

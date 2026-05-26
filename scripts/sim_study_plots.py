@@ -3,12 +3,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from endoutbreakvbd.inputs import get_inputs_sim_study
 from endoutbreakvbd.utils import (
     month_start_xticks,
     plot_data_on_twin_ax,
     set_plot_config,
 )
+from scripts.inputs import get_inputs_sim_study
 
 
 def make_plots():

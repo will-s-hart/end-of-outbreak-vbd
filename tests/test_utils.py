@@ -4,8 +4,10 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+import scipy.stats
 
 from endoutbreakvbd.utils import (
+    discretise_cori,
     get_colors,
     lognormal_params_from_median_percentile_2_5,
     month_start_xticks,
@@ -13,6 +15,45 @@ from endoutbreakvbd.utils import (
     rep_no_from_grid,
     set_plot_config,
 )
+
+
+def test_discretise_cori_probabilities_are_nonnegative_and_sum_to_one():
+    dist = scipy.stats.gamma(a=2.0, scale=1.0)
+    p_vec = discretise_cori(dist_cont=dist, max_val=12, allow_zero=True)
+    assert np.all(p_vec >= 0)
+    assert np.isclose(np.sum(p_vec), 1.0, atol=1e-8)
+
+
+def test_discretise_cori_allow_zero_changes_output_length():
+    dist = scipy.stats.gamma(a=2.0, scale=1.0)
+    p_with_zero = discretise_cori(dist_cont=dist, max_val=10, allow_zero=True)
+    p_without_zero = discretise_cori(dist_cont=dist, max_val=10, allow_zero=False)
+    assert len(p_with_zero) == 11
+    assert len(p_without_zero) == 10
+
+
+def test_discretise_cori_requires_keyword_only_dist_cont():
+    dist = scipy.stats.gamma(a=2.0, scale=1.0)
+    with pytest.raises(TypeError, match="positional arguments"):
+        discretise_cori(dist, max_val=10, allow_zero=True)  # ty: ignore[missing-argument, too-many-positional-arguments]
+
+
+def test_discretise_cori_requires_max_val():
+    dist = scipy.stats.gamma(a=2.0, scale=1.0)
+    with pytest.raises(TypeError, match="missing 1 required keyword-only argument"):
+        discretise_cori(dist_cont=dist)  # ty: ignore[missing-argument]
+
+
+def test_discretise_cori_requires_nonnegative_max_val():
+    dist = scipy.stats.gamma(a=2.0, scale=1.0)
+    with pytest.raises(ValueError, match="max_val must be non-negative"):
+        discretise_cori(dist_cont=dist, max_val=-1, allow_zero=True)
+
+
+def test_discretise_cori_requires_at_least_one_when_no_zero_allowed():
+    dist = scipy.stats.gamma(a=2.0, scale=1.0)
+    with pytest.raises(ValueError, match="at least 1"):
+        discretise_cori(dist_cont=dist, max_val=0, allow_zero=False)
 
 
 def test_rep_no_from_grid_nonperiodic_returns_expected_values():

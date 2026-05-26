@@ -12,7 +12,7 @@ from endoutbreakvbd import (
     calc_further_case_risk_simulation,
     run_renewal_model,
 )
-from endoutbreakvbd.inputs import get_inputs_sim_study
+from scripts.inputs import get_inputs_sim_study
 from scripts.sim_study_plots import make_plots
 
 

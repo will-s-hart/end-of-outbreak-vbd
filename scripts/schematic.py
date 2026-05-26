@@ -14,9 +14,9 @@ import pandas as pd
 
 from endoutbreakvbd._types import IntArray, RepNoOutput
 from endoutbreakvbd.inference import fit_suitability_model
-from endoutbreakvbd.inputs import get_inputs_schematic
 from endoutbreakvbd.model import run_renewal_model
 from endoutbreakvbd.utils import rep_no_from_grid
+from scripts.inputs import get_inputs_schematic
 from scripts.schematic_plots import make_plots
 
 

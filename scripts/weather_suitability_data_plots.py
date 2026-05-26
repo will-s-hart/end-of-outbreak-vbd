@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from endoutbreakvbd.inputs import get_inputs_weather_suitability_data
 from endoutbreakvbd.utils import month_start_xticks, set_plot_config
+from scripts.inputs import get_inputs_weather_suitability_data
 
 
 def make_plots():

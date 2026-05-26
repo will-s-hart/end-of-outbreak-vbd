@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 
 from endoutbreakvbd.further_case_risk import calc_declaration_delay
-from endoutbreakvbd.inputs import get_inputs_inference_test
 from endoutbreakvbd.utils import set_plot_config
+from scripts.inputs import get_inputs_inference_test
 from scripts.lazio_outbreak_plots import (
     _make_declaration_plot,
     _make_rep_no_plot,

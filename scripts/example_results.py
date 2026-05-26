@@ -1,6 +1,6 @@
 import pandas as pd
 
-from endoutbreakvbd.inputs import get_inputs_lazio_outbreak
+from scripts.inputs import get_inputs_lazio_outbreak
 
 inputs = get_inputs_lazio_outbreak(quasi_real_time=False)
 

@@ -5,8 +5,8 @@ import pandas as pd
 
 from endoutbreakvbd import calc_further_case_risk_analytical, rep_no_from_grid
 from endoutbreakvbd._types import IntArray, RepNoOutput
-from endoutbreakvbd.inputs import get_inputs_inference_test
 from endoutbreakvbd.model import run_renewal_model
+from scripts.inputs import get_inputs_inference_test
 
 # from endoutbreakvbd.utils import lognormal_params_from_median_percentile_2_5
 from scripts.inference_test_plots import make_plots

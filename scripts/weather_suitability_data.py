@@ -7,7 +7,7 @@ import pandas as pd
 from statsmodels.regression.linear_model import OLS
 from statsmodels.tsa.deterministic import DeterministicProcess
 
-from endoutbreakvbd.inputs import get_inputs_weather_suitability_data
+from scripts.inputs import get_inputs_weather_suitability_data
 from scripts.weather_suitability_data_plots import make_plots
 
 
