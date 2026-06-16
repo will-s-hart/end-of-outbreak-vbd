@@ -211,3 +211,7 @@ __marimo__/
 
 # snakemake
 .snakemake/
+
+# Claude Code (personal, gitignored)
+CLAUDE.local.md
+.claude/settings.local.json
