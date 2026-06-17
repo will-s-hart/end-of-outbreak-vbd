@@ -140,7 +140,14 @@ def _make_many_outbreak_example_plot(*, perc_risk_threshold, data_path, save_pat
 
 
 def _make_many_outbreak_declaration_plot(
-    *, example_outbreak_idx, data_path, save_path=None
+    *,
+    data_path,
+    example_outbreak_idx=None,
+    cmap_name="Blues",
+    xlim=None,
+    ylim=None,
+    xtick_interval_months=1,
+    save_path=None,
 ):
     df = pd.read_csv(data_path)
     bin_width = 7
@@ -158,7 +165,7 @@ def _make_many_outbreak_declaration_plot(
     proportions = df["final_case_doy_binned"].value_counts(normalize=True).sort_index()
     bin_centers = [interval.mid for interval in stats.index]
 
-    cmap = matplotlib.colormaps["Blues"]
+    cmap = matplotlib.colormaps[cmap_name]
     # norm = matplotlib.colors.LogNorm(0.001, proportions.max())
     norm = plt.Normalize(0, 0.01)
     colors = cmap(norm(proportions.to_numpy()))
@@ -179,25 +186,29 @@ def _make_many_outbreak_declaration_plot(
             color=c,
             capsize=3,
         )
-    example_outbreak_delay = df.loc[example_outbreak_idx, "delay_to_declaration"]
-    example_outbreak_final_case_bin_center = df.loc[
-        example_outbreak_idx, "final_case_doy_binned"
-    ].mid
-    ax.plot(
-        example_outbreak_final_case_bin_center,
-        example_outbreak_delay,
-        marker="x",
-        color="tab:red",
-        linewidth=2,
-    )
+    if example_outbreak_idx is not None:
+        example_outbreak_delay = df.loc[example_outbreak_idx, "delay_to_declaration"]
+        example_outbreak_final_case_bin_center = df.loc[
+            example_outbreak_idx, "final_case_doy_binned"
+        ].mid
+        ax.plot(
+            example_outbreak_final_case_bin_center,
+            example_outbreak_delay,
+            marker="x",
+            color="tab:red",
+            linewidth=2,
+        )
     # sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
     # sm.set_array([])
     # cbar = plt.colorbar(sm, ax=ax)
     # cbar.set_ticks(np.linspace(0, norm.vmax, 11))
     ax.set_xlabel("Week of final case")
     ax.set_ylabel("Days from final case until decision")
-    # ax.set_xlim(121, 305)
-    month_start_xticks(ax)
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+    month_start_xticks(ax, interval_months=xtick_interval_months)
     if save_path is not None:
         fig.savefig(save_path)
     return fig, ax

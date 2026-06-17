@@ -10,8 +10,8 @@ from endoutbreakvbd import (
     calc_declaration_delay,
     calc_further_case_risk_analytical,
     calc_further_case_risk_simulation,
-    run_renewal_model,
 )
+from endoutbreakvbd.model import run_renewal_model
 from scripts.inputs import get_inputs_sim_study
 from scripts.sim_study_plots import make_plots
 
@@ -139,11 +139,11 @@ def _run_many_outbreak_analysis(
     perc_risk_threshold,
     rep_no_from_doy_start,
     gen_time_dist_vec,
-    example_outbreak_idx,
     track_premature_declarations,
     rng,
     save_path,
-    save_path_example,
+    example_outbreak_idx=None,
+    save_path_example=None,
 ):
     tasks = []
     full_output_flags = [
@@ -192,8 +192,9 @@ def _run_many_outbreak_analysis(
         index=range(n_sims),
     )
     df.to_csv(save_path)
-    example_output = output_vals[example_outbreak_idx]
-    example_output.to_csv(save_path_example)
+    if example_outbreak_idx is not None:
+        example_output = output_vals[example_outbreak_idx]
+        example_output.to_csv(save_path_example)
     if track_premature_declarations:
         n_premature_declaration_outbreaks = np.sum(
             np.array(premature_declarations_vals) > 0

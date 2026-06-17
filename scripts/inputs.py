@@ -1,5 +1,6 @@
 import functools
 import pathlib
+from fractions import Fraction
 from typing import Any
 
 import numpy as np
@@ -8,7 +9,11 @@ import scipy.stats
 from numpy.typing import NDArray
 
 from endoutbreakvbd.inference import DEFAULTS
-from endoutbreakvbd.utils import discretise_cori, rep_no_from_grid
+from endoutbreakvbd.utils import (
+    discretise_cori,
+    rep_no_from_grid,
+    rescale_rep_no_grid_in_time,
+)
 
 
 def get_inputs_schematic() -> dict[str, Any]:
@@ -158,6 +163,7 @@ def get_inputs_sim_study() -> dict[str, Any]:
     return {
         "gen_time_dist_vec": gen_time_dist_vec,
         "rep_no_factor": rep_no_factor,
+        "rep_no_grid": rep_no_grid,
         "rep_no_func_doy": rep_no_func_doy,
         "rep_no_from_doy_start": rep_no_from_doy_start,
         "example_outbreak_doy_start_vals": example_outbreak_doy_start_vals,
@@ -170,6 +176,165 @@ def get_inputs_sim_study() -> dict[str, Any]:
         "many_outbreak_example_outbreak_idx": many_outbreak_example_outbreak_idx,
         "results_paths": results_paths,
         "fig_paths": fig_paths,
+    }
+
+
+def get_inputs_sim_sensitivity() -> dict[str, Any]:
+    inputs_sim_study = get_inputs_sim_study()
+
+    gen_time_dist_vec = inputs_sim_study["gen_time_dist_vec"]
+    rep_no_factor_default = inputs_sim_study["rep_no_factor"]
+    rep_no_grid_default = inputs_sim_study["rep_no_grid"]
+    suitability_lag_days = get_inputs_weather_suitability_data()["suitability_lag_days"]
+
+    # The reproduction-number profile is centred on the day of peak (smoothed)
+    # temperature, shifted by the lag with which suitability follows temperature.
+    df_suitability = _get_2017_suitability_data()
+    peak_temperature_date = df_suitability.index[
+        int(df_suitability["temperature_smoothed"].argmax())
+    ]
+    season_centre_doy = (
+        peak_temperature_date + pd.Timedelta(days=suitability_lag_days)
+    ).dayofyear
+
+    # Values explored either side of the default in each analysis.
+    rep_no_factor_vals = (1.5, 3)
+    decay_speed_default = 1
+    decay_speed_vals = (2 / 3, 3 / 2)
+
+    # Reuse the main study's settings so the sensitivity runs are comparable.
+    many_outbreak_n_sims = inputs_sim_study["many_outbreak_n_sims"]
+    many_outbreak_outbreak_size_threshold = inputs_sim_study[
+        "many_outbreak_outbreak_size_threshold"
+    ]
+    many_outbreak_perc_risk_threshold = inputs_sim_study[
+        "many_outbreak_perc_risk_threshold"
+    ]
+
+    results_dir = pathlib.Path(__file__).parents[1] / "results/sim_sensitivity"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    fig_dir = pathlib.Path(__file__).parents[1] / "figures/sim_sensitivity"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    def _make_rep_no_func_doy(rep_no_grid):
+        return functools.partial(
+            rep_no_from_grid, rep_no_grid=rep_no_grid, periodic=True, doy_start=0
+        )
+
+    def _make_rep_no_from_doy_start(rep_no_grid):
+        return functools.partial(
+            rep_no_from_grid, rep_no_grid=rep_no_grid, periodic=True
+        )
+
+    def _grid_for_rep_no_factor(rep_no_factor):
+        # rep_no_grid_default = rep_no_factor_default * suitability, so rescaling
+        # the default grid gives the grid for any target maximum reproduction number.
+        return (rep_no_factor / rep_no_factor_default) * rep_no_grid_default
+
+    def _rep_no_factor_label(rep_no_factor):
+        return rf"$R_{{\max}} = {rep_no_factor}$"
+
+    def _decay_speed_label(decay_speed):
+        frac = Fraction(decay_speed).limit_denominator(100)
+        if frac.denominator == 1:
+            return rf"$\sigma = {frac.numerator}$"
+        return rf"$\sigma = {frac.numerator}/{frac.denominator}$"
+
+    # Maximum-reproduction-number analysis
+    rep_no_factor_low_grid = _grid_for_rep_no_factor(rep_no_factor_vals[0])
+    rep_no_factor_high_grid = _grid_for_rep_no_factor(rep_no_factor_vals[1])
+    rep_no_factor_curves = [
+        (
+            _rep_no_factor_label(rep_no_factor_default),
+            _make_rep_no_func_doy(rep_no_grid_default),
+            "Blues",
+        ),
+        (
+            _rep_no_factor_label(rep_no_factor_vals[0]),
+            _make_rep_no_func_doy(rep_no_factor_low_grid),
+            "Oranges",
+        ),
+        (
+            _rep_no_factor_label(rep_no_factor_vals[1]),
+            _make_rep_no_func_doy(rep_no_factor_high_grid),
+            "Greens",
+        ),
+    ]
+    rep_no_factor_runs = [
+        {
+            "rep_no_from_doy_start": _make_rep_no_from_doy_start(
+                rep_no_factor_low_grid
+            ),
+            "cmap_name": "Oranges",
+            "results_path": results_dir / "rep_no_factor_low.csv",
+            "fig_path": fig_dir / "rep_no_factor_low.svg",
+        },
+        {
+            "rep_no_from_doy_start": _make_rep_no_from_doy_start(
+                rep_no_factor_high_grid
+            ),
+            "cmap_name": "Greens",
+            "results_path": results_dir / "rep_no_factor_high.csv",
+            "fig_path": fig_dir / "rep_no_factor_high.svg",
+        },
+    ]
+
+    # Seasonal-decline-speed analysis (at the default maximum reproduction number)
+    decay_speed_low_grid = rescale_rep_no_grid_in_time(
+        rep_no_grid_default, season_centre_doy, decay_speed_vals[0]
+    )
+    decay_speed_high_grid = rescale_rep_no_grid_in_time(
+        rep_no_grid_default, season_centre_doy, decay_speed_vals[1]
+    )
+    decay_speed_curves = [
+        (
+            _decay_speed_label(decay_speed_default),
+            _make_rep_no_func_doy(rep_no_grid_default),
+            "Blues",
+        ),
+        (
+            _decay_speed_label(decay_speed_vals[0]),
+            _make_rep_no_func_doy(decay_speed_low_grid),
+            "Oranges",
+        ),
+        (
+            _decay_speed_label(decay_speed_vals[1]),
+            _make_rep_no_func_doy(decay_speed_high_grid),
+            "Greens",
+        ),
+    ]
+    decay_speed_runs = [
+        {
+            "rep_no_from_doy_start": _make_rep_no_from_doy_start(decay_speed_low_grid),
+            "cmap_name": "Oranges",
+            "results_path": results_dir / "decay_speed_low.csv",
+            "fig_path": fig_dir / "decay_speed_low.svg",
+        },
+        {
+            "rep_no_from_doy_start": _make_rep_no_from_doy_start(decay_speed_high_grid),
+            "cmap_name": "Greens",
+            "results_path": results_dir / "decay_speed_high.csv",
+            "fig_path": fig_dir / "decay_speed_high.svg",
+        },
+    ]
+
+    return {
+        "gen_time_dist_vec": gen_time_dist_vec,
+        "many_outbreak_n_sims": many_outbreak_n_sims,
+        "many_outbreak_outbreak_size_threshold": many_outbreak_outbreak_size_threshold,
+        "many_outbreak_perc_risk_threshold": many_outbreak_perc_risk_threshold,
+        "rep_no_factor": {
+            "curves": rep_no_factor_curves,
+            "curves_ylim": (0, 1.05 * rep_no_factor_high_grid.max()),
+            "curves_fig_path": fig_dir / "rep_no_factor_curves.svg",
+            "runs": rep_no_factor_runs,
+        },
+        "decay_speed": {
+            "curves": decay_speed_curves,
+            "curves_ylim": (0, 1.05 * rep_no_grid_default.max()),
+            "curves_fig_path": fig_dir / "decay_speed_curves.svg",
+            "runs": decay_speed_runs,
+        },
     }
 
 
