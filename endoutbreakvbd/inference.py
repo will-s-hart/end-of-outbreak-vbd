@@ -10,10 +10,10 @@ from tqdm import tqdm
 
 from endoutbreakvbd._types import (
     FloatArray,
-    SerialIntervalInput,
     IncidenceSeriesInput,
     IntArray,
     RepNoOutput,
+    SerialIntervalInput,
 )
 from endoutbreakvbd.additional_case_prob import calc_additional_case_prob_analytical
 from endoutbreakvbd.utils import (
@@ -24,6 +24,8 @@ from endoutbreakvbd.utils import (
 
 @dataclass(frozen=True)
 class Defaults:
+    """Default prior medians, percentiles, and AR hyperparameters for model fitting."""
+
     rep_no_prior_median: float = 1.0
     rep_no_prior_percentile_2_5: float = 0.2
     log_rep_no_rho: float | list[float] = 0.975
@@ -50,7 +52,8 @@ def _fit_model(
     freeze_from_final_case: bool = False,
     **kwargs_sample: Any,
 ) -> xr.Dataset:
-
+    # Core model fit: build the PyMC model, sample, and derive R_t summaries and
+    # additional-case probabilities.
     kwargs_sample = {"nuts_sampler": "nutpie", **kwargs_sample}
     if rng is not None:
         kwargs_sample = {**kwargs_sample, "random_seed": rng}
@@ -97,12 +100,10 @@ def _fit_model(
         posterior = xr.concat(posterior_list, dim="time")
         return posterior
 
-    serial_interval_dist_vec_ext = np.concatenate(
-        [
-            serial_interval_dist_vec,
-            np.zeros(np.maximum(t_data_to - 1 - len(serial_interval_dist_vec), 0)),
-        ]
-    )
+    serial_interval_dist_vec_ext = np.concatenate([
+        serial_interval_dist_vec,
+        np.zeros(np.maximum(t_data_to - 1 - len(serial_interval_dist_vec), 0)),
+    ])
 
     incidence_vec_local = np.zeros(t_data_to)
     incidence_vec_local[1:] = incidence_vec[1:]
@@ -183,6 +184,39 @@ def fit_autoregressive_model(
     freeze_from_final_case: bool = False,
     **kwargs: Any,
 ) -> xr.Dataset:
+    """
+    Fit the autoregressive renewal model to an incidence time series, inferring a
+    time-varying reproduction number.
+
+    Parameters
+    ----------
+    incidence_vec : IncidenceSeriesInput
+        Observed incidence time series.
+    serial_interval_dist_vec : SerialIntervalInput
+        Discretised serial interval distribution (probability mass per day).
+    prior_median : float, optional
+        Median of the lognormal prior on the reproduction number. Defaults to
+        ``DEFAULTS.rep_no_prior_median``.
+    prior_percentile_2_5 : float, optional
+        2.5th percentile of the lognormal prior on the reproduction number. Defaults to
+        ``DEFAULTS.rep_no_prior_percentile_2_5``.
+    rho : float or list[float], optional
+        Autoregressive coefficient(s); a length-2 list specifies an AR(2) process.
+        Defaults to ``DEFAULTS.log_rep_no_rho``.
+    quasi_real_time : bool
+        If True, refit using only the data available up to each successive time point.
+    freeze_from_final_case : bool
+        If True, hold the reproduction number fixed at its final-case-day posterior
+        samples after the final observed case.
+    **kwargs : Any
+        Additional keyword arguments forwarded to the sampler.
+
+    Returns
+    -------
+    xr.Dataset
+        Posterior dataset including the inferred reproduction numbers, summary
+        statistics, and the daily probability of additional cases.
+    """
     prior_median = prior_median or DEFAULTS.rep_no_prior_median
     prior_percentile_2_5 = prior_percentile_2_5 or DEFAULTS.rep_no_prior_percentile_2_5
     rho = rho or DEFAULTS.log_rep_no_rho
@@ -231,6 +265,45 @@ def fit_suitability_model(
     quasi_real_time: bool = False,
     **kwargs: Any,
 ) -> xr.Dataset:
+    """
+    Fit the climate-suitability renewal model, decomposing the reproduction number into a
+    suitability profile and a reproduction-number factor.
+
+    Parameters
+    ----------
+    incidence_vec : IncidenceSeriesInput
+        Observed incidence time series.
+    serial_interval_dist_vec : SerialIntervalInput
+        Discretised serial interval distribution (probability mass per day).
+    suitability_mean_vec : list[float] or FloatArray
+        Prior mean suitability at each time.
+    suitability_std : float, optional
+        Stationary standard deviation of the suitability deviations. Defaults to
+        ``DEFAULTS.suitability_std``.
+    suitability_rho : float, optional
+        Autoregressive coefficient for the suitability deviations. Defaults to
+        ``DEFAULTS.suitability_rho``.
+    rep_no_factor_prior_median : float, optional
+        Median of the lognormal prior on the reproduction-number factor. Defaults to
+        ``DEFAULTS.rep_no_factor_prior_median``.
+    rep_no_factor_prior_percentile_2_5 : float, optional
+        2.5th percentile of the lognormal prior on the reproduction-number factor.
+        Defaults to ``DEFAULTS.rep_no_factor_prior_percentile_2_5``.
+    log_rep_no_factor_rho : float, optional
+        Autoregressive coefficient for the log reproduction-number factor. Defaults to
+        ``DEFAULTS.log_rep_no_factor_rho``.
+    quasi_real_time : bool
+        If True, refit using only the data available up to each successive time point.
+    **kwargs : Any
+        Additional keyword arguments forwarded to the sampler.
+
+    Returns
+    -------
+    xr.Dataset
+        Posterior dataset including the inferred reproduction numbers, suitability,
+        reproduction-number factor, summary statistics, and the daily probability of
+        additional cases.
+    """
     suitability_mean_vec = np.asarray(suitability_mean_vec)
     suitability_std = suitability_std or DEFAULTS.suitability_std
     suitability_rho = suitability_rho or DEFAULTS.suitability_rho
@@ -316,6 +389,7 @@ def fit_suitability_model(
 
 
 def _ar_innovation_std(*, stationary_std: float, rho: float | list[float]) -> float:
+    # Innovation std giving the target stationary std for an AR(1) or AR(2) process
     if not isinstance(rho, list):
         rho = [rho]
     if len(rho) == 1:
@@ -328,6 +402,7 @@ def _ar_innovation_std(*, stationary_std: float, rho: float | list[float]) -> fl
 
 
 def _softclip(x: Any, *, lower: float, upper: float, tau: float = 0.001) -> Any:
+    # Smooth (softplus-based) clip of x to the interval [lower, upper]
     return (
         x
         + tau * pm.math.log1pexp((lower - x) / tau)

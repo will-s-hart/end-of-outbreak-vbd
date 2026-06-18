@@ -46,7 +46,27 @@ def calc_additional_case_prob_analytical(
     serial_interval_dist_vec: SerialIntervalInput,
     t_calc: nonnegint | IntArray,
 ) -> float | FloatArray:
-    # Analytical calculation of probability of additional cases on/after time t_calc
+    """
+    Analytically calculate the probability of one or more additional cases occurring on
+    or after a given time.
+
+    Parameters
+    ----------
+    incidence_vec : IncidenceSeriesInput
+        Observed incidence time series.
+    rep_no_func : RepNoFunc
+        Function returning the reproduction number at a given time (day). May return
+        additional dimensions to average over (e.g. posterior samples).
+    serial_interval_dist_vec : SerialIntervalInput
+        Discretised serial interval distribution (probability mass per day).
+    t_calc : int or IntArray
+        Time(s) (day) on or after which to compute the probability of additional cases.
+
+    Returns
+    -------
+    float or FloatArray
+        Probability of additional case(s) for each time in ``t_calc``.
+    """
     incidence_vec = np.asarray(incidence_vec)
     serial_interval_dist_vec = np.asarray(serial_interval_dist_vec)
 
@@ -78,6 +98,7 @@ def _calc_additional_case_prob_analytical_scalar(
     serial_interval_dist_vec: FloatArray,
     t_calc: int,
 ) -> float:
+    # Analytical probability of additional cases on/after a single t_calc value
     nonzero_incidence_idx = np.nonzero(incidence_vec)[0]
     if nonzero_incidence_idx.size == 0:
         return 0.0
@@ -155,8 +176,32 @@ def calc_additional_case_prob_simulation(
     rng: np.random.Generator,
     parallel: bool = True,
 ) -> float | FloatArray:
-    # Simulation-based calculation of probability of additional cases on/after time t_calc
+    """
+    Estimate the probability of one or more additional cases occurring on or after a
+    given time by forward simulation.
 
+    Parameters
+    ----------
+    incidence_vec : IncidenceSeriesInput
+        Observed incidence time series.
+    rep_no_func : RepNoFunc
+        Function returning the reproduction number at a given time (day).
+    serial_interval_dist_vec : SerialIntervalInput
+        Discretised serial interval distribution (probability mass per day).
+    t_calc : int or IntArray
+        Time(s) (day) on or after which to compute the probability of additional cases.
+    n_sims : int
+        Number of simulations per time point.
+    rng : np.random.Generator
+        Random number generator.
+    parallel : bool
+        Whether to run the simulations in parallel using joblib.
+
+    Returns
+    -------
+    float or FloatArray
+        Estimated probability of additional case(s) for each time in ``t_calc``.
+    """
     incidence_vec = np.asarray(incidence_vec, dtype=int)
     serial_interval_dist_vec = np.asarray(serial_interval_dist_vec)
     t_calc = np.atleast_1d(t_calc)
@@ -231,6 +276,7 @@ def _additional_cases_one_sim(
         int,
     ],
 ) -> tuple[int, int, bool]:
+    # Run one forward simulation; report whether any additional cases occur on/after t_calc
     (
         incidence_init,
         rep_no_func,
@@ -265,6 +311,24 @@ def calc_decision_delay(
     perc_risk_threshold: PercRiskThresholdInput,
     delay_of_first_prob: int,
 ) -> int | IntArray:
+    """
+    Compute the delay until the probability of additional cases first drops below a risk
+    threshold.
+
+    Parameters
+    ----------
+    prob_vec : FloatArray
+        Probability of additional cases at successive times.
+    perc_risk_threshold : PercRiskThresholdInput
+        Risk threshold(s), expressed as a percentage.
+    delay_of_first_prob : int
+        Time (day) corresponding to the first element of ``prob_vec``.
+
+    Returns
+    -------
+    int or IntArray
+        Delay (days) at which the risk first falls below each threshold.
+    """
     perc_risk_threshold = np.atleast_1d(perc_risk_threshold)
     below_threshold = prob_vec < (perc_risk_threshold[:, None] / 100)
     never_below_threshold = ~np.any(below_threshold, axis=1)

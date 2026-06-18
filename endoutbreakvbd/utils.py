@@ -131,6 +131,23 @@ def discretise_cori(
     """
     Function for discretising a continuous distribution using the method
     described in https://doi.org/10.1093/aje/kwt133 (web appendix 11).
+
+    Parameters
+    ----------
+    dist_cont : scipy.stats.rv_continuous
+        Continuous distribution to discretise.
+    max_val : int
+        Maximum value (days) of the discretised distribution. Any residual probability
+        mass is assigned to this value.
+    allow_zero : bool
+        Whether the discretised distribution may place mass on zero. If False (the
+        default), mass at zero is folded into the value 1 and the returned vector starts
+        at 1.
+
+    Returns
+    -------
+    NDArray[np.float64]
+        Probability mass vector of the discretised distribution.
     """
 
     def _integrand_func(x: float, y: float) -> float:
@@ -168,12 +185,33 @@ def discretise_cori(
 def lognormal_params_from_median_percentile_2_5(
     *, median: float, percentile_2_5: float
 ) -> dict[str, float]:
+    """
+    Compute the parameters of a lognormal distribution from its median and 2.5th
+    percentile.
+
+    Parameters
+    ----------
+    median : float
+        Median of the lognormal distribution.
+    percentile_2_5 : float
+        2.5th percentile of the lognormal distribution.
+
+    Returns
+    -------
+    dict[str, float]
+        Dictionary with keys ``"mu"`` and ``"sigma"``, the parameters of the underlying
+        normal distribution.
+    """
     mu = np.log(median)
     sigma = (mu - np.log(percentile_2_5)) / scipy.stats.norm.ppf(0.975)
     return {"mu": mu, "sigma": sigma}
 
 
 def set_plot_config() -> None:
+    """
+    Apply the project's shared matplotlib and seaborn plotting configuration (figure
+    size, fonts, colour palette, and SVG export settings).
+    """
     rc_params = {
         "figure.figsize": (7, 7),
         "axes.spines.top": False,
@@ -196,6 +234,21 @@ def set_plot_config() -> None:
 
 
 def month_start_xticks(ax: Axes, year: int = 2017, interval_months: int = 1) -> None:
+    """
+    Set x-axis ticks at the start of each month, labelled by day and month.
+
+    Ticks are restricted to the current x-limits of the axes.
+
+    Parameters
+    ----------
+    ax : Axes
+        Axes on which to set the ticks.
+    year : int
+        Year used to compute month-start days of year (controls leap-year handling).
+    interval_months : int
+        Label every ``interval_months``th month start; intermediate ticks are left
+        unlabelled.
+    """
     month_starts = pd.date_range(
         start=f"{year}-01-01", end=f"{year + 1}-01-01", freq="MS"
     )
@@ -216,6 +269,23 @@ def month_start_xticks(ax: Axes, year: int = 2017, interval_months: int = 1) -> 
 
 
 def plot_data_on_twin_ax(ax: Axes, t_vec: ArrayLike, incidence_vec: ArrayLike) -> Axes:
+    """
+    Plot an incidence time series as a bar chart on a twin y-axis.
+
+    Parameters
+    ----------
+    ax : Axes
+        Primary axes to attach the twin axis to.
+    t_vec : ArrayLike
+        Times (days) for the incidence bars.
+    incidence_vec : ArrayLike
+        Number of cases at each time.
+
+    Returns
+    -------
+    Axes
+        The created twin axis.
+    """
     twin_ax = ax.twinx()
     twin_ax.bar(t_vec, incidence_vec, color="tab:gray", alpha=0.5)
     twin_ax.set_ylim(0, np.max(incidence_vec))
@@ -230,4 +300,12 @@ def plot_data_on_twin_ax(ax: Axes, t_vec: ArrayLike, incidence_vec: ArrayLike) -
 
 
 def get_colors() -> list[str]:
+    """
+    Return the colours of the current matplotlib colour cycle.
+
+    Returns
+    -------
+    list[str]
+        Colour strings from the active property cycle.
+    """
     return plt.rcParams["axes.prop_cycle"].by_key()["color"]
