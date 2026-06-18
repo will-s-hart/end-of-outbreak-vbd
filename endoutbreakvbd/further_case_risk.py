@@ -83,9 +83,9 @@ def _calc_further_case_risk_analytical_scalar(
         return 0.0
     if t_calc == 0:
         return 1.0
-    t_last_case = int(np.max(nonzero_incidence_idx))
+    t_final_case = int(np.max(nonzero_incidence_idx))
     gen_time_max = len(gen_time_dist_vec)
-    t_max = t_last_case + gen_time_max
+    t_max = t_final_case + gen_time_max
     if t_calc > t_max:
         return 0.0
 
@@ -99,7 +99,7 @@ def _calc_further_case_risk_analytical_scalar(
         incidence_vec_theor[:t_calc],
         np.zeros(t_max - t_calc),
     )
-    gen_time_dist_vec = np.concatenate([gen_time_dist_vec, np.zeros(t_last_case)])
+    gen_time_dist_vec = np.concatenate([gen_time_dist_vec, np.zeros(t_final_case)])
 
     rep_no_vec_future = rep_no_func(np.arange(t_calc, t_max + 1))
     if np.isscalar(rep_no_vec_future):

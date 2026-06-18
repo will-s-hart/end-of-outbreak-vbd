@@ -45,7 +45,8 @@ def _run_analyses_for_model(
     gen_time_dist_vec,
     fit_model_kwargs,
     save_path,
-    save_path_diagnostics,
+    save_path_diagnostics=None,
+    compute_diagnostics=True,
 ):
     if model == "autoregressive":
         ds_posterior = fit_autoregressive_model(
@@ -80,6 +81,8 @@ def _run_analyses_for_model(
             rep_no_factor_upper=ds_posterior["rep_no_factor_upper"].values,
         )
     df_out.to_csv(save_path)
+    if not compute_diagnostics:
+        return
     # Convergence diagnostics
     rhat_vals = rhat(ds_posterior, var_names="rep_no")["rep_no"]
     ess_vals = ess(ds_posterior, var_names="rep_no")["rep_no"]

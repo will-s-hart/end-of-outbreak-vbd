@@ -170,8 +170,8 @@ def _make_declaration_plot(
     colors = get_colors()[: (len(model_names) + 2)]
     fig, ax = plt.subplots()
     perc_risk_thresholds = np.linspace(0.1, 10, 101)
-    time_last_case = np.nonzero(incidence_vec)[0][-1]
-    risk_days = np.arange(time_last_case + 1, len(incidence_vec))
+    time_final_case = np.nonzero(incidence_vec)[0][-1]
+    risk_days = np.arange(time_final_case + 1, len(incidence_vec))
     for model_name, color, data_path in zip(
         model_names, colors[: len(model_names)], data_paths, strict=True
     ):
@@ -185,13 +185,13 @@ def _make_declaration_plot(
         ax.plot(perc_risk_thresholds, declaration_delays, color=color, label=model_name)
     if existing_declarations:
         # ax.axhline(
-        #     existing_declarations["blood_resumed_rome"]["days_from_last_case"],
+        #     existing_declarations["blood_resumed_rome"]["days_from_final_case"],
         #     color=colors[-2],
         #     linestyle="dashed",
         #     label="Blood measures lifted (Rome)",
         # )
         ax.axhline(
-            existing_declarations["blood_resumed_anzio"]["days_from_last_case"],
+            existing_declarations["blood_resumed_anzio"]["days_from_final_case"],
             color=colors[-1],
             linestyle="dashed",
             label="Blood measures lifted",

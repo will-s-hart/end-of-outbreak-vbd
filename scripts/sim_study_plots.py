@@ -100,7 +100,7 @@ def _make_example_outbreak_declaration_plot(*, data_path, save_path=None):
     perc_risk_threshold_vals = declaration_delay_df.index.get_level_values(
         "perc_risk_threshold"
     ).unique()
-    doy_last_case_vec = declaration_delay_df.index.get_level_values(
+    doy_final_case_vec = declaration_delay_df.index.get_level_values(
         "final_case_day_of_year"
     ).unique()
 
@@ -111,7 +111,7 @@ def _make_example_outbreak_declaration_plot(*, data_path, save_path=None):
             perc_risk_threshold, "delay_to_declaration"
         ].to_numpy()
         ax.plot(
-            doy_last_case_vec,
+            doy_final_case_vec,
             declaration_delay_vec,
             label=f"{perc_risk_threshold}% risk threshold",
         )

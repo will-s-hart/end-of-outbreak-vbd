@@ -28,10 +28,10 @@ def get_inputs_schematic() -> dict[str, Any]:
 
     si_gamma_shape = 2.5
     si_gamma_scale = 4.5
-    si_max_days = 35
-    days = np.arange(si_max_days + 1)
+    si_max_days = 36
+    days = np.arange(1, si_max_days + 1)
     gen_time_pmf = scipy.stats.gamma.pdf(
-        days + 0.5, a=si_gamma_shape, scale=si_gamma_scale
+        days - 0.5, a=si_gamma_shape, scale=si_gamma_scale
     )
     gen_time_dist_vec = gen_time_pmf / gen_time_pmf.sum()
 
@@ -52,8 +52,8 @@ def get_inputs_schematic() -> dict[str, Any]:
         "outbreak_t_stop": 260,
         "outbreak_size_min": 300,
         "outbreak_size_max": 1000,
-        "outbreak_last_case_doy_min": 298,
-        "outbreak_last_case_doy_max": 315,
+        "outbreak_final_case_doy_min": 298,
+        "outbreak_final_case_doy_max": 315,
         "outbreak_max_attempts": 10000,
         "current_day_offset": 15,
         "inference_seed": 42,
@@ -403,8 +403,8 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
         .to_numpy()
     )
 
-    time_last_case = np.nonzero(incidence_vec)[0][-1]
-    doy_last_case = doy_start + time_last_case
+    time_final_case = np.nonzero(incidence_vec)[0][-1]
+    doy_final_case = doy_start + time_final_case
     date_blood_resumed_rome = pd.Timestamp("2017-11-17")
     date_blood_resumed_anzio = pd.Timestamp("2017-12-01")
     doy_blood_resumed_rome = date_blood_resumed_rome.dayofyear
@@ -414,19 +414,19 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
             "date": date_blood_resumed_rome,
             "doy": doy_blood_resumed_rome,
             "outbreak_day": doy_blood_resumed_rome - doy_start,
-            "days_from_last_case": doy_blood_resumed_rome - doy_last_case,
+            "days_from_final_case": doy_blood_resumed_rome - doy_final_case,
         },
         "blood_resumed_anzio": {
             "date": date_blood_resumed_anzio,
             "doy": doy_blood_resumed_anzio,
             "outbreak_day": doy_blood_resumed_anzio - doy_start,
-            "days_from_last_case": doy_blood_resumed_anzio - doy_last_case,
+            "days_from_final_case": doy_blood_resumed_anzio - doy_final_case,
         },
         "45_day_rule": {
-            "date": df_data.index[0] + pd.Timedelta(days=time_last_case + 45),
-            "doy": doy_last_case + 45,
-            "outbreak_day": time_last_case + 45,
-            "days_from_last_case": 45,
+            "date": df_data.index[0] + pd.Timedelta(days=time_final_case + 45),
+            "doy": doy_final_case + 45,
+            "outbreak_day": time_final_case + 45,
+            "days_from_final_case": 45,
         },
     }
 
@@ -453,7 +453,7 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
 
     return {
         "start_date": start_date,
-        "time_last_case": time_last_case,
+        "time_final_case": time_final_case,
         "gen_time_dist_vec": gen_time_dist_vec,
         "doy_vec": doy_vec,
         "incidence_vec": incidence_vec,
@@ -462,6 +462,50 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
         "results_paths": results_paths,
         "fig_paths": fig_paths,
     }
+
+
+def get_inputs_lazio_frozen() -> dict[str, Any]:
+    inputs = get_inputs_lazio_outbreak(quasi_real_time=False)
+    # Reuse the suitability fit produced by the lazio_outbreak analysis
+    suitability_path = inputs["results_paths"]["suitability"]
+
+    results_dir = pathlib.Path(__file__).parents[1] / "results" / "lazio_frozen"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    fig_dir = pathlib.Path(__file__).parents[1] / "figures" / "lazio_frozen"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    inputs["results_paths"] = {
+        "suitability": suitability_path,
+        "autoregressive_frozen": results_dir / "autoregressive_frozen.csv",
+    }
+    inputs["fig_paths"] = {
+        "rep_no": fig_dir / "rep_no.svg",
+        "risk": fig_dir / "risk.svg",
+        "declaration": fig_dir / "declaration.svg",
+    }
+    return inputs
+
+
+def get_inputs_lazio_epiestim() -> dict[str, Any]:
+    inputs = get_inputs_lazio_outbreak(quasi_real_time=False)
+    # Reuse the suitability fit produced by the lazio_outbreak analysis
+    suitability_path = inputs["results_paths"]["suitability"]
+
+    results_dir = pathlib.Path(__file__).parents[1] / "results" / "lazio_epiestim"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    fig_dir = pathlib.Path(__file__).parents[1] / "figures" / "lazio_epiestim"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    inputs["results_paths"] = {
+        "suitability": suitability_path,
+        "epiestim": results_dir / "epiestim.csv",
+    }
+    inputs["fig_paths"] = {
+        "rep_no": fig_dir / "rep_no.svg",
+        "risk": fig_dir / "risk.svg",
+        "declaration": fig_dir / "declaration.svg",
+    }
+    return inputs
 
 
 def _get_lazio_outbreak_data() -> pd.DataFrame:
