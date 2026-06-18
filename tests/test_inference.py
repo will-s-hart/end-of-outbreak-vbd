@@ -119,6 +119,47 @@ def _setup_pm_rep_no_depends_on_observed_sum(monkeypatch):
     monkeypatch.setattr(inf.pm, "sample", fake_sample)
 
 
+def _setup_pm_with_time_varying_rep_no(monkeypatch):
+    state: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        inf.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
+    )
+    monkeypatch.setattr(inf.pm, "Poisson", lambda name, mu, observed: None)
+
+    class _FakeTrace:
+        def __init__(self, posterior):
+            self.posterior = posterior
+
+        def isel(self, **kwargs):
+            self.posterior = self.posterior.isel(**kwargs)
+            return self
+
+        def assign_coords(self, coords=None, **kwargs):
+            if coords is None:
+                coords = {}
+            coords = {**coords, **kwargs}
+            self.posterior = self.posterior.assign_coords(coords)
+            return self
+
+    def fake_sample(**kwargs):
+        del kwargs
+        t_stop = len(state["coords"]["time"])
+        n_draw = 3
+        # rep_no[chain, draw, t] = t + 0.1 * draw, so it varies over both time and draw
+        time_idx = np.arange(t_stop, dtype=float)
+        draw_offset = np.arange(n_draw, dtype=float)[:, None] * 0.1
+        values = (time_idx[None, :] + draw_offset)[None, :, :]
+        posterior = xr.Dataset(
+            {"rep_no": (("chain", "draw", "time"), values)},
+            coords={"chain": [0], "draw": np.arange(n_draw), "time": np.arange(t_stop)},
+        )
+        return _FakeTrace(posterior=posterior)
+
+    monkeypatch.setattr(inf.pm, "sample", fake_sample)
+    return state
+
+
 def _fake_suitability_posterior(t_stop):
     return xr.Dataset(
         {
@@ -243,6 +284,83 @@ def test_fit_model_quasi_real_time_excludes_current_day_incidence(monkeypatch):
     assert float(out_base["rep_no_mean"].sel(time=4).item()) != float(
         out_changed["rep_no_mean"].sel(time=4).item()
     )
+
+
+def test_fit_model_freeze_from_final_case_freezes_tail(monkeypatch):
+    _setup_pm_with_time_varying_rep_no(monkeypatch)
+
+    out = inf._fit_model(
+        incidence_vec=np.array([1, 1, 0, 0, 0]),
+        gen_time_dist_vec=np.array([1.0]),
+        rep_no_vec_func=lambda t_stop: np.ones(t_stop),
+        quasi_real_time=False,
+        freeze_from_final_case=True,
+    )
+
+    # Final case is at time index 1; R_t after it is frozen at the time=1 samples.
+    final_case_samples = out["rep_no"].isel(time=1).to_numpy()
+    for t in (2, 3, 4):
+        np.testing.assert_array_equal(
+            out["rep_no"].isel(time=t).to_numpy(), final_case_samples
+        )
+    # Times up to and including the final case remain time-varying (unchanged).
+    np.testing.assert_allclose(
+        out["rep_no"].isel(time=0).to_numpy().ravel(), np.array([0.0, 0.1, 0.2])
+    )
+    np.testing.assert_allclose(final_case_samples.ravel(), np.array([1.0, 1.1, 1.2]))
+    # The summary mean reflects the frozen tail.
+    assert float(out["rep_no_mean"].sel(time=4).item()) == float(
+        out["rep_no_mean"].sel(time=1).item()
+    )
+
+
+def test_fit_model_freeze_from_final_case_default_off(monkeypatch):
+    _setup_pm_with_time_varying_rep_no(monkeypatch)
+
+    out = inf._fit_model(
+        incidence_vec=np.array([1, 1, 0, 0, 0]),
+        gen_time_dist_vec=np.array([1.0]),
+        rep_no_vec_func=lambda t_stop: np.ones(t_stop),
+        quasi_real_time=False,
+    )
+
+    # Without freezing, R_t remains time-varying after the final case.
+    assert not np.array_equal(
+        out["rep_no"].isel(time=4).to_numpy(), out["rep_no"].isel(time=1).to_numpy()
+    )
+
+
+def test_fit_model_freeze_raises_with_quasi_real_time():
+    with pytest.raises(NotImplementedError, match="freeze_from_final_case"):
+        inf._fit_model(
+            incidence_vec=np.array([1, 0]),
+            gen_time_dist_vec=np.array([1.0]),
+            rep_no_vec_func=lambda t_stop: np.ones(t_stop),
+            quasi_real_time=True,
+            freeze_from_final_case=True,
+        )
+
+
+def test_fit_autoregressive_model_forwards_freeze_from_final_case(monkeypatch):
+    monkeypatch.setattr(
+        inf,
+        "lognormal_params_from_median_percentile_2_5",
+        lambda *, median, percentile_2_5: {"mu": 0.0, "sigma": 1.0},
+    )
+    monkeypatch.setattr(inf, "_fit_model", lambda **kwargs: kwargs)
+
+    out_default = inf.fit_autoregressive_model(
+        incidence_vec=np.array([1, 0]),
+        gen_time_dist_vec=np.array([1.0]),
+    )
+    assert out_default["freeze_from_final_case"] is False
+
+    out_set = inf.fit_autoregressive_model(
+        incidence_vec=np.array([1, 0]),
+        gen_time_dist_vec=np.array([1.0]),
+        freeze_from_final_case=True,
+    )
+    assert out_set["freeze_from_final_case"] is True
 
 
 def test_fit_autoregressive_model_uses_defaults(monkeypatch):

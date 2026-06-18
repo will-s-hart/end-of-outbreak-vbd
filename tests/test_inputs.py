@@ -96,5 +96,41 @@ def test_get_inputs_lazio_outbreak_consistency(monkeypatch):
     assert set(out["existing_declarations"].keys()) == declaration_keys
 
     for val in out["existing_declarations"].values():
-        assert {"doy", "outbreak_day", "days_from_last_case"}.issubset(val.keys())
-        assert isinstance(val["days_from_last_case"], (int, np.integer))
+        assert {"doy", "outbreak_day", "days_from_final_case"}.issubset(val.keys())
+        assert isinstance(val["days_from_final_case"], (int, np.integer))
+
+
+def test_get_inputs_lazio_frozen_structure(monkeypatch):
+    monkeypatch.setattr(inputs.pathlib.Path, "mkdir", lambda *args, **kwargs: None)
+
+    out = inputs.get_inputs_lazio_frozen()
+
+    assert len(out["doy_vec"]) == len(out["incidence_vec"])
+    assert set(out["existing_declarations"].keys()) == {
+        "blood_resumed_rome",
+        "blood_resumed_anzio",
+        "45_day_rule",
+    }
+    # Suitability results are reused from the lazio_outbreak analysis.
+    assert "lazio_outbreak" in str(out["results_paths"]["suitability"])
+    assert set(out["results_paths"].keys()) == {"suitability", "autoregressive_frozen"}
+    assert "lazio_frozen" in str(out["results_paths"]["autoregressive_frozen"])
+    assert set(out["fig_paths"].keys()) == {"rep_no", "risk", "declaration"}
+
+
+def test_get_inputs_lazio_epiestim_structure(monkeypatch):
+    monkeypatch.setattr(inputs.pathlib.Path, "mkdir", lambda *args, **kwargs: None)
+
+    out = inputs.get_inputs_lazio_epiestim()
+
+    assert len(out["doy_vec"]) == len(out["incidence_vec"])
+    assert set(out["existing_declarations"].keys()) == {
+        "blood_resumed_rome",
+        "blood_resumed_anzio",
+        "45_day_rule",
+    }
+    # Suitability results are reused from the lazio_outbreak analysis.
+    assert "lazio_outbreak" in str(out["results_paths"]["suitability"])
+    assert set(out["results_paths"].keys()) == {"suitability", "epiestim"}
+    assert "lazio_epiestim" in str(out["results_paths"]["epiestim"])
+    assert set(out["fig_paths"].keys()) == {"rep_no", "risk", "declaration"}

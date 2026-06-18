@@ -9,12 +9,12 @@ blood_measures_lifted_date = existing_declarations["blood_resumed_anzio"]["date"
 blood_measures_lifted_outbreak_day = existing_declarations["blood_resumed_anzio"][
     "outbreak_day"
 ]
-last_case_to_blood_measures_lifted = existing_declarations["blood_resumed_anzio"][
-    "days_from_last_case"
+final_case_to_blood_measures_lifted = existing_declarations["blood_resumed_anzio"][
+    "days_from_final_case"
 ]
 
 start_date = inputs["start_date"]
-time_last_case = inputs["time_last_case"]
+time_final_case = inputs["time_final_case"]
 
 example_risk_level = 0.05
 
@@ -24,8 +24,8 @@ for model in ["autoregressive", "suitability"]:
     time_risk_below_example_level = df[df["further_case_risk"] < example_risk_level][
         "day_of_outbreak"
     ].iloc[0]
-    last_case_to_risk_below_example_level = (
-        time_risk_below_example_level - time_last_case
+    final_case_to_risk_below_example_level = (
+        time_risk_below_example_level - time_final_case
     )
     date_risk_below_example_level = start_date + pd.Timedelta(
         days=time_risk_below_example_level
@@ -37,8 +37,8 @@ for model in ["autoregressive", "suitability"]:
         f"\n{model.capitalize()} model:\n"
         f"Risk first below {100 * example_risk_level:.2f}% on "
         f"{date_risk_below_example_level:%d-%m-%Y} "
-        f"({last_case_to_risk_below_example_level} days after last case)\n"
+        f"({final_case_to_risk_below_example_level} days after final case)\n"
         f"Risk when blood measures lifted ({blood_measures_lifted_date:%d-%m-%Y}, "
-        f"{last_case_to_blood_measures_lifted} days from last case): "
+        f"{final_case_to_blood_measures_lifted} days from final case): "
         f"{(100 * risk_when_blood_measures_lifted):.2f}%"
     )

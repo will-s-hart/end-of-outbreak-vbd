@@ -98,8 +98,8 @@ def make_plots(quasi_real_time=False):
         ],
     )
     perc_risk_thresholds = ax.get_lines()[0].get_xdata()
-    time_last_case = np.nonzero(incidence_vec)[0][-1]
-    risk_days = np.arange(time_last_case + 1, len(incidence_vec))
+    time_final_case = np.nonzero(incidence_vec)[0][-1]
+    risk_days = np.arange(time_final_case + 1, len(incidence_vec))
     risk_vals = df_data["further_case_risk"].to_numpy()[risk_days]
     declaration_delays = calc_declaration_delay(
         risk_vec=risk_vals,

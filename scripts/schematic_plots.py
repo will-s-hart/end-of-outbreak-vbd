@@ -83,8 +83,8 @@ def make_plots():
     df = pd.read_csv(inputs["results_paths"]["outbreak"], index_col="day_of_outbreak")
     doy_start = int(df["day_of_year"].iloc[0])
     incidence_vec = df["cases"].to_numpy()
-    last_case_doy = doy_start + int(np.nonzero(incidence_vec)[0][-1])
-    current_day_doy = last_case_doy + inputs["current_day_offset"]
+    final_case_doy = doy_start + int(np.nonzero(incidence_vec)[0][-1])
+    current_day_doy = final_case_doy + inputs["current_day_offset"]
 
     fig = plt.figure(figsize=(FIG_WIDTH, FIG_HEIGHT))
 

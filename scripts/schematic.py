@@ -25,12 +25,12 @@ def run_analyses():
     sim = _simulate_outbreak(inputs)
     doy_start = sim["doy_start"]
     incidence_vec = sim["incidence_vec"]
-    last_case_doy = doy_start + int(np.nonzero(incidence_vec)[0][-1])
-    current_day_doy = last_case_doy + inputs["current_day_offset"]
+    final_case_doy = doy_start + int(np.nonzero(incidence_vec)[0][-1])
+    current_day_doy = final_case_doy + inputs["current_day_offset"]
     print(
         f"Outbreak: attempt={sim['attempt']}, "
         f"size={int(incidence_vec.sum())}, "
-        f"last_case_doy={last_case_doy}, "
+        f"final_case_doy={final_case_doy}, "
         f"current_day_doy={current_day_doy}"
     )
 
@@ -97,11 +97,11 @@ def _simulate_outbreak(inputs):
         size = int(incidence_vec.sum())
         if size < inputs["outbreak_size_min"] or size > inputs["outbreak_size_max"]:
             continue
-        last_case_doy = doy_start + int(np.nonzero(incidence_vec)[0][-1])
+        final_case_doy = doy_start + int(np.nonzero(incidence_vec)[0][-1])
         if not (
-            inputs["outbreak_last_case_doy_min"]
-            <= last_case_doy
-            <= inputs["outbreak_last_case_doy_max"]
+            inputs["outbreak_final_case_doy_min"]
+            <= final_case_doy
+            <= inputs["outbreak_final_case_doy_max"]
         ):
             continue
         return {
@@ -111,9 +111,9 @@ def _simulate_outbreak(inputs):
         }
     raise RuntimeError(
         f"No outbreak with size in [{inputs['outbreak_size_min']}, "
-        f"{inputs['outbreak_size_max']}] and last case in "
-        f"[{inputs['outbreak_last_case_doy_min']}, "
-        f"{inputs['outbreak_last_case_doy_max']}] "
+        f"{inputs['outbreak_size_max']}] and final case in "
+        f"[{inputs['outbreak_final_case_doy_min']}, "
+        f"{inputs['outbreak_final_case_doy_max']}] "
         f"in {inputs['outbreak_max_attempts']} attempts; rethink inputs."
     )
 

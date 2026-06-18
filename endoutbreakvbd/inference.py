@@ -8,7 +8,6 @@ import pymc as pm
 import xarray as xr
 from tqdm import tqdm
 
-from endoutbreakvbd.further_case_risk import calc_further_case_risk_analytical
 from endoutbreakvbd._types import (
     FloatArray,
     GenTimeInput,
@@ -16,6 +15,7 @@ from endoutbreakvbd._types import (
     IntArray,
     RepNoOutput,
 )
+from endoutbreakvbd.further_case_risk import calc_further_case_risk_analytical
 from endoutbreakvbd.utils import (
     lognormal_params_from_median_percentile_2_5,
     rep_no_from_grid,
@@ -47,19 +47,24 @@ def _fit_model(
     step_func: Callable[[], Any] | None = None,
     thin: int = 1,
     rng: np.random.Generator | int | None = None,
+    freeze_from_final_case: bool = False,
     **kwargs_sample: Any,
 ) -> xr.Dataset:
 
     kwargs_sample = {"nuts_sampler": "nutpie", **kwargs_sample}
     if rng is not None:
         kwargs_sample = {**kwargs_sample, "random_seed": rng}
-    t_last_recorded = len(incidence_vec)
-    t_infer_to = t_infer_to or t_last_recorded
-    if t_infer_to < t_last_recorded:
+    t_data_to = len(incidence_vec)
+    t_infer_to = t_infer_to or t_data_to
+    if t_infer_to < t_data_to:
         incidence_vec = incidence_vec[:t_infer_to]
-        t_last_recorded = t_infer_to
+        t_data_to = t_infer_to
 
     if quasi_real_time:
+        if freeze_from_final_case:
+            raise NotImplementedError(
+                "freeze_from_final_case is not supported with quasi_real_time=True"
+            )
         if len(incidence_vec) < 2:
             raise ValueError(
                 "quasi_real_time inference requires at least 2 time points"
@@ -95,15 +100,15 @@ def _fit_model(
     gen_time_dist_vec_ext = np.concatenate(
         [
             gen_time_dist_vec,
-            np.zeros(np.maximum(t_last_recorded - 1 - len(gen_time_dist_vec), 0)),
+            np.zeros(np.maximum(t_data_to - 1 - len(gen_time_dist_vec), 0)),
         ]
     )
 
-    incidence_vec_local = np.zeros(t_last_recorded)
+    incidence_vec_local = np.zeros(t_data_to)
     incidence_vec_local[1:] = incidence_vec[1:]
 
-    foi_vec = np.zeros(t_last_recorded)
-    for t in range(1, t_last_recorded):
+    foi_vec = np.zeros(t_data_to)
+    for t in range(1, t_data_to):
         foi_vec[t] = np.sum(incidence_vec[:t][::-1] * gen_time_dist_vec_ext[:t])
 
     nonzero_foi_idx = foi_vec > 0
@@ -117,7 +122,7 @@ def _fit_model(
     with pm.Model(coords={"time": t_vec}):
         rep_no_vec = rep_no_vec_func(t_infer_to)
 
-        expected_incidence_local = rep_no_vec[:t_last_recorded] * foi_vec
+        expected_incidence_local = rep_no_vec[:t_data_to] * foi_vec
 
         pm.Poisson(
             "likelihood",
@@ -132,6 +137,15 @@ def _fit_model(
         trace = trace.isel(draw=slice(0, None, thin))
         trace = trace.assign_coords(draw=np.arange(len(trace.posterior.draw)))
     ds_posterior = azb.convert_to_dataset(trace.posterior)
+    if freeze_from_final_case:
+        # Hold R_t after the final case fixed at its final-case-day posterior samples
+        t_final_case = int(np.nonzero(np.asarray(incidence_vec))[0][-1])
+        rep_no_frozen = ds_posterior["rep_no"].isel(time=t_final_case)
+        ds_posterior = ds_posterior.assign(
+            rep_no=ds_posterior["rep_no"].where(
+                ds_posterior["time"] <= t_final_case, rep_no_frozen
+            )
+        )
     # Extract summary stats
     ds_posterior = ds_posterior.assign(
         rep_no_mean=ds_posterior["rep_no"].mean(dim=["chain", "draw"]),
@@ -166,6 +180,7 @@ def fit_autoregressive_model(
     prior_percentile_2_5: float | None = None,
     rho: float | list[float] | None = None,
     quasi_real_time: bool = False,
+    freeze_from_final_case: bool = False,
     **kwargs: Any,
 ) -> xr.Dataset:
     prior_median = prior_median or DEFAULTS.rep_no_prior_median
@@ -198,6 +213,7 @@ def fit_autoregressive_model(
         gen_time_dist_vec=gen_time_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
+        freeze_from_final_case=freeze_from_final_case,
         **kwargs,
     )
 

@@ -98,22 +98,22 @@ def _run_example_outbreak_declaration_analysis(
     gen_time_dist_vec,
     save_path,
 ):
-    time_last_case = np.nonzero(incidence_vec)[0][-1]
+    time_final_case = np.nonzero(incidence_vec)[0][-1]
     risk_days = np.arange(
-        time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2
+        time_final_case + 1, time_final_case + len(gen_time_dist_vec) + 2
     )
 
-    doy_last_case_vec = np.arange(1, 366)
+    doy_final_case_vec = np.arange(1, 366)
     declaration_delay_df = pd.DataFrame(
         index=pd.MultiIndex.from_product(
-            [perc_risk_threshold_vals, doy_last_case_vec],
+            [perc_risk_threshold_vals, doy_final_case_vec],
             names=["perc_risk_threshold", "final_case_day_of_year"],
         ),
         columns=["delay_to_declaration"],
     )
 
-    for doy_last_case in doy_last_case_vec:
-        doy_start = doy_last_case - len(incidence_vec) + 1
+    for doy_final_case in doy_final_case_vec:
+        doy_start = doy_final_case - len(incidence_vec) + 1
         rep_no_func = functools.partial(rep_no_from_doy_start, doy_start=doy_start)
         risk_vals = calc_further_case_risk_analytical(
             incidence_vec=incidence_vec,
@@ -127,7 +127,7 @@ def _run_example_outbreak_declaration_analysis(
             delay_of_first_risk=1,
         )
         declaration_delay_df.loc[
-            (list(perc_risk_threshold_vals), doy_last_case), "delay_to_declaration"
+            (list(perc_risk_threshold_vals), doy_final_case), "delay_to_declaration"
         ] = declaration_delay_vals
     declaration_delay_df.to_csv(save_path)
 
@@ -177,7 +177,7 @@ def _run_many_outbreak_analysis(
     (
         doy_start_vals,
         no_cases_vals,
-        doy_last_case_vals,
+        doy_final_case_vals,
         declaration_delay_vals,
         output_vals,
         premature_declarations_vals,
@@ -186,7 +186,7 @@ def _run_many_outbreak_analysis(
         {
             "first_case_day_of_year": doy_start_vals,
             "number_of_cases": no_cases_vals,
-            "final_case_day_of_year": doy_last_case_vals,
+            "final_case_day_of_year": doy_final_case_vals,
             "delay_to_declaration": declaration_delay_vals,
         },
         index=range(n_sims),
@@ -233,10 +233,10 @@ def _many_outbreak_analysis_one_sim(args):
         )
         if np.sum(incidence_vec) >= outbreak_size_threshold:
             outbreak_found = True
-    time_last_case = np.nonzero(incidence_vec)[0][-1]
-    doy_last_case = doy_start + time_last_case
+    time_final_case = np.nonzero(incidence_vec)[0][-1]
+    doy_final_case = doy_start + time_final_case
     risk_days = np.arange(
-        time_last_case + 1, time_last_case + len(gen_time_dist_vec) + 2
+        time_final_case + 1, time_final_case + len(gen_time_dist_vec) + 2
     )
     risk_vals = calc_further_case_risk_analytical(
         incidence_vec=incidence_vec,
@@ -249,20 +249,20 @@ def _many_outbreak_analysis_one_sim(args):
         perc_risk_threshold=perc_risk_threshold,
         delay_of_first_risk=1,
     )
-    if 150 < doy_last_case < 250 and declaration_delay == 0:
+    if 150 < doy_final_case < 250 and declaration_delay == 0:
         print("Possible error - zero days to declaration for outbreak ending mid-year")
     no_cases = np.sum(incidence_vec)
     output = None
     premature_declarations = None
     if full_output or track_premature_declarations:
-        risk_vals_to_last_case = calc_further_case_risk_analytical(
+        risk_vals_to_final_case = calc_further_case_risk_analytical(
             incidence_vec=incidence_vec,
             rep_no_func=rep_no_func,
             gen_time_dist_vec=gen_time_dist_vec,
-            t_calc=np.arange(time_last_case + 1),
+            t_calc=np.arange(time_final_case + 1),
         )
     if full_output:
-        risk_vals_all = np.concatenate([risk_vals_to_last_case, risk_vals])
+        risk_vals_all = np.concatenate([risk_vals_to_final_case, risk_vals])
         output = pd.DataFrame(
             {
                 "day_of_year": np.arange(doy_start, doy_start + len(incidence_vec)),
@@ -272,12 +272,12 @@ def _many_outbreak_analysis_one_sim(args):
         )
     if track_premature_declarations:
         premature_declarations = np.sum(
-            risk_vals_to_last_case < (perc_risk_threshold / 100)
+            risk_vals_to_final_case < (perc_risk_threshold / 100)
         )
     return (
         doy_start,
         no_cases,
-        doy_last_case,
+        doy_final_case,
         declaration_delay,
         output,
         premature_declarations,
