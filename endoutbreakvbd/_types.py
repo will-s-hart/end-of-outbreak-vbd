@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 
 IntArray: TypeAlias = NDArray[np.signedinteger[Any]]
 FloatArray: TypeAlias = NDArray[np.floating[Any]]
-GenTimeInput: TypeAlias = list[float] | FloatArray
+SerialIntervalInput: TypeAlias = list[float] | FloatArray
 IncidenceSeriesInput: TypeAlias = list[int] | IntArray
 IncidenceInitInput: TypeAlias = int | list[int] | IntArray | None
 PercRiskThresholdInput: TypeAlias = int | float | IntArray | FloatArray

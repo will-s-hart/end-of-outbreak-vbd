@@ -130,9 +130,9 @@ def compile_paper_figures():
             figure_dir / "sim_study" / f"{x}.svg"
             for x in [
                 "rep_no",
-                "example_outbreak_risk",
+                "example_outbreak_prob",
                 "many_outbreak_example",
-                "many_outbreak_declaration",
+                "many_outbreak_decision",
             ]
         ],
     )
@@ -145,7 +145,7 @@ def compile_paper_figures():
                 "weather_suitability_data/temperature",
                 "weather_suitability_data/suitability_model",
                 "weather_suitability_data/suitability",
-                "lazio_outbreak/gen_time_dist",
+                "lazio_outbreak/serial_interval_dist",
             ]
         ],
     )
@@ -154,7 +154,7 @@ def compile_paper_figures():
         save_path=figure_dir / "figure_4.svg",
         panel_paths=[
             figure_dir / "lazio_outbreak" / f"{x}.svg"
-            for x in ["suitability", "rep_no", "risk", "declaration"]
+            for x in ["suitability", "rep_no", "additional_case_prob", "decision"]
         ],
     )
     # Figure S1
@@ -169,7 +169,13 @@ def compile_paper_figures():
         save_path=figure_dir / "figure_S2.svg",
         panel_paths=[
             figure_dir / "lazio_outbreak_qrt" / f"{x}.svg"
-            for x in ["suitability", "scaling_factor", "rep_no", "risk", "declaration"]
+            for x in [
+                "suitability",
+                "scaling_factor",
+                "rep_no",
+                "additional_case_prob",
+                "decision",
+            ]
         ],
     )
     # Figure S3
@@ -177,7 +183,13 @@ def compile_paper_figures():
         save_path=figure_dir / "figure_S3.svg",
         panel_paths=[
             figure_dir / "inference_test" / f"{x}.svg"
-            for x in ["suitability", "scaling_factor", "rep_no", "risk", "declaration"]
+            for x in [
+                "suitability",
+                "scaling_factor",
+                "rep_no",
+                "additional_case_prob",
+                "decision",
+            ]
         ],
     )
 

@@ -5,11 +5,11 @@ import numpy as np
 import scripts.inputs as inputs
 
 
-def test_get_gen_time_dist_properties():
-    gen_time_dist = inputs._get_gen_time_dist()
-    assert len(gen_time_dist) == 40
-    assert np.all(gen_time_dist >= 0)
-    assert np.isclose(np.sum(gen_time_dist), 1.0, atol=1e-8)
+def test_get_serial_interval_dist_properties():
+    serial_interval_dist = inputs._get_serial_interval_dist()
+    assert len(serial_interval_dist) == 40
+    assert np.all(serial_interval_dist >= 0)
+    assert np.isclose(np.sum(serial_interval_dist), 1.0, atol=1e-8)
 
 
 def test_get_lazio_outbreak_data_has_expected_columns_and_doy():
@@ -51,7 +51,7 @@ def test_get_inputs_sim_study_structure_and_callables(monkeypatch):
     out = inputs.get_inputs_sim_study()
 
     required_keys = {
-        "gen_time_dist_vec",
+        "serial_interval_dist_vec",
         "rep_no_factor",
         "rep_no_func_doy",
         "rep_no_from_doy_start",
@@ -92,10 +92,10 @@ def test_get_inputs_lazio_outbreak_consistency(monkeypatch):
     assert len(out["doy_vec"]) == len(out["incidence_vec"])
     assert len(out["suitability_mean_vec"]) == len(out["incidence_vec"])
 
-    declaration_keys = {"blood_resumed_rome", "blood_resumed_anzio", "45_day_rule"}
-    assert set(out["existing_declarations"].keys()) == declaration_keys
+    decision_keys = {"blood_resumed_rome", "blood_resumed_anzio", "45_day_rule"}
+    assert set(out["existing_decisions"].keys()) == decision_keys
 
-    for val in out["existing_declarations"].values():
+    for val in out["existing_decisions"].values():
         assert {"doy", "outbreak_day", "days_from_final_case"}.issubset(val.keys())
         assert isinstance(val["days_from_final_case"], (int, np.integer))
 
@@ -106,7 +106,7 @@ def test_get_inputs_lazio_frozen_structure(monkeypatch):
     out = inputs.get_inputs_lazio_frozen()
 
     assert len(out["doy_vec"]) == len(out["incidence_vec"])
-    assert set(out["existing_declarations"].keys()) == {
+    assert set(out["existing_decisions"].keys()) == {
         "blood_resumed_rome",
         "blood_resumed_anzio",
         "45_day_rule",
@@ -115,7 +115,11 @@ def test_get_inputs_lazio_frozen_structure(monkeypatch):
     assert "lazio_outbreak" in str(out["results_paths"]["suitability"])
     assert set(out["results_paths"].keys()) == {"suitability", "autoregressive_frozen"}
     assert "lazio_frozen" in str(out["results_paths"]["autoregressive_frozen"])
-    assert set(out["fig_paths"].keys()) == {"rep_no", "risk", "declaration"}
+    assert set(out["fig_paths"].keys()) == {
+        "rep_no",
+        "additional_case_prob",
+        "decision",
+    }
 
 
 def test_get_inputs_lazio_epiestim_structure(monkeypatch):
@@ -124,7 +128,7 @@ def test_get_inputs_lazio_epiestim_structure(monkeypatch):
     out = inputs.get_inputs_lazio_epiestim()
 
     assert len(out["doy_vec"]) == len(out["incidence_vec"])
-    assert set(out["existing_declarations"].keys()) == {
+    assert set(out["existing_decisions"].keys()) == {
         "blood_resumed_rome",
         "blood_resumed_anzio",
         "45_day_rule",
@@ -133,4 +137,8 @@ def test_get_inputs_lazio_epiestim_structure(monkeypatch):
     assert "lazio_outbreak" in str(out["results_paths"]["suitability"])
     assert set(out["results_paths"].keys()) == {"suitability", "epiestim"}
     assert "lazio_epiestim" in str(out["results_paths"]["epiestim"])
-    assert set(out["fig_paths"].keys()) == {"rep_no", "risk", "declaration"}
+    assert set(out["fig_paths"].keys()) == {
+        "rep_no",
+        "additional_case_prob",
+        "decision",
+    }

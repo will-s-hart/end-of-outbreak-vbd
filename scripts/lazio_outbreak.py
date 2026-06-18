@@ -15,7 +15,7 @@ def run_analyses(quasi_real_time=False, ar2=False):
     _run_analyses_for_model(
         model="autoregressive",
         incidence_vec=inputs["incidence_vec"],
-        gen_time_dist_vec=inputs["gen_time_dist_vec"],
+        serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
         fit_model_kwargs={
             "rng": rng,
             "quasi_real_time": quasi_real_time,
@@ -27,7 +27,7 @@ def run_analyses(quasi_real_time=False, ar2=False):
     _run_analyses_for_model(
         model="suitability",
         incidence_vec=inputs["incidence_vec"],
-        gen_time_dist_vec=inputs["gen_time_dist_vec"],
+        serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
         fit_model_kwargs={
             "suitability_mean_vec": inputs["suitability_mean_vec"],
             "rng": rng,
@@ -42,7 +42,7 @@ def _run_analyses_for_model(
     *,
     model,
     incidence_vec,
-    gen_time_dist_vec,
+    serial_interval_dist_vec,
     fit_model_kwargs,
     save_path,
     save_path_diagnostics=None,
@@ -51,13 +51,13 @@ def _run_analyses_for_model(
     if model == "autoregressive":
         ds_posterior = fit_autoregressive_model(
             incidence_vec=incidence_vec,
-            gen_time_dist_vec=gen_time_dist_vec,
+            serial_interval_dist_vec=serial_interval_dist_vec,
             **fit_model_kwargs,
         )
     elif model == "suitability":
         ds_posterior = fit_suitability_model(
             incidence_vec=incidence_vec,
-            gen_time_dist_vec=gen_time_dist_vec,
+            serial_interval_dist_vec=serial_interval_dist_vec,
             **fit_model_kwargs,
         )
     else:
@@ -68,7 +68,7 @@ def _run_analyses_for_model(
             "reproduction_number_mean": ds_posterior["rep_no_mean"].values,
             "reproduction_number_lower": ds_posterior["rep_no_lower"].values,
             "reproduction_number_upper": ds_posterior["rep_no_upper"].values,
-            "further_case_risk": ds_posterior["risk"].values,
+            "additional_case_prob": ds_posterior["additional_case_prob"].values,
         }
     ).set_index("day_of_outbreak")
     if model == "suitability":

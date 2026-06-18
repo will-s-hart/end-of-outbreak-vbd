@@ -13,7 +13,7 @@ def run_analyses():
     _run_analyses_for_model(
         model="autoregressive",
         incidence_vec=inputs["incidence_vec"],
-        gen_time_dist_vec=inputs["gen_time_dist_vec"],
+        serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
         fit_model_kwargs={
             "rng": rng,
             "quasi_real_time": False,

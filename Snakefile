@@ -5,10 +5,10 @@ results_files_weather_suitability_data = expand(
 results_files_sim_study = expand(
     "results/sim_study/{name}.csv",
     name=[
-        "example_outbreak_risk",
-        "example_outbreak_declaration",
+        "example_outbreak_prob",
+        "example_outbreak_decision",
         "many_outbreak_example",
-        "many_outbreak_declaration",
+        "many_outbreak_decision",
     ],
 )
 
@@ -53,10 +53,10 @@ plot_files_sim_study = expand(
     "figures/sim_study/{name}.svg",
     name=[
         "rep_no",
-        "example_outbreak_risk",
-        "example_outbreak_declaration",
+        "example_outbreak_prob",
+        "example_outbreak_decision",
         "many_outbreak_example",
-        "many_outbreak_declaration",
+        "many_outbreak_decision",
     ],
 )
 
@@ -66,10 +66,10 @@ def get_plot_files_lazio_outbreak(qrt):
         "figures/lazio_outbreak{qrt}/{name}.svg",
         qrt=qrt,
         name=[
-            "gen_time_dist",
+            "serial_interval_dist",
             "rep_no",
-            "risk",
-            "declaration",
+            "additional_case_prob",
+            "decision",
             "suitability",
             "scaling_factor",
         ],
@@ -85,8 +85,8 @@ def get_plot_files_inference_test(qrt):
         qrt=qrt,
         name=[
             "rep_no",
-            "risk",
-            "declaration",
+            "additional_case_prob",
+            "decision",
             "suitability",
             "scaling_factor",
         ],
@@ -114,13 +114,15 @@ package_files = [
     f"endoutbreakvbd/{name}.py"
     for name in [
         "__init__",
-        "further_case_risk",
+        "_types",
+        "additional_case_prob",
         "inference",
-        "inputs",
         "model",
         "utils",
     ]
 ]
+# Every analysis/plot script also imports parameter assembly from scripts/inputs.py.
+shared_input_files = package_files + ["scripts/inputs.py"]
 
 
 wildcard_constraints:
@@ -166,7 +168,7 @@ rule paper_figures:
 
 rule schematic_results:
     input:
-        package_files,
+        shared_input_files,
         "scripts/schematic.py",
     output:
         results_files_schematic,
@@ -178,7 +180,7 @@ rule schematic_results:
 
 rule schematic_plots:
     input:
-        package_files,
+        shared_input_files,
         "scripts/schematic_plots.py",
         results_files_schematic,
         "figures/schematic/intervention_graphic.png",
@@ -193,7 +195,7 @@ rule schematic_plots:
 
 rule weather_suitability_data_results:
     input:
-        package_files,
+        shared_input_files,
         "scripts/weather_suitability_data.py",
     output:
         results_files_weather_suitability_data,
@@ -205,7 +207,7 @@ rule weather_suitability_data_results:
 
 rule weather_suitability_data_plots:
     input:
-        package_files,
+        shared_input_files,
         "scripts/weather_suitability_data_plots.py",
         results_files_weather_suitability_data,
     output:
@@ -218,7 +220,7 @@ rule weather_suitability_data_plots:
 
 rule sim_study_results:
     input:
-        package_files,
+        shared_input_files,
         results_files_weather_suitability_data,
         "scripts/sim_study.py",
     output:
@@ -231,7 +233,7 @@ rule sim_study_results:
 
 rule sim_study_plots:
     input:
-        package_files,
+        shared_input_files,
         results_files_weather_suitability_data,
         "scripts/sim_study_plots.py",
         results_files_sim_study,
@@ -245,7 +247,7 @@ rule sim_study_plots:
 
 rule lazio_outbreak_results:
     input:
-        package_files,
+        shared_input_files,
         results_files_weather_suitability_data,
         "scripts/lazio_outbreak.py",
     output:
@@ -262,7 +264,7 @@ rule lazio_outbreak_results:
 
 rule lazio_outbreak_plots:
     input:
-        package_files,
+        shared_input_files,
         results_files_weather_suitability_data,
         "scripts/lazio_outbreak_plots.py",
         get_results_files_lazio_outbreak(qrt="{qrt}"),
@@ -280,7 +282,7 @@ rule lazio_outbreak_plots:
 
 rule inference_test_results:
     input:
-        package_files,
+        shared_input_files,
         results_files_weather_suitability_data,
         "scripts/inference_test.py",
         "scripts/lazio_outbreak.py",
@@ -298,7 +300,7 @@ rule inference_test_results:
 
 rule inference_test_plots:
     input:
-        package_files,
+        shared_input_files,
         results_files_weather_suitability_data,
         "scripts/inference_test_plots.py",
         "scripts/lazio_outbreak_plots.py",

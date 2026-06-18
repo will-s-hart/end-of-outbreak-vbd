@@ -99,7 +99,7 @@ def make_plots():
     )
     _populate_panel_b(
         _add_panel_axes(fig, "B"),
-        gen_time_dist_vec=inputs["gen_time_dist_vec"],
+        serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
     )
     _populate_panel_c(
         _add_panel_axes(fig, "C"),
@@ -252,11 +252,17 @@ def _populate_panel_a(ax, *, doy_start, incidence_vec, current_day_doy):
     ax.tick_params(axis="x", labelsize=12)
 
 
-def _populate_panel_b(ax, *, gen_time_dist_vec):
-    days = np.arange(gen_time_dist_vec.size)
-    ax.bar(days, gen_time_dist_vec, color=PANEL_COLORS["B"], width=1.0, align="center")
+def _populate_panel_b(ax, *, serial_interval_dist_vec):
+    days = np.arange(serial_interval_dist_vec.size)
+    ax.bar(
+        days,
+        serial_interval_dist_vec,
+        color=PANEL_COLORS["B"],
+        width=1.0,
+        align="center",
+    )
     ax.set_xlim(-0.5, days[-1] + 0.5)
-    ax.set_ylim(0, gen_time_dist_vec.max() * 1.18)
+    ax.set_ylim(0, serial_interval_dist_vec.max() * 1.18)
     ax.set_xlabel("Serial interval (days)", labelpad=14)
     ax.set_ylabel("Probability")
     ax.set_xticks([])
@@ -318,16 +324,16 @@ def _populate_panel_d(
     safe_graphic_path,
 ):
     doy_inf = df["day_of_year"].to_numpy()
-    risk = df["further_case_risk"].to_numpy()
+    prob = df["additional_case_prob"].to_numpy()
     x_lower = 305  # 1 November (non-leap year)
     mask = (doy_inf >= x_lower) & (doy_inf <= current_day_doy)
 
-    y_upper = float(np.ceil(risk[mask].max() * 40) / 40)
+    y_upper = float(np.ceil(prob[mask].max() * 40) / 40)
 
     ax.axhspan(0, RISK_THRESHOLD, color="#9CCC65", alpha=0.45, zorder=0)
     ax.axhspan(RISK_THRESHOLD, 1.0, color="#FFE082", alpha=0.45, zorder=0)
     ax.axhline(RISK_THRESHOLD, color="#558B2F", linestyle=":", linewidth=1, zorder=1)
-    ax.plot(doy_inf[mask], risk[mask], color=PANEL_COLORS["D"], linewidth=2)
+    ax.plot(doy_inf[mask], prob[mask], color=PANEL_COLORS["D"], linewidth=2)
     ax.axvline(current_day_doy, color="black", linestyle="--", linewidth=1.5)
 
     ax.set_xlim(x_lower, DOY_MAX)

@@ -19,24 +19,24 @@ def make_plots():
         example_doy_vals=inputs["example_outbreak_doy_start_vals"],
         save_path=inputs["fig_paths"]["rep_no"],
     )
-    _make_example_outbreak_risk_plot(
+    _make_example_outbreak_prob_plot(
         incidence_vec=inputs["example_outbreak_incidence_vec"],
-        data_path=inputs["results_paths"]["example_outbreak_risk"],
-        save_path=inputs["fig_paths"]["example_outbreak_risk"],
+        data_path=inputs["results_paths"]["example_outbreak_prob"],
+        save_path=inputs["fig_paths"]["example_outbreak_prob"],
     )
-    _make_example_outbreak_declaration_plot(
-        data_path=inputs["results_paths"]["example_outbreak_declaration"],
-        save_path=inputs["fig_paths"]["example_outbreak_declaration"],
+    _make_example_outbreak_decision_plot(
+        data_path=inputs["results_paths"]["example_outbreak_decision"],
+        save_path=inputs["fig_paths"]["example_outbreak_decision"],
     )
     _make_many_outbreak_example_plot(
         perc_risk_threshold=inputs["many_outbreak_perc_risk_threshold"],
         data_path=inputs["results_paths"]["many_outbreak_example"],
         save_path=inputs["fig_paths"]["many_outbreak_example"],
     )
-    _make_many_outbreak_declaration_plot(
+    _make_many_outbreak_decision_plot(
         example_outbreak_idx=inputs["many_outbreak_example_outbreak_idx"],
-        data_path=inputs["results_paths"]["many_outbreak_declaration"],
-        save_path=inputs["fig_paths"]["many_outbreak_declaration"],
+        data_path=inputs["results_paths"]["many_outbreak_decision"],
+        save_path=inputs["fig_paths"]["many_outbreak_decision"],
     )
 
 
@@ -54,11 +54,11 @@ def _make_rep_no_plot(*, rep_no_func_doy, example_doy_vals, save_path=None):
     return fig, ax
 
 
-def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path=None):
+def _make_example_outbreak_prob_plot(*, incidence_vec, data_path, save_path=None):
     nontrivial_outbreak = np.sum(incidence_vec) > 1
-    risk_df = pd.read_csv(data_path, index_col=[0, 1])
-    doy_start_vals = risk_df.index.get_level_values("start_day_of_year").unique()
-    risk_days = risk_df.index.get_level_values("day_of_outbreak").unique()
+    prob_df = pd.read_csv(data_path, index_col=[0, 1])
+    doy_start_vals = prob_df.index.get_level_values("initial_case_day_of_year").unique()
+    prob_days = prob_df.index.get_level_values("day_of_outbreak").unique()
 
     fig, ax = plt.subplots()
     if nontrivial_outbreak:
@@ -73,15 +73,15 @@ def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path=None
         date_start = pd.Timestamp(year=2017, month=1, day=1) + pd.Timedelta(
             days=doy_start - 1
         )
-        risk_vals = risk_df.loc[doy_start, "analytical"].to_numpy()
+        prob_vals = prob_df.loc[doy_start, "analytical"].to_numpy()
         ax.plot(
-            risk_days,
-            risk_vals,
+            prob_days,
+            prob_vals,
             label=f"Initial case on {date_start.day} {date_start:%b}",
             color=color,
         )
-        risk_vals_sim = risk_df.loc[doy_start, "simulation"].to_numpy()
-        ax.plot(risk_days, risk_vals_sim, ".", color=color)
+        prob_vals_sim = prob_df.loc[doy_start, "simulation"].to_numpy()
+        ax.plot(prob_days, prob_vals_sim, ".", color=color)
     ax.set_ylim(0, 1.01)
     ax.set_xlabel(
         "Day of outbreak" if nontrivial_outbreak else "Days since initial case"
@@ -95,29 +95,29 @@ def _make_example_outbreak_risk_plot(*, incidence_vec, data_path, save_path=None
     return fig, ax
 
 
-def _make_example_outbreak_declaration_plot(*, data_path, save_path=None):
-    declaration_delay_df = pd.read_csv(data_path, index_col=[0, 1])
-    perc_risk_threshold_vals = declaration_delay_df.index.get_level_values(
+def _make_example_outbreak_decision_plot(*, data_path, save_path=None):
+    decision_delay_df = pd.read_csv(data_path, index_col=[0, 1])
+    perc_risk_threshold_vals = decision_delay_df.index.get_level_values(
         "perc_risk_threshold"
     ).unique()
-    doy_final_case_vec = declaration_delay_df.index.get_level_values(
+    doy_final_case_vec = decision_delay_df.index.get_level_values(
         "final_case_day_of_year"
     ).unique()
 
     fig, ax = plt.subplots()
 
     for perc_risk_threshold in perc_risk_threshold_vals:
-        declaration_delay_vec = declaration_delay_df.loc[
-            perc_risk_threshold, "delay_to_declaration"
+        decision_delay_vec = decision_delay_df.loc[
+            perc_risk_threshold, "delay_to_decision"
         ].to_numpy()
         ax.plot(
             doy_final_case_vec,
-            declaration_delay_vec,
+            decision_delay_vec,
             label=f"{perc_risk_threshold}% risk threshold",
         )
     month_start_xticks(ax, interval_months=2)
     ax.set_xlabel("Date of final case")
-    ax.set_ylabel("Days from final case until declaration")
+    ax.set_ylabel("Days from final case to decision")
     ax.legend()
     if save_path is not None:
         fig.savefig(save_path)
@@ -128,7 +128,7 @@ def _make_many_outbreak_example_plot(*, perc_risk_threshold, data_path, save_pat
     df = pd.read_csv(data_path)
     fig, ax = plt.subplots()
     plot_data_on_twin_ax(ax, t_vec=df["day_of_year"], incidence_vec=df["cases"])
-    ax.plot(df["day_of_year"], df["further_case_risk"], color="tab:blue")
+    ax.plot(df["day_of_year"], df["additional_case_prob"], color="tab:blue")
     ax.axhline(perc_risk_threshold / 100, color="tab:red", linestyle="--")
     month_start_xticks(ax)
     ax.set_xlabel("Date")
@@ -139,7 +139,7 @@ def _make_many_outbreak_example_plot(*, perc_risk_threshold, data_path, save_pat
     return fig, ax
 
 
-def _make_many_outbreak_declaration_plot(
+def _make_many_outbreak_decision_plot(
     *,
     data_path,
     example_outbreak_idx=None,
@@ -158,12 +158,12 @@ def _make_many_outbreak_declaration_plot(
         include_lowest=True,
     )
     stats = (
-        df.groupby("final_case_doy_binned", observed=False)["delay_to_declaration"]
+        df.groupby("final_case_doy_binned", observed=False)["delay_to_decision"]
         .quantile(np.array([0.025, 0.5, 0.975]))
         .unstack()
     )
     proportions = df["final_case_doy_binned"].value_counts(normalize=True).sort_index()
-    bin_centers = [interval.mid for interval in stats.index]
+    bin_centres = [interval.mid for interval in stats.index]
 
     cmap = matplotlib.colormaps[cmap_name]
     # norm = matplotlib.colors.LogNorm(0.001, proportions.max())
@@ -172,7 +172,7 @@ def _make_many_outbreak_declaration_plot(
 
     fig, ax = plt.subplots()
     for x, m, lo, hi, c in zip(
-        bin_centers,
+        bin_centres,
         stats[0.5],
         stats[0.5] - stats[0.025],
         stats[0.975] - stats[0.5],
@@ -187,12 +187,12 @@ def _make_many_outbreak_declaration_plot(
             capsize=3,
         )
     if example_outbreak_idx is not None:
-        example_outbreak_delay = df.loc[example_outbreak_idx, "delay_to_declaration"]
-        example_outbreak_final_case_bin_center = df.loc[
+        example_outbreak_delay = df.loc[example_outbreak_idx, "delay_to_decision"]
+        example_outbreak_final_case_bin_centre = df.loc[
             example_outbreak_idx, "final_case_doy_binned"
         ].mid
         ax.plot(
-            example_outbreak_final_case_bin_center,
+            example_outbreak_final_case_bin_centre,
             example_outbreak_delay,
             marker="x",
             color="tab:red",
@@ -203,7 +203,7 @@ def _make_many_outbreak_declaration_plot(
     # cbar = plt.colorbar(sm, ax=ax)
     # cbar.set_ticks(np.linspace(0, norm.vmax, 11))
     ax.set_xlabel("Week of final case")
-    ax.set_ylabel("Days from final case until decision")
+    ax.set_ylabel("Days from final case to decision")
     if xlim is not None:
         ax.set_xlim(*xlim)
     if ylim is not None:

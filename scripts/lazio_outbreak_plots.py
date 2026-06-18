@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from endoutbreakvbd import calc_declaration_delay
+from endoutbreakvbd import calc_decision_delay
 from endoutbreakvbd.utils import (
     get_colors,
     month_start_xticks,
@@ -17,9 +17,9 @@ from scripts.inputs import get_inputs_lazio_outbreak
 def make_plots(quasi_real_time=False):
     set_plot_config()
     inputs = get_inputs_lazio_outbreak(quasi_real_time=quasi_real_time)
-    _make_gen_time_dist_plot(
-        gen_time_dist_vec=inputs["gen_time_dist_vec"],
-        save_path=inputs["fig_paths"]["gen_time_dist"],
+    _make_serial_interval_dist_plot(
+        serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
+        save_path=inputs["fig_paths"]["serial_interval_dist"],
     )
     _make_rep_no_plot(
         doy_vec=inputs["doy_vec"],
@@ -31,26 +31,26 @@ def make_plots(quasi_real_time=False):
         ],
         save_path=inputs["fig_paths"]["rep_no"],
     )
-    _make_risk_plot(
+    _make_prob_plot(
         doy_vec=inputs["doy_vec"],
         incidence_vec=inputs["incidence_vec"],
         model_names=["Suitability-based", "Autoregressive"],
-        existing_declarations=inputs["existing_declarations"],
+        existing_decisions=inputs["existing_decisions"],
         data_paths=[
             inputs["results_paths"]["suitability"],
             inputs["results_paths"]["autoregressive"],
         ],
-        save_path=inputs["fig_paths"]["risk"],
+        save_path=inputs["fig_paths"]["additional_case_prob"],
     )
-    _make_declaration_plot(
+    _make_decision_plot(
         incidence_vec=inputs["incidence_vec"],
         model_names=["Suitability-based", "Autoregressive"],
-        existing_declarations=inputs["existing_declarations"],
+        existing_decisions=inputs["existing_decisions"],
         data_paths=[
             inputs["results_paths"]["suitability"],
             inputs["results_paths"]["autoregressive"],
         ],
-        save_path=inputs["fig_paths"]["declaration"],
+        save_path=inputs["fig_paths"]["decision"],
     )
     _make_suitability_plot(
         doy_vec=inputs["doy_vec"],
@@ -67,10 +67,10 @@ def make_plots(quasi_real_time=False):
     )
 
 
-def _make_gen_time_dist_plot(*, gen_time_dist_vec, save_path=None):
-    t_vec = np.arange(1, len(gen_time_dist_vec) + 1)
+def _make_serial_interval_dist_plot(*, serial_interval_dist_vec, save_path=None):
+    t_vec = np.arange(1, len(serial_interval_dist_vec) + 1)
     fig, ax = plt.subplots()
-    ax.bar(t_vec, gen_time_dist_vec, color="tab:blue")
+    ax.bar(t_vec, serial_interval_dist_vec, color="tab:blue")
     ax.set_xlim(0, 35)
     ax.set_xlabel("Serial interval (days)")
     ax.set_ylabel("Probability")
@@ -112,12 +112,12 @@ def _make_rep_no_plot(
     return fig, ax
 
 
-def _make_risk_plot(
+def _make_prob_plot(
     *,
     doy_vec,
     incidence_vec,
     model_names,
-    existing_declarations,
+    existing_decisions,
     data_paths,
     save_path=None,
 ):
@@ -128,10 +128,10 @@ def _make_risk_plot(
         model_names, data_paths, colors[: len(model_names)], strict=True
     ):
         df = pd.read_csv(data_path)
-        ax.plot(doy_vec, df["further_case_risk"], color=color, label=model_name)
-    if existing_declarations:
+        ax.plot(doy_vec, df["additional_case_prob"], color=color, label=model_name)
+    if existing_decisions:
         # ax.axvline(
-        #     existing_declarations["blood_resumed_rome"]["doy"],
+        #     existing_decisions["blood_resumed_rome"]["doy"],
         #     0,
         #     1,
         #     color=colors[-3],
@@ -139,7 +139,7 @@ def _make_risk_plot(
         #     label="Blood measures lifted (Rome)",
         # )
         ax.axvline(
-            existing_declarations["blood_resumed_anzio"]["doy"],
+            existing_decisions["blood_resumed_anzio"]["doy"],
             0,
             1,
             color=colors[-2],
@@ -147,7 +147,7 @@ def _make_risk_plot(
             label="Blood measures lifted",
         )
         ax.axvline(
-            existing_declarations["45_day_rule"]["doy"],
+            existing_decisions["45_day_rule"]["doy"],
             0,
             1,
             color=colors[-1],
@@ -164,34 +164,34 @@ def _make_risk_plot(
     return fig, ax
 
 
-def _make_declaration_plot(
-    *, incidence_vec, model_names, existing_declarations, data_paths, save_path=None
+def _make_decision_plot(
+    *, incidence_vec, model_names, existing_decisions, data_paths, save_path=None
 ):
     colors = get_colors()[: (len(model_names) + 2)]
     fig, ax = plt.subplots()
     perc_risk_thresholds = np.linspace(0.1, 10, 101)
     time_final_case = np.nonzero(incidence_vec)[0][-1]
-    risk_days = np.arange(time_final_case + 1, len(incidence_vec))
+    prob_days = np.arange(time_final_case + 1, len(incidence_vec))
     for model_name, color, data_path in zip(
         model_names, colors[: len(model_names)], data_paths, strict=True
     ):
         df = pd.read_csv(data_path)
-        risk_vals = df["further_case_risk"].to_numpy()[risk_days]
-        declaration_delays = calc_declaration_delay(
-            risk_vec=risk_vals,
+        prob_vals = df["additional_case_prob"].to_numpy()[prob_days]
+        decision_delays = calc_decision_delay(
+            prob_vec=prob_vals,
             perc_risk_threshold=perc_risk_thresholds,
-            delay_of_first_risk=1,
+            delay_of_first_prob=1,
         )
-        ax.plot(perc_risk_thresholds, declaration_delays, color=color, label=model_name)
-    if existing_declarations:
+        ax.plot(perc_risk_thresholds, decision_delays, color=color, label=model_name)
+    if existing_decisions:
         # ax.axhline(
-        #     existing_declarations["blood_resumed_rome"]["days_from_final_case"],
+        #     existing_decisions["blood_resumed_rome"]["days_from_final_case"],
         #     color=colors[-2],
         #     linestyle="dashed",
         #     label="Blood measures lifted (Rome)",
         # )
         ax.axhline(
-            existing_declarations["blood_resumed_anzio"]["days_from_final_case"],
+            existing_decisions["blood_resumed_anzio"]["days_from_final_case"],
             color=colors[-1],
             linestyle="dashed",
             label="Blood measures lifted",

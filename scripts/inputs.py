@@ -26,14 +26,14 @@ def get_inputs_schematic() -> dict[str, Any]:
     )
     outbreak_rep_no_vec = 1.05 * seasonal_full
 
-    si_gamma_shape = 2.5
-    si_gamma_scale = 4.5
-    si_max_days = 36
-    days = np.arange(1, si_max_days + 1)
-    gen_time_pmf = scipy.stats.gamma.pdf(
-        days - 0.5, a=si_gamma_shape, scale=si_gamma_scale
+    serial_interval_gamma_shape = 2.5
+    serial_interval_gamma_scale = 4.5
+    serial_interval_max_days = 36
+    days = np.arange(1, serial_interval_max_days + 1)
+    serial_interval_pmf = scipy.stats.gamma.pdf(
+        days - 0.5, a=serial_interval_gamma_shape, scale=serial_interval_gamma_scale
     )
-    gen_time_dist_vec = gen_time_pmf / gen_time_pmf.sum()
+    serial_interval_dist_vec = serial_interval_pmf / serial_interval_pmf.sum()
 
     results_dir = pathlib.Path(__file__).parents[1] / "results/schematic"
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -46,7 +46,7 @@ def get_inputs_schematic() -> dict[str, Any]:
         "seasonal_full": seasonal_full,
         "seasonal_amplitude": seasonal_amplitude,
         "outbreak_rep_no_vec": outbreak_rep_no_vec,
-        "gen_time_dist_vec": gen_time_dist_vec,
+        "serial_interval_dist_vec": serial_interval_dist_vec,
         "outbreak_doy_start": 92,
         "outbreak_seed": 1,
         "outbreak_t_stop": 260,
@@ -111,7 +111,7 @@ def get_inputs_weather_suitability_data() -> dict[str, Any]:
 
 
 def get_inputs_sim_study() -> dict[str, Any]:
-    gen_time_dist_vec = _get_gen_time_dist()
+    serial_interval_dist_vec = _get_serial_interval_dist()
 
     df_suitability = _get_2017_suitability_data()
     suitability_grid = df_suitability["suitability_smoothed_lagged"].to_numpy()
@@ -142,26 +142,25 @@ def get_inputs_sim_study() -> dict[str, Any]:
     results_dir = pathlib.Path(__file__).parents[1] / "results/sim_study"
     results_dir.mkdir(parents=True, exist_ok=True)
     results_paths = {
-        "example_outbreak_risk": results_dir / "example_outbreak_risk.csv",
-        "example_outbreak_declaration": results_dir
-        / "example_outbreak_declaration.csv",
+        "example_outbreak_prob": results_dir / "example_outbreak_prob.csv",
+        "example_outbreak_decision": results_dir / "example_outbreak_decision.csv",
         "many_outbreak": results_dir / "many_outbreak.csv",
         "many_outbreak_example": results_dir / "many_outbreak_example.csv",
-        "many_outbreak_declaration": results_dir / "many_outbreak_declaration.csv",
+        "many_outbreak_decision": results_dir / "many_outbreak_decision.csv",
     }
 
     fig_dir = pathlib.Path(__file__).parents[1] / "figures/sim_study"
     fig_dir.mkdir(parents=True, exist_ok=True)
     fig_paths = {
         "rep_no": fig_dir / "rep_no.svg",
-        "example_outbreak_risk": fig_dir / "example_outbreak_risk.svg",
-        "example_outbreak_declaration": fig_dir / "example_outbreak_declaration.svg",
+        "example_outbreak_prob": fig_dir / "example_outbreak_prob.svg",
+        "example_outbreak_decision": fig_dir / "example_outbreak_decision.svg",
         "many_outbreak_example": fig_dir / "many_outbreak_example.svg",
-        "many_outbreak_declaration": fig_dir / "many_outbreak_declaration.svg",
+        "many_outbreak_decision": fig_dir / "many_outbreak_decision.svg",
     }
 
     return {
-        "gen_time_dist_vec": gen_time_dist_vec,
+        "serial_interval_dist_vec": serial_interval_dist_vec,
         "rep_no_factor": rep_no_factor,
         "rep_no_grid": rep_no_grid,
         "rep_no_func_doy": rep_no_func_doy,
@@ -182,7 +181,7 @@ def get_inputs_sim_study() -> dict[str, Any]:
 def get_inputs_sim_sensitivity() -> dict[str, Any]:
     inputs_sim_study = get_inputs_sim_study()
 
-    gen_time_dist_vec = inputs_sim_study["gen_time_dist_vec"]
+    serial_interval_dist_vec = inputs_sim_study["serial_interval_dist_vec"]
     rep_no_factor_default = inputs_sim_study["rep_no_factor"]
     rep_no_grid_default = inputs_sim_study["rep_no_grid"]
     suitability_lag_days = get_inputs_weather_suitability_data()["suitability_lag_days"]
@@ -319,7 +318,7 @@ def get_inputs_sim_sensitivity() -> dict[str, Any]:
     ]
 
     return {
-        "gen_time_dist_vec": gen_time_dist_vec,
+        "serial_interval_dist_vec": serial_interval_dist_vec,
         "many_outbreak_n_sims": many_outbreak_n_sims,
         "many_outbreak_outbreak_size_threshold": many_outbreak_outbreak_size_threshold,
         "many_outbreak_perc_risk_threshold": many_outbreak_perc_risk_threshold,
@@ -339,7 +338,7 @@ def get_inputs_sim_sensitivity() -> dict[str, Any]:
 
 
 def get_inputs_inference_test(quasi_real_time: bool = False) -> dict[str, Any]:
-    gen_time_dist_vec = _get_gen_time_dist()
+    serial_interval_dist_vec = _get_serial_interval_dist()
 
     df_suitability = _get_2017_suitability_data()
     suitability_mean_grid = df_suitability["suitability_smoothed_lagged"].to_numpy()
@@ -369,14 +368,14 @@ def get_inputs_inference_test(quasi_real_time: bool = False) -> dict[str, Any]:
     fig_dir.mkdir(parents=True, exist_ok=True)
     fig_paths = {
         "rep_no": fig_dir / "rep_no.svg",
-        "risk": fig_dir / "risk.svg",
-        "declaration": fig_dir / "declaration.svg",
+        "additional_case_prob": fig_dir / "additional_case_prob.svg",
+        "decision": fig_dir / "decision.svg",
         "suitability": fig_dir / "suitability.svg",
         "scaling_factor": fig_dir / "scaling_factor.svg",
     }
 
     return {
-        "gen_time_dist_vec": gen_time_dist_vec,
+        "serial_interval_dist_vec": serial_interval_dist_vec,
         "suitability_mean_grid": suitability_mean_grid,
         "suitability_model_params": suitability_model_params,
         "doy_start": doy_start,
@@ -386,13 +385,14 @@ def get_inputs_inference_test(quasi_real_time: bool = False) -> dict[str, Any]:
 
 
 def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
-    gen_time_dist_vec = _get_gen_time_dist()
+    serial_interval_dist_vec = _get_serial_interval_dist()
 
     df_data = _get_lazio_outbreak_data()
     start_date = df_data.index[0]
     doy_start = df_data["doy"].to_numpy()[0]
     incidence_vec = np.append(
-        df_data["cases"].to_numpy(), np.zeros(len(gen_time_dist_vec) + 1, dtype=int)
+        df_data["cases"].to_numpy(),
+        np.zeros(len(serial_interval_dist_vec) + 1, dtype=int),
     )
     doy_vec = (np.arange(doy_start, doy_start + len(incidence_vec)) - 1) % 365 + 1
 
@@ -409,7 +409,7 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
     date_blood_resumed_anzio = pd.Timestamp("2017-12-01")
     doy_blood_resumed_rome = date_blood_resumed_rome.dayofyear
     doy_blood_resumed_anzio = date_blood_resumed_anzio.dayofyear
-    existing_declarations = {
+    existing_decisions = {
         "blood_resumed_rome": {
             "date": date_blood_resumed_rome,
             "doy": doy_blood_resumed_rome,
@@ -443,10 +443,10 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
     fig_dir = pathlib.Path(__file__).parents[1] / "figures" / analysis_label
     fig_dir.mkdir(parents=True, exist_ok=True)
     fig_paths = {
-        "gen_time_dist": fig_dir / "gen_time_dist.svg",
+        "serial_interval_dist": fig_dir / "serial_interval_dist.svg",
         "rep_no": fig_dir / "rep_no.svg",
-        "risk": fig_dir / "risk.svg",
-        "declaration": fig_dir / "declaration.svg",
+        "additional_case_prob": fig_dir / "additional_case_prob.svg",
+        "decision": fig_dir / "decision.svg",
         "suitability": fig_dir / "suitability.svg",
         "scaling_factor": fig_dir / "scaling_factor.svg",
     }
@@ -454,11 +454,11 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
     return {
         "start_date": start_date,
         "time_final_case": time_final_case,
-        "gen_time_dist_vec": gen_time_dist_vec,
+        "serial_interval_dist_vec": serial_interval_dist_vec,
         "doy_vec": doy_vec,
         "incidence_vec": incidence_vec,
         "suitability_mean_vec": suitability_mean_vec,
-        "existing_declarations": existing_declarations,
+        "existing_decisions": existing_decisions,
         "results_paths": results_paths,
         "fig_paths": fig_paths,
     }
@@ -480,8 +480,8 @@ def get_inputs_lazio_frozen() -> dict[str, Any]:
     }
     inputs["fig_paths"] = {
         "rep_no": fig_dir / "rep_no.svg",
-        "risk": fig_dir / "risk.svg",
-        "declaration": fig_dir / "declaration.svg",
+        "additional_case_prob": fig_dir / "additional_case_prob.svg",
+        "decision": fig_dir / "decision.svg",
     }
     return inputs
 
@@ -502,8 +502,8 @@ def get_inputs_lazio_epiestim() -> dict[str, Any]:
     }
     inputs["fig_paths"] = {
         "rep_no": fig_dir / "rep_no.svg",
-        "risk": fig_dir / "risk.svg",
-        "declaration": fig_dir / "declaration.svg",
+        "additional_case_prob": fig_dir / "additional_case_prob.svg",
+        "decision": fig_dir / "decision.svg",
     }
     return inputs
 
@@ -528,10 +528,10 @@ def _get_2017_suitability_data() -> pd.DataFrame:
     return df
 
 
-def _get_gen_time_dist() -> NDArray[np.float64]:
-    gen_time_max = 40
-    gen_time_dist_cont = scipy.stats.gamma(a=8.53, scale=1.46)
-    gen_time_dist_vec = discretise_cori(
-        dist_cont=gen_time_dist_cont, max_val=gen_time_max
+def _get_serial_interval_dist() -> NDArray[np.float64]:
+    serial_interval_max = 40
+    serial_interval_dist_cont = scipy.stats.gamma(a=8.53, scale=1.46)
+    serial_interval_dist_vec = discretise_cori(
+        dist_cont=serial_interval_dist_cont, max_val=serial_interval_max
     )
-    return gen_time_dist_vec
+    return serial_interval_dist_vec

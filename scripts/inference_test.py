@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from endoutbreakvbd import calc_further_case_risk_analytical
+from endoutbreakvbd import calc_additional_case_prob_analytical
 from endoutbreakvbd._types import IntArray, RepNoOutput
 from endoutbreakvbd.model import run_renewal_model
 from endoutbreakvbd.utils import rep_no_from_grid
@@ -18,7 +18,7 @@ def run_analyses(quasi_real_time=False):
     inputs = get_inputs_inference_test(quasi_real_time=quasi_real_time)
     rng = np.random.default_rng(3)
     data_df = _generate_outbreak_data(
-        gen_time_dist_vec=inputs["gen_time_dist_vec"],
+        serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
         doy_start=inputs["doy_start"],
         suitability_mean_grid=inputs["suitability_mean_grid"],
         suitability_model_params=inputs["suitability_model_params"],
@@ -28,7 +28,7 @@ def run_analyses(quasi_real_time=False):
     _run_analyses_for_model(
         model="autoregressive",
         incidence_vec=data_df["cases"].to_numpy(),
-        gen_time_dist_vec=inputs["gen_time_dist_vec"],
+        serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
         fit_model_kwargs={"rng": rng, "quasi_real_time": quasi_real_time},
         save_path=inputs["results_paths"]["autoregressive"],
         save_path_diagnostics=inputs["results_paths"]["autoregressive_diagnostics"],
@@ -36,7 +36,7 @@ def run_analyses(quasi_real_time=False):
     _run_analyses_for_model(
         model="suitability",
         incidence_vec=data_df["cases"].to_numpy(),
-        gen_time_dist_vec=inputs["gen_time_dist_vec"],
+        serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
         fit_model_kwargs={
             "suitability_mean_vec": data_df["suitability_mean"].to_numpy(),
             "rng": rng,
@@ -49,7 +49,7 @@ def run_analyses(quasi_real_time=False):
 
 def _generate_outbreak_data(
     *,
-    gen_time_dist_vec,
+    serial_interval_dist_vec,
     doy_start,
     suitability_mean_grid,
     suitability_model_params,
@@ -96,7 +96,9 @@ def _generate_outbreak_data(
             return rep_no_from_grid(t, rep_no_grid=rep_no_vec, periodic=False)
 
         incidence_vec = run_renewal_model(
-            rep_no_func=rep_no_func, gen_time_dist_vec=gen_time_dist_vec, rng=rng
+            rep_no_func=rep_no_func,
+            serial_interval_dist_vec=serial_interval_dist_vec,
+            rng=rng,
         )
         attempts += 1
         if outbreak_min_size <= np.sum(incidence_vec) <= outbreak_max_size:
@@ -104,9 +106,9 @@ def _generate_outbreak_data(
             print(f"Outbreak found after {attempts} attempts")
 
     t_end = len(incidence_vec)
-    risk_vec = calc_further_case_risk_analytical(
+    prob_vec = calc_additional_case_prob_analytical(
         incidence_vec=incidence_vec,
-        gen_time_dist_vec=gen_time_dist_vec,
+        serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_func=rep_no_func,
         t_calc=np.arange(t_end),
     )
@@ -114,11 +116,11 @@ def _generate_outbreak_data(
         {
             "day_of_year": np.arange(doy_start, doy_start + t_end),
             "cases": incidence_vec[:t_end],
-            "rep_no": rep_no_vec[:t_end],
+            "reproduction_number": rep_no_vec[:t_end],
             "suitability": suitability_vec[:t_end],
             "suitability_mean": suitability_mean_vec[:t_end],
             "rep_no_factor": rep_no_factor_vec[:t_end],
-            "further_case_risk": risk_vec,
+            "additional_case_prob": prob_vec,
         }
     )
     data_df.to_csv(save_path)

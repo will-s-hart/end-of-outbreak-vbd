@@ -17,8 +17,8 @@ def run_analyses():
             outbreak_size_threshold=inputs["many_outbreak_outbreak_size_threshold"],
             perc_risk_threshold=inputs["many_outbreak_perc_risk_threshold"],
             rep_no_from_doy_start=run["rep_no_from_doy_start"],
-            gen_time_dist_vec=inputs["gen_time_dist_vec"],
-            track_premature_declarations=False,
+            serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
+            track_premature_decisions=False,
             rng=rng,
             save_path=run["results_path"],
         )

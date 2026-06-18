@@ -8,7 +8,7 @@ from endoutbreakvbd.model import run_renewal_model
 def test_run_renewal_model_extinction_with_zero_reproduction_number(rng):
     out = run_renewal_model(
         rep_no_func=lambda t: 0.0,
-        gen_time_dist_vec=[1.0],
+        serial_interval_dist_vec=[1.0],
         rng=rng,
         t_stop=10,
         incidence_init=1,
@@ -20,7 +20,7 @@ def test_run_renewal_model_extinction_with_zero_reproduction_number(rng):
 def test_run_renewal_model_break_on_case_stops_on_first_new_case():
     out = run_renewal_model(
         rep_no_func=lambda t: 2.0,
-        gen_time_dist_vec=[1.0],
+        serial_interval_dist_vec=[1.0],
         rng=np.random.default_rng(0),
         t_stop=10,
         incidence_init=1,
@@ -34,7 +34,7 @@ def test_run_renewal_model_break_on_case_stops_on_first_new_case():
 def test_run_renewal_model_accepts_vector_initial_incidence(rng):
     out = run_renewal_model(
         rep_no_func=lambda t: 0.0,
-        gen_time_dist_vec=[1.0],
+        serial_interval_dist_vec=[1.0],
         rng=rng,
         t_stop=10,
         incidence_init=[2, 1],
@@ -47,7 +47,7 @@ def test_run_renewal_model_accepts_vector_initial_incidence(rng):
 def test_run_renewal_model_default_initial_incidence_is_one(rng):
     out = run_renewal_model(
         rep_no_func=lambda t: 0.0,
-        gen_time_dist_vec=[1.0],
+        serial_interval_dist_vec=[1.0],
         rng=rng,
         t_stop=10,
     )
@@ -57,7 +57,7 @@ def test_run_renewal_model_default_initial_incidence_is_one(rng):
 def test_run_renewal_model_short_horizon_does_not_raise(rng):
     out = run_renewal_model(
         rep_no_func=lambda t: 1.0,
-        gen_time_dist_vec=[0.5, 0.5, 0.0],
+        serial_interval_dist_vec=[0.5, 0.5, 0.0],
         rng=rng,
         t_stop=1,
         incidence_init=1,

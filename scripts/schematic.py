@@ -3,7 +3,7 @@
 Generates a renewal-process outbreak driven by a seasonal R_t and a gamma
 serial-interval distribution, then runs `fit_suitability_model` to infer R_t
 and the probability of additional cases on each day. Writes the simulated
-cases together with the posterior R_t summary and the daily risk to a single
+cases together with the posterior R_t summary and the daily additional-case probability to a single
 CSV consumed by `scripts/schematic_plots.py`.
 """
 
@@ -43,7 +43,7 @@ def run_analyses():
     print("Running suitability-model inference...")
     ds_posterior = fit_suitability_model(
         incidence_vec=incidence_vec,
-        gen_time_dist_vec=inputs["gen_time_dist_vec"],
+        serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
         suitability_mean_vec=suitability_mean_vec,
         suitability_std=inputs["suitability_std"],
         suitability_rho=inputs["suitability_rho"],
@@ -55,7 +55,7 @@ def run_analyses():
     t_calc = current_day_doy - doy_start
     print(
         f"Risk on current day (t={t_calc}) = "
-        f"{float(ds_posterior['risk'].values[t_calc]):.4f}"
+        f"{float(ds_posterior['additional_case_prob'].values[t_calc]):.4f}"
     )
 
     df_out = pd.DataFrame(
@@ -66,7 +66,7 @@ def run_analyses():
             "reproduction_number_mean": ds_posterior["rep_no_mean"].values,
             "reproduction_number_lower": ds_posterior["rep_no_lower"].values,
             "reproduction_number_upper": ds_posterior["rep_no_upper"].values,
-            "further_case_risk": ds_posterior["risk"].values,
+            "additional_case_prob": ds_posterior["additional_case_prob"].values,
         }
     ).set_index("day_of_outbreak")
     df_out.to_csv(inputs["results_paths"]["outbreak"])
@@ -74,7 +74,7 @@ def run_analyses():
 
 def _simulate_outbreak(inputs):
     outbreak_rep_no_vec = inputs["outbreak_rep_no_vec"]
-    gen_time_dist_vec = inputs["gen_time_dist_vec"]
+    serial_interval_dist_vec = inputs["serial_interval_dist_vec"]
     doy_start = inputs["outbreak_doy_start"]
 
     def rep_no_func(t: int | IntArray) -> RepNoOutput:
@@ -90,7 +90,7 @@ def _simulate_outbreak(inputs):
         incidence_vec = run_renewal_model(
             rep_no_func=rep_no_func,
             t_stop=inputs["outbreak_t_stop"],
-            gen_time_dist_vec=gen_time_dist_vec,
+            serial_interval_dist_vec=serial_interval_dist_vec,
             rng=rng,
             incidence_init=1,
         )

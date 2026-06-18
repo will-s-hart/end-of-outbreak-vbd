@@ -5,9 +5,9 @@ import endoutbreakvbd
 
 def test_public_api_exports_expected_symbols():
     expected = {
-        "calc_declaration_delay",
-        "calc_further_case_risk_analytical",
-        "calc_further_case_risk_simulation",
+        "calc_decision_delay",
+        "calc_additional_case_prob_analytical",
+        "calc_additional_case_prob_simulation",
     }
     assert set(endoutbreakvbd.__all__) == expected
 

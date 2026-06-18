@@ -192,7 +192,7 @@ def test_fit_model_raises_when_local_incidence_positive_with_zero_foi():
     with pytest.raises(ValueError, match="force of infection is 0"):
         inf._fit_model(
             incidence_vec=np.array([0, 1]),
-            gen_time_dist_vec=np.array([0.0]),
+            serial_interval_dist_vec=np.array([0.0]),
             rep_no_vec_func=lambda t_stop: np.ones(t_stop),
             quasi_real_time=False,
         )
@@ -204,7 +204,7 @@ def test_fit_model_sets_random_seed_uses_step_func_and_thins(monkeypatch):
     rng = np.random.default_rng(0)
     out = inf._fit_model(
         incidence_vec=np.array([1, 0, 0]),
-        gen_time_dist_vec=np.array([1.0]),
+        serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=False,
         step_func=lambda: "FAKE_STEP",
@@ -232,7 +232,7 @@ def test_fit_model_quasi_real_time_concatenates_one_time_slice_per_day(monkeypat
 
     out = inf._fit_model(
         incidence_vec=np.array([1, 0, 0, 0]),
-        gen_time_dist_vec=np.array([1.0]),
+        serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=True,
         draws=6,
@@ -249,7 +249,7 @@ def test_fit_model_quasi_real_time_raises_for_single_time_point():
     with pytest.raises(ValueError, match="at least 2 time points"):
         inf._fit_model(
             incidence_vec=np.array([1]),
-            gen_time_dist_vec=np.array([1.0]),
+            serial_interval_dist_vec=np.array([1.0]),
             rep_no_vec_func=lambda t_stop: np.ones(t_stop),
             quasi_real_time=True,
         )
@@ -261,17 +261,17 @@ def test_fit_model_quasi_real_time_excludes_current_day_incidence(monkeypatch):
 
     incidence_base = np.array([1, 1, 0, 0, 0, 0])
     incidence_changed = np.array([1, 1, 0, 2, 0, 0])  # changed at day 3 only
-    gen_time_dist_vec = np.array([0.6, 0.4])
+    serial_interval_dist_vec = np.array([0.6, 0.4])
 
     out_base = inf._fit_model(
         incidence_vec=incidence_base,
-        gen_time_dist_vec=gen_time_dist_vec,
+        serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=True,
     )
     out_changed = inf._fit_model(
         incidence_vec=incidence_changed,
-        gen_time_dist_vec=gen_time_dist_vec,
+        serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=True,
     )
@@ -291,7 +291,7 @@ def test_fit_model_freeze_from_final_case_freezes_tail(monkeypatch):
 
     out = inf._fit_model(
         incidence_vec=np.array([1, 1, 0, 0, 0]),
-        gen_time_dist_vec=np.array([1.0]),
+        serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=False,
         freeze_from_final_case=True,
@@ -319,7 +319,7 @@ def test_fit_model_freeze_from_final_case_default_off(monkeypatch):
 
     out = inf._fit_model(
         incidence_vec=np.array([1, 1, 0, 0, 0]),
-        gen_time_dist_vec=np.array([1.0]),
+        serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=False,
     )
@@ -334,7 +334,7 @@ def test_fit_model_freeze_raises_with_quasi_real_time():
     with pytest.raises(NotImplementedError, match="freeze_from_final_case"):
         inf._fit_model(
             incidence_vec=np.array([1, 0]),
-            gen_time_dist_vec=np.array([1.0]),
+            serial_interval_dist_vec=np.array([1.0]),
             rep_no_vec_func=lambda t_stop: np.ones(t_stop),
             quasi_real_time=True,
             freeze_from_final_case=True,
@@ -351,13 +351,13 @@ def test_fit_autoregressive_model_forwards_freeze_from_final_case(monkeypatch):
 
     out_default = inf.fit_autoregressive_model(
         incidence_vec=np.array([1, 0]),
-        gen_time_dist_vec=np.array([1.0]),
+        serial_interval_dist_vec=np.array([1.0]),
     )
     assert out_default["freeze_from_final_case"] is False
 
     out_set = inf.fit_autoregressive_model(
         incidence_vec=np.array([1, 0]),
-        gen_time_dist_vec=np.array([1.0]),
+        serial_interval_dist_vec=np.array([1.0]),
         freeze_from_final_case=True,
     )
     assert out_set["freeze_from_final_case"] is True
@@ -382,7 +382,7 @@ def test_fit_autoregressive_model_uses_defaults(monkeypatch):
 
     out = inf.fit_autoregressive_model(
         incidence_vec=np.array([1, 0]),
-        gen_time_dist_vec=np.array([1.0]),
+        serial_interval_dist_vec=np.array([1.0]),
         quasi_real_time=True,
     )
 
@@ -407,7 +407,7 @@ def test_fit_autoregressive_model_respects_overrides(monkeypatch):
 
     out = inf.fit_autoregressive_model(
         incidence_vec=np.array([1, 0]),
-        gen_time_dist_vec=np.array([1.0]),
+        serial_interval_dist_vec=np.array([1.0]),
         prior_median=2.5,
         prior_percentile_2_5=0.7,
         rho=0.5,
@@ -437,7 +437,7 @@ def test_fit_suitability_model_uses_defaults(monkeypatch):
 
     out = inf.fit_suitability_model(
         incidence_vec=np.array([1, 0]),
-        gen_time_dist_vec=np.array([1.0]),
+        serial_interval_dist_vec=np.array([1.0]),
         suitability_mean_vec=np.array([0.2, 0.3]),
         quasi_real_time=True,
     )
@@ -468,7 +468,7 @@ def test_fit_suitability_model_respects_overrides(monkeypatch):
 
     inf.fit_suitability_model(
         incidence_vec=np.array([1, 0]),
-        gen_time_dist_vec=np.array([1.0]),
+        serial_interval_dist_vec=np.array([1.0]),
         suitability_mean_vec=np.array([0.2, 0.3]),
         suitability_std=0.2,
         suitability_rho=0.3,
@@ -520,7 +520,7 @@ def test_fit_suitability_model_rep_no_func_uses_softclip(monkeypatch):
 
     out = inf.fit_suitability_model(
         incidence_vec=np.array([1, 0, 0, 0]),
-        gen_time_dist_vec=np.array([1.0]),
+        serial_interval_dist_vec=np.array([1.0]),
         suitability_mean_vec=np.array([0.1, 0.2, 0.3, 0.4]),
     )
 

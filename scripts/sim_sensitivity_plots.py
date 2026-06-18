@@ -4,7 +4,7 @@ import numpy as np
 
 from endoutbreakvbd.utils import month_start_xticks, set_plot_config
 from scripts.inputs import get_inputs_sim_sensitivity
-from scripts.sim_study_plots import _make_many_outbreak_declaration_plot
+from scripts.sim_study_plots import _make_many_outbreak_decision_plot
 
 
 def make_plots():
@@ -17,7 +17,7 @@ def make_plots():
             save_path=analysis["curves_fig_path"],
         )
         for run in analysis["runs"]:
-            _make_many_outbreak_declaration_plot(
+            _make_many_outbreak_decision_plot(
                 data_path=run["results_path"],
                 cmap_name=run["cmap_name"],
                 xlim=(91, 366),

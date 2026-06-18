@@ -3,9 +3,9 @@ import argparse
 from endoutbreakvbd.utils import set_plot_config
 from scripts.inputs import get_inputs_lazio_frozen
 from scripts.lazio_outbreak_plots import (
-    _make_declaration_plot,
+    _make_decision_plot,
     _make_rep_no_plot,
-    _make_risk_plot,
+    _make_prob_plot,
 )
 
 
@@ -24,20 +24,20 @@ def make_plots():
         data_paths=data_paths,
         save_path=inputs["fig_paths"]["rep_no"],
     )
-    _make_risk_plot(
+    _make_prob_plot(
         doy_vec=inputs["doy_vec"],
         incidence_vec=inputs["incidence_vec"],
         model_names=model_names,
-        existing_declarations=inputs["existing_declarations"],
+        existing_decisions=inputs["existing_decisions"],
         data_paths=data_paths,
-        save_path=inputs["fig_paths"]["risk"],
+        save_path=inputs["fig_paths"]["additional_case_prob"],
     )
-    _make_declaration_plot(
+    _make_decision_plot(
         incidence_vec=inputs["incidence_vec"],
         model_names=model_names,
-        existing_declarations=inputs["existing_declarations"],
+        existing_decisions=inputs["existing_decisions"],
         data_paths=data_paths,
-        save_path=inputs["fig_paths"]["declaration"],
+        save_path=inputs["fig_paths"]["decision"],
     )
 
 

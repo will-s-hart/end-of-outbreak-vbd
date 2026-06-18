@@ -1,11 +1,11 @@
-from endoutbreakvbd.further_case_risk import (
-    calc_declaration_delay,
-    calc_further_case_risk_analytical,
-    calc_further_case_risk_simulation,
+from endoutbreakvbd.additional_case_prob import (
+    calc_additional_case_prob_analytical,
+    calc_additional_case_prob_simulation,
+    calc_decision_delay,
 )
 
 __all__ = [
-    "calc_declaration_delay",
-    "calc_further_case_risk_analytical",
-    "calc_further_case_risk_simulation",
+    "calc_additional_case_prob_analytical",
+    "calc_additional_case_prob_simulation",
+    "calc_decision_delay",
 ]

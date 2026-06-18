@@ -3,13 +3,13 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from endoutbreakvbd.further_case_risk import calc_declaration_delay
+from endoutbreakvbd.additional_case_prob import calc_decision_delay
 from endoutbreakvbd.utils import set_plot_config
 from scripts.inputs import get_inputs_inference_test
 from scripts.lazio_outbreak_plots import (
-    _make_declaration_plot,
+    _make_decision_plot,
     _make_rep_no_plot,
-    _make_risk_plot,
+    _make_prob_plot,
     _make_scaling_factor_plot,
     _make_suitability_plot,
 )
@@ -24,8 +24,8 @@ def make_plots(quasi_real_time=False):
     suitability_vec = df_data["suitability"].to_numpy()
     suitability_mean_vec = df_data["suitability_mean"].to_numpy()
     rep_no_factor_vec = df_data["rep_no_factor"].to_numpy()
-    rep_no_vec = df_data["rep_no"].to_numpy()
-    risk_vec = df_data["further_case_risk"].to_numpy()
+    rep_no_vec = df_data["reproduction_number"].to_numpy()
+    prob_vec = df_data["additional_case_prob"].to_numpy()
 
     for plot_func, plot_kwargs, actual_vec, legend_loc, save_path in [
         (
@@ -67,20 +67,20 @@ def make_plots(quasi_real_time=False):
             inputs["fig_paths"]["rep_no"],
         ),
         (
-            _make_risk_plot,
+            _make_prob_plot,
             {
                 "doy_vec": doy_vec,
                 "incidence_vec": incidence_vec,
                 "model_names": ["Suitability-based", "Autoregressive"],
-                "existing_declarations": None,
+                "existing_decisions": None,
                 "data_paths": [
                     inputs["results_paths"]["suitability"],
                     inputs["results_paths"]["autoregressive"],
                 ],
             },
-            risk_vec,
+            prob_vec,
             "upper left",
-            inputs["fig_paths"]["risk"],
+            inputs["fig_paths"]["additional_case_prob"],
         ),
     ]:
         fig, ax = plot_func(**plot_kwargs)
@@ -88,10 +88,10 @@ def make_plots(quasi_real_time=False):
         ax.plot(doy_vec, actual_vec, color="black", label="True")
         ax.legend(loc=legend_loc)
         fig.savefig(save_path)
-    fig, ax = _make_declaration_plot(
+    fig, ax = _make_decision_plot(
         incidence_vec=incidence_vec,
         model_names=["Suitability-based", "Autoregressive"],
-        existing_declarations=None,
+        existing_decisions=None,
         data_paths=[
             inputs["results_paths"]["suitability"],
             inputs["results_paths"]["autoregressive"],
@@ -99,16 +99,16 @@ def make_plots(quasi_real_time=False):
     )
     perc_risk_thresholds = ax.get_lines()[0].get_xdata()
     time_final_case = np.nonzero(incidence_vec)[0][-1]
-    risk_days = np.arange(time_final_case + 1, len(incidence_vec))
-    risk_vals = df_data["further_case_risk"].to_numpy()[risk_days]
-    declaration_delays = calc_declaration_delay(
-        risk_vec=risk_vals,
+    prob_days = np.arange(time_final_case + 1, len(incidence_vec))
+    prob_vals = df_data["additional_case_prob"].to_numpy()[prob_days]
+    decision_delays = calc_decision_delay(
+        prob_vec=prob_vals,
         perc_risk_threshold=perc_risk_thresholds,
-        delay_of_first_risk=1,
+        delay_of_first_prob=1,
     )
-    ax.plot(perc_risk_thresholds, declaration_delays, color="black", label="True")
+    ax.plot(perc_risk_thresholds, decision_delays, color="black", label="True")
     ax.legend()
-    fig.savefig(inputs["fig_paths"]["declaration"])
+    fig.savefig(inputs["fig_paths"]["decision"])
 
 
 if __name__ == "__main__":

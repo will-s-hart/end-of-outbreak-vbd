@@ -10,12 +10,12 @@ from tqdm import tqdm
 
 from endoutbreakvbd._types import (
     FloatArray,
-    GenTimeInput,
+    SerialIntervalInput,
     IncidenceSeriesInput,
     IntArray,
     RepNoOutput,
 )
-from endoutbreakvbd.further_case_risk import calc_further_case_risk_analytical
+from endoutbreakvbd.additional_case_prob import calc_additional_case_prob_analytical
 from endoutbreakvbd.utils import (
     lognormal_params_from_median_percentile_2_5,
     rep_no_from_grid,
@@ -40,7 +40,7 @@ DEFAULTS = Defaults()
 def _fit_model(
     *,
     incidence_vec: IncidenceSeriesInput,
-    gen_time_dist_vec: GenTimeInput,
+    serial_interval_dist_vec: SerialIntervalInput,
     rep_no_vec_func: Callable[[int], Any],
     quasi_real_time: bool,
     t_infer_to: int | None = None,
@@ -76,10 +76,10 @@ def _fit_model(
         ):
             ds_posterior_curr = _fit_model(
                 incidence_vec=incidence_vec[:t],
-                gen_time_dist_vec=gen_time_dist_vec,
+                serial_interval_dist_vec=serial_interval_dist_vec,
                 rep_no_vec_func=rep_no_vec_func,
                 quasi_real_time=False,
-                t_infer_to=np.minimum(t + len(gen_time_dist_vec), t_infer_to),
+                t_infer_to=np.minimum(t + len(serial_interval_dist_vec), t_infer_to),
                 step_func=step_func,
                 thin=thin,
                 rng=rng,
@@ -97,10 +97,10 @@ def _fit_model(
         posterior = xr.concat(posterior_list, dim="time")
         return posterior
 
-    gen_time_dist_vec_ext = np.concatenate(
+    serial_interval_dist_vec_ext = np.concatenate(
         [
-            gen_time_dist_vec,
-            np.zeros(np.maximum(t_data_to - 1 - len(gen_time_dist_vec), 0)),
+            serial_interval_dist_vec,
+            np.zeros(np.maximum(t_data_to - 1 - len(serial_interval_dist_vec), 0)),
         ]
     )
 
@@ -109,7 +109,7 @@ def _fit_model(
 
     foi_vec = np.zeros(t_data_to)
     for t in range(1, t_data_to):
-        foi_vec[t] = np.sum(incidence_vec[:t][::-1] * gen_time_dist_vec_ext[:t])
+        foi_vec[t] = np.sum(incidence_vec[:t][::-1] * serial_interval_dist_vec_ext[:t])
 
     nonzero_foi_idx = foi_vec > 0
     if np.any(incidence_vec_local[~nonzero_foi_idx]):
@@ -156,26 +156,26 @@ def _fit_model(
         .quantile(0.975, dim=["chain", "draw"])
         .drop_vars("quantile"),
     )
-    # Compute daily risk of further cases
+    # Compute daily probability of additional cases
     rep_no_mat = ds_posterior["rep_no"].transpose("time", ...).values
 
     def rep_no_post_func(t: int | IntArray) -> RepNoOutput:
         return rep_no_from_grid(t, rep_no_grid=rep_no_mat, periodic=False)
 
-    risk_vec = calc_further_case_risk_analytical(
+    prob_vec = calc_additional_case_prob_analytical(
         incidence_vec=incidence_vec,
         rep_no_func=rep_no_post_func,
-        gen_time_dist_vec=gen_time_dist_vec,
+        serial_interval_dist_vec=serial_interval_dist_vec,
         t_calc=t_vec,
     )
-    ds_posterior = ds_posterior.assign(risk=(("time",), risk_vec))
+    ds_posterior = ds_posterior.assign(additional_case_prob=(("time",), prob_vec))
     return ds_posterior
 
 
 def fit_autoregressive_model(
     *,
     incidence_vec: IncidenceSeriesInput,
-    gen_time_dist_vec: GenTimeInput,
+    serial_interval_dist_vec: SerialIntervalInput,
     prior_median: float | None = None,
     prior_percentile_2_5: float | None = None,
     rho: float | list[float] | None = None,
@@ -210,7 +210,7 @@ def fit_autoregressive_model(
 
     return _fit_model(
         incidence_vec=incidence_vec,
-        gen_time_dist_vec=gen_time_dist_vec,
+        serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
         freeze_from_final_case=freeze_from_final_case,
@@ -221,7 +221,7 @@ def fit_autoregressive_model(
 def fit_suitability_model(
     *,
     incidence_vec: IncidenceSeriesInput,
-    gen_time_dist_vec: GenTimeInput,
+    serial_interval_dist_vec: SerialIntervalInput,
     suitability_mean_vec: list[float] | FloatArray,
     suitability_std: float | None = None,
     suitability_rho: float | None = None,
@@ -266,7 +266,7 @@ def fit_suitability_model(
             ),
             dims=("time",),
         )
-        suitability_deviations = pm.AR(
+        suitability_deviation_vec = pm.AR(
             "suitability_deviation",
             sigma=suitability_std * np.sqrt(1 - suitability_rho**2),
             rho=suitability_rho,
@@ -276,7 +276,8 @@ def fit_suitability_model(
         suitability_vec = pm.Deterministic(
             "suitability",
             _softclip(
-                suitability_mean_vec[:t_infer_to] + cast(Any, suitability_deviations),
+                suitability_mean_vec[:t_infer_to]
+                + cast(Any, suitability_deviation_vec),
                 lower=1e-8,
                 upper=1.0,
             ),
@@ -289,7 +290,7 @@ def fit_suitability_model(
 
     ds_posterior = _fit_model(
         incidence_vec=incidence_vec,
-        gen_time_dist_vec=gen_time_dist_vec,
+        serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
         **kwargs,
