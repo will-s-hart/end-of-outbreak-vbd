@@ -6,12 +6,6 @@ from endoutbreakvbd.utils import month_start_xticks, set_plot_config
 from scripts.inputs import get_inputs_sim_sensitivity
 from scripts.sim_study_plots import _make_many_outbreak_declaration_plot
 
-# Shared axis limits for the four declaration panels, which are likely to be
-# assembled into a single figure; spanning 1 April to 1 January covers all four
-# (only a negligible early-spring tail of the slowest-decline panel is excluded).
-DECLARATION_XLIM = (91, 366)
-DECLARATION_YLIM = (0, 27)
-
 
 def make_plots():
     set_plot_config()
@@ -26,8 +20,8 @@ def make_plots():
             _make_many_outbreak_declaration_plot(
                 data_path=run["results_path"],
                 cmap_name=run["cmap_name"],
-                xlim=DECLARATION_XLIM,
-                ylim=DECLARATION_YLIM,
+                xlim=(91, 366),
+                ylim=(0, 27),
                 xtick_interval_months=2,
                 save_path=run["fig_path"],
             )
