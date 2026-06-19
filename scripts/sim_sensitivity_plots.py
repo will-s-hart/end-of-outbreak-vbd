@@ -19,7 +19,8 @@ def make_plots():
         for run in analysis["runs"]:
             _make_many_outbreak_decision_plot(
                 data_path=run["results_path"],
-                cmap_name=run["cmap_name"],
+                perc_risk_thresholds=inputs["many_outbreak_perc_risk_thresholds"],
+                cmap_names=(run["cmap_name"],),
                 xlim=(91, 366),
                 ylim=(0, 27),
                 xtick_interval_months=2,

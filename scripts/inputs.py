@@ -135,7 +135,7 @@ def get_inputs_sim_study() -> dict[str, Any]:
 
     many_outbreak_n_sims = 100000
     many_outbreak_outbreak_size_threshold = 2
-    many_outbreak_perc_risk_threshold = 5
+    many_outbreak_perc_risk_thresholds = (5, 1)
     many_outbreak_example_outbreak_idx = 3
 
     results_dir = pathlib.Path(__file__).parents[1] / "results/sim_study"
@@ -170,7 +170,7 @@ def get_inputs_sim_study() -> dict[str, Any]:
         "example_outbreak_n_sims": example_outbreak_n_sims,
         "many_outbreak_n_sims": many_outbreak_n_sims,
         "many_outbreak_outbreak_size_threshold": many_outbreak_outbreak_size_threshold,
-        "many_outbreak_perc_risk_threshold": many_outbreak_perc_risk_threshold,
+        "many_outbreak_perc_risk_thresholds": many_outbreak_perc_risk_thresholds,
         "many_outbreak_example_outbreak_idx": many_outbreak_example_outbreak_idx,
         "results_paths": results_paths,
         "fig_paths": fig_paths,
@@ -205,9 +205,10 @@ def get_inputs_sim_sensitivity() -> dict[str, Any]:
     many_outbreak_outbreak_size_threshold = inputs_sim_study[
         "many_outbreak_outbreak_size_threshold"
     ]
-    many_outbreak_perc_risk_threshold = inputs_sim_study[
-        "many_outbreak_perc_risk_threshold"
-    ]
+    # Sensitivity bars use a single representative threshold from the main study.
+    many_outbreak_perc_risk_thresholds = inputs_sim_study[
+        "many_outbreak_perc_risk_thresholds"
+    ][-1:]
 
     results_dir = pathlib.Path(__file__).parents[1] / "results/sim_sensitivity"
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -319,7 +320,7 @@ def get_inputs_sim_sensitivity() -> dict[str, Any]:
         "serial_interval_dist_vec": serial_interval_dist_vec,
         "many_outbreak_n_sims": many_outbreak_n_sims,
         "many_outbreak_outbreak_size_threshold": many_outbreak_outbreak_size_threshold,
-        "many_outbreak_perc_risk_threshold": many_outbreak_perc_risk_threshold,
+        "many_outbreak_perc_risk_thresholds": many_outbreak_perc_risk_thresholds,
         "rep_no_factor": {
             "curves": rep_no_factor_curves,
             "curves_ylim": (0, 1.05 * rep_no_factor_high_grid.max()),
