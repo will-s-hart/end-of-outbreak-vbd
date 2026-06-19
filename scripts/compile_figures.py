@@ -140,12 +140,14 @@ def compile_paper_figures():
     compile_figure(
         save_path=figure_dir / "figure_3.svg",
         panel_paths=[
-            figure_dir / f"{x}.svg"
+            figure_dir / "sim_sensitivity" / f"{x}.svg"
             for x in [
-                "weather_suitability_data/temperature",
-                "weather_suitability_data/suitability_model",
-                "weather_suitability_data/suitability",
-                "lazio_outbreak/serial_interval_dist",
+                "rep_no_factor_curves",
+                "rep_no_factor_low",
+                "rep_no_factor_high",
+                "decay_speed_curves",
+                "decay_speed_low",
+                "decay_speed_high",
             ]
         ],
     )
@@ -161,12 +163,41 @@ def compile_paper_figures():
     compile_figure(
         save_path=figure_dir / "figure_S1.svg",
         panel_paths=[
-            figure_dir / "lazio_outbreak" / "scaling_factor.svg",
+            figure_dir / f"{x}.svg"
+            for x in [
+                "weather_suitability_data/temperature",
+                "weather_suitability_data/suitability_model",
+                "weather_suitability_data/suitability",
+                "lazio_outbreak/serial_interval_dist",
+            ]
         ],
     )
     # Figure S2
     compile_figure(
         save_path=figure_dir / "figure_S2.svg",
+        panel_paths=[
+            figure_dir / "lazio_outbreak" / "scaling_factor.svg",
+        ],
+    )
+    # Figure S3
+    compile_figure(
+        save_path=figure_dir / "figure_S3.svg",
+        panel_paths=[
+            figure_dir / "lazio_frozen" / f"{x}.svg"
+            for x in ["rep_no", "additional_case_prob", "decision"]
+        ],
+    )
+    # Figure S4
+    compile_figure(
+        save_path=figure_dir / "figure_S4.svg",
+        panel_paths=[
+            figure_dir / "lazio_epiestim" / f"{x}.svg"
+            for x in ["rep_no", "additional_case_prob", "decision"]
+        ],
+    )
+    # Figure S5
+    compile_figure(
+        save_path=figure_dir / "figure_S5.svg",
         panel_paths=[
             figure_dir / "lazio_outbreak_qrt" / f"{x}.svg"
             for x in [
@@ -178,9 +209,9 @@ def compile_paper_figures():
             ]
         ],
     )
-    # Figure S3
+    # Figure S6
     compile_figure(
-        save_path=figure_dir / "figure_S3.svg",
+        save_path=figure_dir / "figure_S6.svg",
         panel_paths=[
             figure_dir / "inference_test" / f"{x}.svg"
             for x in [

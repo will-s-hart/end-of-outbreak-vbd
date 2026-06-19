@@ -38,12 +38,27 @@ def get_results_files_inference_test(qrt):
 
 results_files_inference_test = get_results_files_inference_test(qrt=[""])
 
+results_files_sim_sensitivity = expand(
+    "results/sim_sensitivity/{name}.csv",
+    name=[
+        "rep_no_factor_low",
+        "rep_no_factor_high",
+        "decay_speed_low",
+        "decay_speed_high",
+    ],
+)
+results_files_lazio_frozen = ["results/lazio_frozen/autoregressive_frozen.csv"]
+results_files_lazio_epiestim = ["results/lazio_epiestim/epiestim.csv"]
+
 results_files = (
     results_files_schematic
     + results_files_weather_suitability_data
     + results_files_sim_study
     + results_files_lazio_outbreak
     + results_files_inference_test
+    + results_files_sim_sensitivity
+    + results_files_lazio_frozen
+    + results_files_lazio_epiestim
 )
 
 plot_files_weather_suitability_data = expand(
@@ -95,9 +110,30 @@ def get_plot_files_inference_test(qrt):
 
 plot_files_inference_test = get_plot_files_inference_test(qrt=[""])
 
+plot_files_sim_sensitivity = expand(
+    "figures/sim_sensitivity/{name}.svg",
+    name=[
+        "rep_no_factor_curves",
+        "rep_no_factor_low",
+        "rep_no_factor_high",
+        "decay_speed_curves",
+        "decay_speed_low",
+        "decay_speed_high",
+    ],
+)
+plot_files_lazio_frozen = expand(
+    "figures/lazio_frozen/{name}.svg",
+    name=["rep_no", "additional_case_prob", "decision"],
+)
+plot_files_lazio_epiestim = expand(
+    "figures/lazio_epiestim/{name}.svg",
+    name=["rep_no", "additional_case_prob", "decision"],
+)
+
 schematic_figure_file = "figures/figure_1.svg"
 paper_figure_files_compiled = expand(
-    "figures/figure_{number}.svg", number=["2", "3", "4", "S1", "S2", "S3"]
+    "figures/figure_{number}.svg",
+    number=["2", "3", "4", "S1", "S2", "S3", "S4", "S5", "S6"],
 )
 paper_figure_files = [schematic_figure_file] + paper_figure_files_compiled
 paper_figure_files_png = [x.replace(".svg", ".png") for x in paper_figure_files]
@@ -108,6 +144,9 @@ plot_files = (
     + plot_files_sim_study
     + plot_files_lazio_outbreak
     + plot_files_inference_test
+    + plot_files_sim_sensitivity
+    + plot_files_lazio_frozen
+    + plot_files_lazio_epiestim
 )
 
 package_files = [
@@ -314,4 +353,92 @@ rule inference_test_plots:
     shell:
         """
         pixi run python scripts/inference_test_plots.py {params.qrt_flag}
+        """
+
+
+rule sim_sensitivity_results:
+    input:
+        shared_input_files,
+        results_files_weather_suitability_data,
+        "scripts/sim_sensitivity.py",
+        "scripts/sim_study.py",
+    output:
+        results_files_sim_sensitivity,
+    shell:
+        """
+        pixi run python scripts/sim_sensitivity.py -r
+        """
+
+
+rule sim_sensitivity_plots:
+    input:
+        shared_input_files,
+        results_files_weather_suitability_data,
+        "scripts/sim_sensitivity_plots.py",
+        "scripts/sim_study_plots.py",
+        results_files_sim_sensitivity,
+    output:
+        plot_files_sim_sensitivity,
+    shell:
+        """
+        pixi run python scripts/sim_sensitivity_plots.py
+        """
+
+
+rule lazio_frozen_results:
+    input:
+        shared_input_files,
+        results_files_weather_suitability_data,
+        "scripts/lazio_frozen.py",
+        "scripts/lazio_outbreak.py",
+    output:
+        results_files_lazio_frozen,
+    shell:
+        """
+        pixi run python scripts/lazio_frozen.py -r
+        """
+
+
+rule lazio_frozen_plots:
+    input:
+        shared_input_files,
+        results_files_weather_suitability_data,
+        get_results_files_lazio_outbreak(qrt=""),
+        results_files_lazio_frozen,
+        "scripts/lazio_frozen_plots.py",
+        "scripts/lazio_outbreak_plots.py",
+    output:
+        plot_files_lazio_frozen,
+    shell:
+        """
+        pixi run python scripts/lazio_frozen_plots.py
+        """
+
+
+rule lazio_epiestim_results:
+    input:
+        shared_input_files,
+        results_files_weather_suitability_data,
+        "scripts/lazio_epiestim.py",
+    output:
+        results_files_lazio_epiestim,
+    shell:
+        """
+        pixi run python scripts/lazio_epiestim.py -r
+        """
+
+
+rule lazio_epiestim_plots:
+    input:
+        shared_input_files,
+        results_files_weather_suitability_data,
+        get_results_files_lazio_outbreak(qrt=""),
+        results_files_lazio_epiestim,
+        "scripts/lazio_epiestim_plots.py",
+        "scripts/lazio_outbreak_plots.py",
+    output:
+        plot_files_lazio_epiestim,
+    shell:
+        """
+        pixi run python scripts/lazio_epiestim_plots.py
         """
