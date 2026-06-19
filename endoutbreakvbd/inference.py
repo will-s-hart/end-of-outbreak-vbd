@@ -100,10 +100,12 @@ def _fit_model(
         posterior = xr.concat(posterior_list, dim="time")
         return posterior
 
-    serial_interval_dist_vec_ext = np.concatenate([
-        serial_interval_dist_vec,
-        np.zeros(np.maximum(t_data_to - 1 - len(serial_interval_dist_vec), 0)),
-    ])
+    serial_interval_dist_vec_ext = np.concatenate(
+        [
+            serial_interval_dist_vec,
+            np.zeros(np.maximum(t_data_to - 1 - len(serial_interval_dist_vec), 0)),
+        ]
+    )
 
     incidence_vec_local = np.zeros(t_data_to)
     incidence_vec_local[1:] = incidence_vec[1:]

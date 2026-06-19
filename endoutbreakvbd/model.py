@@ -48,10 +48,12 @@ def run_renewal_model(
     """
     serial_interval_dist_vec = np.asarray(serial_interval_dist_vec)
     serial_interval_max = len(serial_interval_dist_vec)
-    serial_interval_dist_vec = np.concatenate([
-        serial_interval_dist_vec,
-        np.zeros(np.maximum(t_stop - 1 - len(serial_interval_dist_vec), 0)),
-    ])
+    serial_interval_dist_vec = np.concatenate(
+        [
+            serial_interval_dist_vec,
+            np.zeros(np.maximum(t_stop - 1 - len(serial_interval_dist_vec), 0)),
+        ]
+    )
     incidence_vec: IntArray = np.zeros(t_stop, dtype=int)
     if incidence_init is None:
         incidence_init = 1
