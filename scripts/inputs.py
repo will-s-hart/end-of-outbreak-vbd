@@ -1,6 +1,5 @@
 import functools
 import pathlib
-from fractions import Fraction
 from typing import Any
 
 import numpy as np
@@ -199,7 +198,7 @@ def get_inputs_sim_sensitivity() -> dict[str, Any]:
     # Values explored either side of the default in each analysis.
     rep_no_factor_vals = (1.5, 3)
     decay_speed_default = 1
-    decay_speed_vals = (2 / 3, 3 / 2)
+    decay_speed_vals = (0.7, 1.3)
 
     # Reuse the main study's settings so the sensitivity runs are comparable.
     many_outbreak_n_sims = inputs_sim_study["many_outbreak_n_sims"]
@@ -234,24 +233,22 @@ def get_inputs_sim_sensitivity() -> dict[str, Any]:
         return rf"$R_{{\max}} = {rep_no_factor}$"
 
     def _decay_speed_label(decay_speed):
-        frac = Fraction(decay_speed).limit_denominator(100)
-        if frac.denominator == 1:
-            return rf"$\sigma = {frac.numerator}$"
-        return rf"$\sigma = {frac.numerator}/{frac.denominator}$"
+        return rf"$\sigma = {decay_speed}$"
 
     # Maximum-reproduction-number analysis
     rep_no_factor_low_grid = _grid_for_rep_no_factor(rep_no_factor_vals[0])
     rep_no_factor_high_grid = _grid_for_rep_no_factor(rep_no_factor_vals[1])
+    # Curves ordered by increasing maximum reproduction number.
     rep_no_factor_curves = [
-        (
-            _rep_no_factor_label(rep_no_factor_default),
-            _make_rep_no_func_doy(rep_no_grid_default),
-            "Blues",
-        ),
         (
             _rep_no_factor_label(rep_no_factor_vals[0]),
             _make_rep_no_func_doy(rep_no_factor_low_grid),
             "Oranges",
+        ),
+        (
+            _rep_no_factor_label(rep_no_factor_default),
+            _make_rep_no_func_doy(rep_no_grid_default),
+            "Blues",
         ),
         (
             _rep_no_factor_label(rep_no_factor_vals[1]),
@@ -285,16 +282,17 @@ def get_inputs_sim_sensitivity() -> dict[str, Any]:
     decay_speed_high_grid = rescale_rep_no_grid_in_time(
         rep_no_grid_default, season_centre_doy, decay_speed_vals[1]
     )
+    # Curves ordered by increasing decline speed (sigma).
     decay_speed_curves = [
-        (
-            _decay_speed_label(decay_speed_default),
-            _make_rep_no_func_doy(rep_no_grid_default),
-            "Blues",
-        ),
         (
             _decay_speed_label(decay_speed_vals[0]),
             _make_rep_no_func_doy(decay_speed_low_grid),
             "Oranges",
+        ),
+        (
+            _decay_speed_label(decay_speed_default),
+            _make_rep_no_func_doy(rep_no_grid_default),
+            "Blues",
         ),
         (
             _decay_speed_label(decay_speed_vals[1]),

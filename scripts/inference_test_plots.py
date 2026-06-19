@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from endoutbreakvbd.additional_case_prob import calc_decision_delay
-from endoutbreakvbd.utils import set_plot_config
+from endoutbreakvbd.utils import ordered_legend, set_plot_config
 from scripts.inputs import get_inputs_inference_test
 from scripts.lazio_outbreak_plots import (
     _make_decision_plot,
@@ -79,14 +79,14 @@ def make_plots(quasi_real_time=False):
                 ],
             },
             prob_vec,
-            "upper left",
+            "lower center",
             inputs["fig_paths"]["additional_case_prob"],
         ),
     ]:
         fig, ax = plot_func(**plot_kwargs)
         ax.set_xlabel("Date")
         ax.plot(doy_vec, actual_vec, color="black", label="True")
-        ax.legend(loc=legend_loc)
+        ordered_legend(ax, {"True": 0, "Seasonal prior": 1}, loc=legend_loc)
         fig.savefig(save_path)
     fig, ax = _make_decision_plot(
         incidence_vec=incidence_vec,
@@ -107,7 +107,7 @@ def make_plots(quasi_real_time=False):
         delay_of_first_prob=1,
     )
     ax.plot(perc_risk_thresholds, decision_delays, color="black", label="True")
-    ax.legend()
+    ordered_legend(ax, {"True": 0, "Seasonal prior": 1})
     fig.savefig(inputs["fig_paths"]["decision"])
 
 

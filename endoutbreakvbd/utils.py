@@ -272,6 +272,9 @@ def plot_data_on_twin_ax(ax: Axes, t_vec: ArrayLike, incidence_vec: ArrayLike) -
     """
     Plot an incidence time series as a bar chart on a twin y-axis.
 
+    The primary axes are raised above the twin axis so that the bars sit behind
+    the primary-axis artists (curves and legend).
+
     Parameters
     ----------
     ax : Axes
@@ -296,6 +299,9 @@ def plot_data_on_twin_ax(ax: Axes, t_vec: ArrayLike, incidence_vec: ArrayLike) -
     twin_ax.spines["right"].set_color("tab:gray")
     twin_ax.spines["left"].set_visible(False)
     twin_ax.spines["bottom"].set_visible(False)
+    # Draw the primary axis (curves, legend) above the incidence bars.
+    ax.set_zorder(twin_ax.get_zorder() + 1)
+    ax.patch.set_visible(False)
     return twin_ax
 
 
@@ -309,3 +315,26 @@ def get_colors() -> list[str]:
         Colour strings from the active property cycle.
     """
     return plt.rcParams["axes.prop_cycle"].by_key()["color"]
+
+
+def ordered_legend(ax: Axes, priorities: dict[str, float], **kwargs) -> None:
+    """
+    Draw the legend on ``ax`` with entries reordered by ``priorities``.
+
+    Parameters
+    ----------
+    ax : Axes
+        Axes whose labelled artists are placed in the legend.
+    priorities : dict[str, float]
+        Mapping from legend label to sort rank; entries with lower ranks appear
+        first. Labels absent from the mapping keep their original order, after any
+        ranked entries.
+    **kwargs
+        Additional keyword arguments passed to ``ax.legend``.
+    """
+    handles, labels = ax.get_legend_handles_labels()
+    order = sorted(
+        range(len(labels)),
+        key=lambda i: (priorities.get(labels[i], len(labels)), i),
+    )
+    ax.legend([handles[i] for i in order], [labels[i] for i in order], **kwargs)

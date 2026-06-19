@@ -8,6 +8,7 @@ from endoutbreakvbd import calc_decision_delay
 from endoutbreakvbd.utils import (
     get_colors,
     month_start_xticks,
+    ordered_legend,
     plot_data_on_twin_ax,
     set_plot_config,
 )
@@ -144,7 +145,7 @@ def _make_prob_plot(
             1,
             color=colors[-2],
             linestyle="dashed",
-            label="Blood measures lifted",
+            label="Blood measures\nlifted",
         )
         ax.axvline(
             existing_decisions["45_day_rule"]["doy"],
@@ -158,7 +159,7 @@ def _make_prob_plot(
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, 1.01)
     ax.set_ylabel("Probability of additional cases")
-    ax.legend(loc="upper left")
+    ax.legend(loc="upper left", bbox_to_anchor=(0, 0.89))
     if save_path is not None:
         fig.savefig(save_path)
     return fig, ax
@@ -200,7 +201,7 @@ def _make_decision_plot(
     ax.set_xlim(perc_risk_thresholds[0], perc_risk_thresholds[-1])
     ax.set_ylim(0, ax.get_ylim()[1])
     ax.set_xlabel("Risk threshold (%)")
-    ax.set_ylabel("Days from final case to decision")
+    ax.set_ylabel("Days from last observed case\nuntil risk falls below threshold")
     ax.legend(loc="lower left")
     if save_path is not None:
         fig.savefig(save_path)
@@ -213,7 +214,7 @@ def _make_suitability_plot(
     df = pd.read_csv(data_path)
     fig, ax = plt.subplots()
     plot_data_on_twin_ax(ax, doy_vec, incidence_vec)
-    ax.plot(doy_vec, df["suitability_mean"], color="tab:blue")
+    ax.plot(doy_vec, df["suitability_mean"], color="tab:blue", label="Posterior")
     ax.fill_between(
         doy_vec,
         df["suitability_lower"],
@@ -221,11 +222,18 @@ def _make_suitability_plot(
         color="tab:blue",
         alpha=0.3,
     )
-    ax.plot(doy_vec, suitability_mean_vec, color="black", linestyle="dashed")
+    ax.plot(
+        doy_vec,
+        suitability_mean_vec,
+        color="black",
+        linestyle="dashed",
+        label="Seasonal prior",
+    )
     month_start_xticks(ax)
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, 1.01)
     ax.set_ylabel("Temperature suitability for transmission")
+    ordered_legend(ax, {"True": 0, "Seasonal prior": 1}, loc="upper right")
     if save_path is not None:
         fig.savefig(save_path)
     return fig, ax
@@ -235,7 +243,7 @@ def _make_scaling_factor_plot(*, doy_vec, incidence_vec, data_path, save_path=No
     df = pd.read_csv(data_path)
     fig, ax = plt.subplots()
     plot_data_on_twin_ax(ax, doy_vec, incidence_vec)
-    ax.plot(doy_vec, df["rep_no_factor_mean"], color="tab:blue")
+    ax.plot(doy_vec, df["rep_no_factor_mean"], color="tab:blue", label="Posterior")
     ax.fill_between(
         doy_vec,
         df["rep_no_factor_lower"],

@@ -116,8 +116,8 @@ def _make_example_outbreak_decision_plot(*, data_path, save_path=None):
             label=f"{perc_risk_threshold}% risk threshold",
         )
     month_start_xticks(ax, interval_months=2)
-    ax.set_xlabel("Date of final case")
-    ax.set_ylabel("Days from final case to decision")
+    ax.set_xlabel("Date of last observed case")
+    ax.set_ylabel("Days from last observed case\nuntil risk falls below threshold")
     ax.legend()
     if save_path is not None:
         fig.savefig(save_path)
@@ -202,8 +202,8 @@ def _make_many_outbreak_decision_plot(
     # sm.set_array([])
     # cbar = plt.colorbar(sm, ax=ax)
     # cbar.set_ticks(np.linspace(0, norm.vmax, 11))
-    ax.set_xlabel("Week of final case")
-    ax.set_ylabel("Days from final case to decision")
+    ax.set_xlabel("Week of last observed case")
+    ax.set_ylabel("Days from last observed case\nuntil risk falls below threshold")
     if xlim is not None:
         ax.set_xlim(*xlim)
     if ylim is not None:
