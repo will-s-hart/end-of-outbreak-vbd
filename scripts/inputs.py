@@ -234,7 +234,7 @@ def get_inputs_sim_sensitivity() -> dict[str, Any]:
         return rf"$R_{{\max}} = {rep_no_factor}$"
 
     def _decay_speed_label(decay_speed):
-        return rf"$\sigma = {decay_speed}$"
+        return rf"$\gamma = {decay_speed}$"
 
     # Maximum-reproduction-number analysis
     rep_no_factor_low_grid = _grid_for_rep_no_factor(rep_no_factor_vals[0])
@@ -283,7 +283,7 @@ def get_inputs_sim_sensitivity() -> dict[str, Any]:
     decay_speed_high_grid = rescale_rep_no_grid_in_time(
         rep_no_grid_default, season_centre_doy, decay_speed_vals[1]
     )
-    # Curves ordered by increasing decline speed (sigma).
+    # Curves ordered by increasing decline speed (gamma).
     decay_speed_curves = [
         (
             _decay_speed_label(decay_speed_vals[0]),

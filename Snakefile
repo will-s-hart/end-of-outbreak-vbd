@@ -197,6 +197,7 @@ rule results:
 rule paper_figures:
     input:
         plot_files,
+        "scripts/compile_figures.py",
     output:
         paper_figure_files_compiled,
     shell:

@@ -10,7 +10,7 @@ def compile_figure(
     template_path=None,
     sz=None,
     tiling=None,
-    panel_sz=(500, 450),
+    panel_sz=(520, 450),
     panel_offset=(0, -40),
     panel_positions=None,
     panel_scalings=None,
@@ -38,7 +38,7 @@ def compile_figure(
         Number of rows and columns to tile the panels in the figure. If None, the
         number of rows and columns is calculated automatically.
     panel_sz : tuple of int, optional
-        Size of the panels in pixels (width, height) (default is (500, 450))
+        Size of the panels in pixels (width, height) (default is (520, 450))
     panel_offset : tuple of int, optional
         Offset of the panels from the top-left corner of the figure in pixels (x, y)
         (default is (0, -40)).
@@ -140,14 +140,12 @@ def compile_paper_figures():
     compile_figure(
         save_path=figure_dir / "figure_3.svg",
         panel_paths=[
-            figure_dir / "sim_sensitivity" / f"{x}.svg"
+            figure_dir / f"{x}.svg"
             for x in [
-                "rep_no_factor_curves",
-                "rep_no_factor_low",
-                "rep_no_factor_high",
-                "decay_speed_curves",
-                "decay_speed_low",
-                "decay_speed_high",
+                "weather_suitability_data/temperature",
+                "weather_suitability_data/suitability_model",
+                "weather_suitability_data/suitability",
+                "lazio_outbreak/serial_interval_dist",
             ]
         ],
     )
@@ -163,12 +161,14 @@ def compile_paper_figures():
     compile_figure(
         save_path=figure_dir / "figure_S1.svg",
         panel_paths=[
-            figure_dir / f"{x}.svg"
+            figure_dir / "sim_sensitivity" / f"{x}.svg"
             for x in [
-                "weather_suitability_data/temperature",
-                "weather_suitability_data/suitability_model",
-                "weather_suitability_data/suitability",
-                "lazio_outbreak/serial_interval_dist",
+                "rep_no_factor_curves",
+                "rep_no_factor_low",
+                "rep_no_factor_high",
+                "decay_speed_curves",
+                "decay_speed_low",
+                "decay_speed_high",
             ]
         ],
     )
