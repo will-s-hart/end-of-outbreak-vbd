@@ -38,7 +38,7 @@ def run_analyses(track_premature_decisions=False):
     _run_many_outbreak_analysis(
         n_sims=inputs["many_outbreak_n_sims"],
         outbreak_size_threshold=inputs["many_outbreak_outbreak_size_threshold"],
-        perc_risk_thresholds=inputs["many_outbreak_perc_risk_thresholds"],
+        perc_risk_threshold_vals=inputs["many_outbreak_perc_risk_threshold_vals"],
         rep_no_from_doy_start=inputs["rep_no_from_doy_start"],
         serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
         example_outbreak_idx=inputs["many_outbreak_example_outbreak_idx"],
@@ -137,7 +137,7 @@ def _run_many_outbreak_analysis(
     *,
     n_sims,
     outbreak_size_threshold,
-    perc_risk_thresholds,
+    perc_risk_threshold_vals,
     rep_no_from_doy_start,
     serial_interval_dist_vec,
     track_premature_decisions,
@@ -155,7 +155,7 @@ def _run_many_outbreak_analysis(
         tasks.append(
             (
                 outbreak_size_threshold,
-                perc_risk_thresholds,
+                perc_risk_threshold_vals,
                 rep_no_from_doy_start,
                 serial_interval_dist_vec,
                 track_premature_decisions,
@@ -193,7 +193,7 @@ def _run_many_outbreak_analysis(
     )
     # One decision-delay column per risk threshold (delays stacked rows x thresholds).
     decision_delays = np.array(decision_delay_vals)
-    for j, perc_risk_threshold in enumerate(perc_risk_thresholds):
+    for j, perc_risk_threshold in enumerate(perc_risk_threshold_vals):
         df[f"delay_to_decision_{perc_risk_threshold}"] = decision_delays[:, j]
     df.to_csv(save_path)
     if example_outbreak_idx is not None:
@@ -216,7 +216,7 @@ def _run_many_outbreak_analysis(
 def _many_outbreak_analysis_one_sim(args):
     (
         outbreak_size_threshold,
-        perc_risk_thresholds,
+        perc_risk_threshold_vals,
         rep_no_from_doy_start,
         serial_interval_dist_vec,
         track_premature_decisions,
@@ -250,7 +250,7 @@ def _many_outbreak_analysis_one_sim(args):
     decision_delay = np.atleast_1d(
         calc_decision_delay(
             prob_vec=prob_vals,
-            perc_risk_threshold=perc_risk_thresholds,
+            perc_risk_threshold=perc_risk_threshold_vals,
             delay_of_first_prob=1,
         )
     )
@@ -278,7 +278,7 @@ def _many_outbreak_analysis_one_sim(args):
     if track_premature_decisions:
         # Use the most lenient threshold, which triggers a decision earliest.
         premature_decisions = np.sum(
-            prob_vals_to_final_case < (max(perc_risk_thresholds) / 100)
+            prob_vals_to_final_case < (max(perc_risk_threshold_vals) / 100)
         )
     return (
         doy_start,

@@ -60,7 +60,7 @@ def test_get_inputs_sim_study_structure_and_callables(monkeypatch):
         "example_outbreak_perc_risk_threshold_vals",
         "many_outbreak_n_sims",
         "many_outbreak_outbreak_size_threshold",
-        "many_outbreak_perc_risk_thresholds",
+        "many_outbreak_perc_risk_threshold_vals",
         "results_paths",
         "fig_paths",
     }

@@ -30,12 +30,12 @@ def make_plots():
         save_path=inputs["fig_paths"]["example_outbreak_decision"],
     )
     _make_many_outbreak_example_plot(
-        perc_risk_thresholds=inputs["many_outbreak_perc_risk_thresholds"],
+        perc_risk_threshold_vals=inputs["many_outbreak_perc_risk_threshold_vals"],
         data_path=inputs["results_paths"]["many_outbreak_example"],
         save_path=inputs["fig_paths"]["many_outbreak_example"],
     )
     _make_many_outbreak_decision_plot(
-        perc_risk_thresholds=inputs["many_outbreak_perc_risk_thresholds"],
+        perc_risk_threshold_vals=inputs["many_outbreak_perc_risk_threshold_vals"],
         example_outbreak_idx=inputs["many_outbreak_example_outbreak_idx"],
         data_path=inputs["results_paths"]["many_outbreak_decision"],
         save_path=inputs["fig_paths"]["many_outbreak_decision"],
@@ -128,7 +128,7 @@ def _make_example_outbreak_decision_plot(*, data_path, save_path=None):
 
 def _make_many_outbreak_example_plot(
     *,
-    perc_risk_thresholds,
+    perc_risk_threshold_vals,
     cmap_names=("Blues", "Oranges", "Greens", "Purples"),
     data_path,
     save_path=None,
@@ -138,7 +138,9 @@ def _make_many_outbreak_example_plot(
     plot_data_on_twin_ax(ax, t_vec=df["day_of_year"], incidence_vec=df["cases"])
     ax.plot(df["day_of_year"], df["additional_case_prob"], color="black")
     for perc_risk_threshold, cmap_name in zip(
-        perc_risk_thresholds, cmap_names[: len(perc_risk_thresholds)], strict=True
+        perc_risk_threshold_vals,
+        cmap_names[: len(perc_risk_threshold_vals)],
+        strict=True,
     ):
         # Match each threshold line to its series colour in the decision plot.
         ax.axhline(
@@ -158,7 +160,7 @@ def _make_many_outbreak_example_plot(
 def _make_many_outbreak_decision_plot(
     *,
     data_path,
-    perc_risk_thresholds,
+    perc_risk_threshold_vals,
     cmap_names=("Blues", "Oranges", "Greens", "Purples"),
     marker_colors=("blue", "red", "green", "purple"),
     example_outbreak_idx=None,
@@ -179,7 +181,7 @@ def _make_many_outbreak_decision_plot(
     proportions = df["final_case_doy_binned"].value_counts(normalize=True).sort_index()
     norm = plt.Normalize(0, 0.01)
 
-    n_thresholds = len(perc_risk_thresholds)
+    n_thresholds = len(perc_risk_threshold_vals)
     # Offset each threshold's markers horizontally so overlapping error bars separate.
     offset_step = 1.75
     x_offsets = (np.arange(n_thresholds) - (n_thresholds - 1) / 2) * offset_step
@@ -188,7 +190,7 @@ def _make_many_outbreak_decision_plot(
     legend_handles = []
     for x_offset, perc_risk_threshold, cmap_name, marker_color in zip(
         x_offsets,
-        perc_risk_thresholds,
+        perc_risk_threshold_vals,
         cmap_names[:n_thresholds],
         marker_colors[:n_thresholds],
         strict=True,
@@ -196,8 +198,7 @@ def _make_many_outbreak_decision_plot(
         cmap = matplotlib.colormaps[cmap_name]
         delay_col = f"delay_to_decision_{perc_risk_threshold}"
         stats = (
-            df
-            .groupby("final_case_doy_binned", observed=False)[delay_col]
+            df.groupby("final_case_doy_binned", observed=False)[delay_col]
             .quantile(np.array([0.025, 0.5, 0.975]))
             .unstack()
         )
@@ -247,7 +248,7 @@ def _make_many_outbreak_decision_plot(
     if ylim is not None:
         ax.set_ylim(*ylim)
     month_start_xticks(ax, interval_months=xtick_interval_months)
-    if len(perc_risk_thresholds) > 1:
+    if len(perc_risk_threshold_vals) > 1:
         ax.legend(handles=legend_handles, loc="lower center")
     if save_path is not None:
         fig.savefig(save_path)
