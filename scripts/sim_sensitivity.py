@@ -15,7 +15,7 @@ def run_analyses():
         _run_many_outbreak_analysis(
             n_sims=inputs["many_outbreak_n_sims"],
             outbreak_size_threshold=inputs["many_outbreak_outbreak_size_threshold"],
-            perc_risk_threshold=inputs["many_outbreak_perc_risk_threshold"],
+            perc_risk_threshold_vals=inputs["many_outbreak_perc_risk_threshold_vals"],
             rep_no_from_doy_start=run["rep_no_from_doy_start"],
             serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
             track_premature_decisions=False,
