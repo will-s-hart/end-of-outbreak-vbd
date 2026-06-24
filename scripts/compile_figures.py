@@ -10,7 +10,7 @@ def compile_figure(
     template_path=None,
     sz=None,
     tiling=None,
-    panel_sz=(520, 450),
+    panel_sz=(500, 450),
     panel_offset=(0, -40),
     panel_positions=None,
     panel_scalings=None,
@@ -38,7 +38,7 @@ def compile_figure(
         Number of rows and columns to tile the panels in the figure. If None, the
         number of rows and columns is calculated automatically.
     panel_sz : tuple of int, optional
-        Size of the panels in pixels (width, height) (default is (520, 450))
+        Size of the panels in pixels (width, height) (default is (500, 450))
     panel_offset : tuple of int, optional
         Offset of the panels from the top-left corner of the figure in pixels (x, y)
         (default is (0, -40)).
@@ -123,6 +123,9 @@ def compile_figure(
 
 def compile_paper_figures():
     figure_dir = pathlib.Path(__file__).parents[1] / "figures"
+    # Panels with twin axes or two-line ylabels overrun the default slot and overlap
+    # their neighbours; give those figures a wider panel slot.
+    wide_panel_sz = (520, 450)
     # Figure 2
     compile_figure(
         save_path=figure_dir / "figure_2.svg",
@@ -135,6 +138,7 @@ def compile_paper_figures():
                 "many_outbreak_decision",
             ]
         ],
+        panel_sz=wide_panel_sz,
     )
     # Figure 3
     compile_figure(
@@ -156,6 +160,7 @@ def compile_paper_figures():
             figure_dir / "lazio_outbreak" / f"{x}.svg"
             for x in ["suitability", "rep_no", "additional_case_prob", "decision"]
         ],
+        panel_sz=wide_panel_sz,
     )
     # Figure S1
     compile_figure(
@@ -171,6 +176,7 @@ def compile_paper_figures():
                 "decay_speed_high",
             ]
         ],
+        panel_sz=wide_panel_sz,
     )
     # Figure S2
     compile_figure(
@@ -178,6 +184,7 @@ def compile_paper_figures():
         panel_paths=[
             figure_dir / "lazio_outbreak" / "scaling_factor.svg",
         ],
+        panel_sz=wide_panel_sz,
     )
     # Figure S3
     compile_figure(
@@ -186,6 +193,7 @@ def compile_paper_figures():
             figure_dir / "lazio_frozen" / f"{x}.svg"
             for x in ["rep_no", "additional_case_prob", "decision"]
         ],
+        panel_sz=wide_panel_sz,
     )
     # Figure S4
     compile_figure(
@@ -194,6 +202,7 @@ def compile_paper_figures():
             figure_dir / "lazio_epiestim" / f"{x}.svg"
             for x in ["rep_no", "additional_case_prob", "decision"]
         ],
+        panel_sz=wide_panel_sz,
     )
     # Figure S5
     compile_figure(
@@ -208,6 +217,7 @@ def compile_paper_figures():
                 "decision",
             ]
         ],
+        panel_sz=wide_panel_sz,
     )
     # Figure S6
     compile_figure(
@@ -222,6 +232,7 @@ def compile_paper_figures():
                 "decision",
             ]
         ],
+        panel_sz=wide_panel_sz,
     )
 
 
