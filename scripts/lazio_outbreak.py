@@ -2,7 +2,6 @@ import argparse
 
 import numpy as np
 import pandas as pd
-from arviz_stats import ess, rhat
 
 from endoutbreakvbd.inference import fit_autoregressive_model, fit_suitability_model
 from scripts.inputs import get_inputs_lazio_outbreak
@@ -23,6 +22,7 @@ def run_analyses(quasi_real_time=False, ar2=False):
         },
         save_path=inputs["results_paths"]["autoregressive"],
         save_path_diagnostics=inputs["results_paths"]["autoregressive_diagnostics"],
+        raise_on_poor_diagnostics=not quasi_real_time,
     )
     _run_analyses_for_model(
         model="suitability",
@@ -35,6 +35,7 @@ def run_analyses(quasi_real_time=False, ar2=False):
         },
         save_path=inputs["results_paths"]["suitability"],
         save_path_diagnostics=inputs["results_paths"]["suitability_diagnostics"],
+        raise_on_poor_diagnostics=not quasi_real_time,
     )
 
 
@@ -47,17 +48,22 @@ def _run_analyses_for_model(
     save_path,
     save_path_diagnostics=None,
     compute_diagnostics=True,
+    raise_on_poor_diagnostics=False,
 ):
     if model == "autoregressive":
         ds_posterior = fit_autoregressive_model(
             incidence_vec=incidence_vec,
             serial_interval_dist_vec=serial_interval_dist_vec,
+            compute_diagnostics=compute_diagnostics,
+            raise_on_poor_diagnostics=raise_on_poor_diagnostics,
             **fit_model_kwargs,
         )
     elif model == "suitability":
         ds_posterior = fit_suitability_model(
             incidence_vec=incidence_vec,
             serial_interval_dist_vec=serial_interval_dist_vec,
+            compute_diagnostics=compute_diagnostics,
+            raise_on_poor_diagnostics=raise_on_poor_diagnostics,
             **fit_model_kwargs,
         )
     else:
@@ -83,30 +89,11 @@ def _run_analyses_for_model(
     df_out.to_csv(save_path)
     if not compute_diagnostics:
         return
-    # Convergence diagnostics
-    rhat_vals = rhat(ds_posterior, var_names="rep_no")["rep_no"]
-    ess_vals = ess(ds_posterior, var_names="rep_no")["rep_no"]
-    df_diagnostics = pd.DataFrame(
-        {
-            "stat": [
-                "rhat_mean",
-                "rhat_median",
-                "rhat_max",
-                "ess_mean",
-                "ess_median",
-                "ess_min",
-            ],
-            "value": [
-                rhat_vals.mean().item(),
-                rhat_vals.median().item(),
-                rhat_vals.max().item(),
-                ess_vals.mean().item(),
-                ess_vals.median().item(),
-                ess_vals.min().item(),
-            ],
-        }
+    # Diagnostics were computed, attached, and warned/raised on by the fit function.
+    diagnostics = ds_posterior.attrs["diagnostics"]
+    pd.Series(diagnostics, name="value").rename_axis("stat").to_csv(
+        save_path_diagnostics
     )
-    df_diagnostics.to_csv(save_path_diagnostics, index=False)
 
 
 if __name__ == "__main__":

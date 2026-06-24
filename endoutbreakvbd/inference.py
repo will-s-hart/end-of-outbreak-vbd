@@ -1,3 +1,4 @@
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
@@ -6,6 +7,7 @@ import arviz_base as azb
 import numpy as np
 import pymc as pm
 import xarray as xr
+from arviz_stats import ess, rhat
 from tqdm import tqdm
 
 from endoutbreakvbd._types import (
@@ -39,6 +41,49 @@ class Defaults:
 DEFAULTS = Defaults()
 
 
+def _compute_check_diagnostics(
+    posterior: xr.Dataset,
+    sample_stats: xr.Dataset | None,
+    *,
+    raise_on_problems: bool = False,
+    var_name: str = "rep_no",
+    ess_min_threshold: float = 1000,
+    rhat_max_threshold: float = 1.01,
+) -> dict[str, float]:
+    # Summarise convergence diagnostics for `var_name` and warn (or raise) on poor
+    # sampling. Divergences are N/A (NaN) when sample_stats is None, as for the
+    # quasi-real-time aggregate of many separate fits.
+    rhat_vals = rhat(posterior, var_names=var_name)[var_name]
+    ess_vals = ess(posterior, var_names=var_name)[var_name]
+    n_diverging = (
+        np.nan if sample_stats is None else float(sample_stats["diverging"].sum())
+    )
+    diagnostics = {
+        "rhat_mean": rhat_vals.mean().item(),
+        "rhat_median": rhat_vals.median().item(),
+        "rhat_max": rhat_vals.max().item(),
+        "ess_mean": ess_vals.mean().item(),
+        "ess_median": ess_vals.median().item(),
+        "ess_min": ess_vals.min().item(),
+        "n_diverging": n_diverging,
+    }
+    problems = []
+    if diagnostics["ess_min"] < ess_min_threshold:
+        problems.append(f"min ESS {diagnostics['ess_min']:.1f} < {ess_min_threshold}")
+    if diagnostics["rhat_max"] > rhat_max_threshold:
+        problems.append(
+            f"max R-hat {diagnostics['rhat_max']:.4f} > {rhat_max_threshold}"
+        )
+    if not np.isnan(n_diverging) and n_diverging > 0:
+        problems.append(f"{int(n_diverging)} divergence(s)")
+    if problems:
+        message = "Poor sampling diagnostics: " + "; ".join(problems)
+        if raise_on_problems:
+            raise RuntimeError(message)
+        warnings.warn(message, stacklevel=2)
+    return diagnostics
+
+
 def _fit_model(
     *,
     incidence_vec: IncidenceSeriesInput,
@@ -50,11 +95,20 @@ def _fit_model(
     thin: int = 1,
     rng: np.random.Generator | int | None = None,
     freeze_from_final_case: bool = False,
+    compute_diagnostics: bool = False,
+    raise_on_poor_diagnostics: bool = False,
     **kwargs_sample: Any,
 ) -> xr.Dataset:
     # Core model fit: build the PyMC model, sample, and derive R_t summaries and
     # additional-case probabilities.
-    kwargs_sample = {"nuts_sampler": "nutpie", **kwargs_sample}
+    kwargs_sample = {
+        "nuts_sampler": "nutpie",
+        "nuts_sampler_kwargs": {"adaptation": "low_rank"},
+        "draws": 1000,
+        "tune": 1000,
+        "chains": 4,
+        **kwargs_sample,
+    }
     if rng is not None:
         kwargs_sample = {**kwargs_sample, "random_seed": rng}
     t_data_to = len(incidence_vec)
@@ -98,6 +152,10 @@ def _fit_model(
                 ].isel(time=([0, 1] if t == 1 else [t]))
             )
         posterior = xr.concat(posterior_list, dim="time")
+        if compute_diagnostics:
+            posterior.attrs["diagnostics"] = _compute_check_diagnostics(
+                posterior, None, raise_on_problems=raise_on_poor_diagnostics
+            )
         return posterior
 
     serial_interval_dist_vec_ext = np.concatenate(
@@ -136,6 +194,7 @@ def _fit_model(
             kwargs_sample["step"] = step_func()
 
         trace = pm.sample(**kwargs_sample)
+    sample_stats = trace.sample_stats if compute_diagnostics else None
     if thin > 1:
         trace = trace.isel(draw=slice(0, None, thin))
         trace = trace.assign_coords(draw=np.arange(len(trace.posterior.draw)))
@@ -172,6 +231,10 @@ def _fit_model(
         t_calc=t_vec,
     )
     ds_posterior = ds_posterior.assign(additional_case_prob=(("time",), prob_vec))
+    if compute_diagnostics:
+        ds_posterior.attrs["diagnostics"] = _compute_check_diagnostics(
+            ds_posterior, sample_stats, raise_on_problems=raise_on_poor_diagnostics
+        )
     return ds_posterior
 
 
@@ -184,6 +247,8 @@ def fit_autoregressive_model(
     rho: float | list[float] | None = None,
     quasi_real_time: bool = False,
     freeze_from_final_case: bool = False,
+    compute_diagnostics: bool = True,
+    raise_on_poor_diagnostics: bool = False,
     **kwargs: Any,
 ) -> xr.Dataset:
     """
@@ -210,6 +275,11 @@ def fit_autoregressive_model(
     freeze_from_final_case : bool
         If True, hold the reproduction number fixed at its final-case-day posterior
         samples after the final observed case.
+    compute_diagnostics : bool
+        If True, compute convergence diagnostics, attach them to the returned
+        dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
+    raise_on_poor_diagnostics : bool
+        If True, raise (instead of warning) when sampling diagnostics are poor.
     **kwargs : Any
         Additional keyword arguments forwarded to the sampler.
 
@@ -250,6 +320,8 @@ def fit_autoregressive_model(
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
         freeze_from_final_case=freeze_from_final_case,
+        compute_diagnostics=compute_diagnostics,
+        raise_on_poor_diagnostics=raise_on_poor_diagnostics,
         **kwargs,
     )
 
@@ -265,6 +337,8 @@ def fit_suitability_model(
     rep_no_factor_prior_percentile_2_5: float | None = None,
     log_rep_no_factor_rho: float | None = None,
     quasi_real_time: bool = False,
+    compute_diagnostics: bool = True,
+    raise_on_poor_diagnostics: bool = False,
     **kwargs: Any,
 ) -> xr.Dataset:
     """
@@ -296,6 +370,11 @@ def fit_suitability_model(
         ``DEFAULTS.log_rep_no_factor_rho``.
     quasi_real_time : bool
         If True, refit using only the data available up to each successive time point.
+    compute_diagnostics : bool
+        If True, compute convergence diagnostics, attach them to the returned
+        dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
+    raise_on_poor_diagnostics : bool
+        If True, raise (instead of warning) when sampling diagnostics are poor.
     **kwargs : Any
         Additional keyword arguments forwarded to the sampler.
 
@@ -368,6 +447,8 @@ def fit_suitability_model(
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
+        compute_diagnostics=compute_diagnostics,
+        raise_on_poor_diagnostics=raise_on_poor_diagnostics,
         **kwargs,
     )
     # Extract further summary stats

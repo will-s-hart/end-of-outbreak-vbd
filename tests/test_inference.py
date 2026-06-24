@@ -1,5 +1,6 @@
 # Note that AI tools were used to generate tests
 
+import warnings
 from dataclasses import FrozenInstanceError
 from typing import Any
 
@@ -531,3 +532,92 @@ def test_fit_suitability_model_rep_no_func_uses_softclip(monkeypatch):
     assert lower == 1e-8
     assert upper == 1.0
     assert captured["rep_no_vec"].shape == (4,)
+
+
+def _diag_posterior():
+    # Stand-in posterior; rhat/ess are monkeypatched so its contents are irrelevant.
+    return xr.Dataset(
+        {"rep_no": (("chain", "draw", "time"), np.ones((2, 4, 2)))},
+        coords={"chain": [0, 1], "draw": np.arange(4), "time": np.arange(2)},
+    )
+
+
+def _sample_stats(diverging):
+    return xr.Dataset(
+        {"diverging": (("chain", "draw"), np.asarray(diverging, dtype=bool))}
+    )
+
+
+def _patch_stats(monkeypatch, *, rhat_values, ess_values):
+    monkeypatch.setattr(
+        inf,
+        "rhat",
+        lambda posterior, var_names: xr.Dataset(
+            {var_names: ("time", np.asarray(rhat_values, dtype=float))}
+        ),
+    )
+    monkeypatch.setattr(
+        inf,
+        "ess",
+        lambda posterior, var_names: xr.Dataset(
+            {var_names: ("time", np.asarray(ess_values, dtype=float))}
+        ),
+    )
+
+
+def test_compute_check_diagnostics_good_returns_dict_no_warning(monkeypatch):
+    _patch_stats(monkeypatch, rhat_values=[1.001, 1.002], ess_values=[2000.0, 3000.0])
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        diagnostics = inf._compute_check_diagnostics(
+            _diag_posterior(), _sample_stats([[False, False], [False, False]])
+        )
+    assert not [w for w in caught if "Poor sampling" in str(w.message)]
+    assert set(diagnostics) == {
+        "rhat_mean",
+        "rhat_median",
+        "rhat_max",
+        "ess_mean",
+        "ess_median",
+        "ess_min",
+        "n_diverging",
+    }
+    assert diagnostics["ess_min"] == 2000.0
+    assert diagnostics["rhat_max"] == 1.002
+    assert diagnostics["n_diverging"] == 0.0
+
+
+def test_compute_check_diagnostics_warns_when_not_raising(monkeypatch):
+    _patch_stats(monkeypatch, rhat_values=[1.0, 1.0], ess_values=[500.0, 600.0])
+    with pytest.warns(UserWarning, match="min ESS 500.0 < 1000"):
+        diagnostics = inf._compute_check_diagnostics(
+            _diag_posterior(), _sample_stats([[False, False], [False, False]])
+        )
+    assert diagnostics["ess_min"] == 500.0
+
+
+def test_compute_check_diagnostics_raises_when_requested(monkeypatch):
+    _patch_stats(monkeypatch, rhat_values=[1.02, 1.005], ess_values=[500.0, 2000.0])
+    with pytest.raises(RuntimeError, match="min ESS .* max R-hat"):
+        inf._compute_check_diagnostics(
+            _diag_posterior(),
+            _sample_stats([[True, False], [False, False]]),
+            raise_on_problems=True,
+        )
+
+
+def test_compute_check_diagnostics_reports_divergences(monkeypatch):
+    _patch_stats(monkeypatch, rhat_values=[1.0, 1.0], ess_values=[2000.0, 3000.0])
+    with pytest.warns(UserWarning, match="1 divergence"):
+        inf._compute_check_diagnostics(
+            _diag_posterior(), _sample_stats([[True, False], [False, False]])
+        )
+
+
+def test_compute_check_diagnostics_divergences_na_when_no_sample_stats(monkeypatch):
+    _patch_stats(monkeypatch, rhat_values=[1.0, 1.0], ess_values=[2000.0, 3000.0])
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        diagnostics = inf._compute_check_diagnostics(_diag_posterior(), None)
+    assert not [w for w in caught if "Poor sampling" in str(w.message)]
+    assert np.isnan(diagnostics["n_diverging"])
