@@ -103,7 +103,7 @@ def _fit_model(
     # additional-case probabilities.
     kwargs_sample = {
         "nuts_sampler": "nutpie",
-        "nuts_sampler_kwargs": {"adaptation": "low_rank"},
+        "nuts": {"adaptation": "low_rank"},
         "draws": 1000,
         "tune": 1000,
         "chains": 4,
