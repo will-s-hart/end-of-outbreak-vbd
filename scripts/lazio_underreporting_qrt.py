@@ -12,6 +12,7 @@ This is the multi-hour cluster analysis; use ``--stride`` for a quick local wiri
 """
 
 import argparse
+import os
 
 import numpy as np
 import pandas as pd
@@ -21,8 +22,15 @@ from endoutbreakvbd.rep_no_models import build_ar_rep_no, build_suitability_rep_
 from scripts.inputs import get_inputs_lazio_underreporting_qrt
 from scripts.lazio_underreporting_qrt_plots import make_plots
 
+# Bound the joblib (n_jobs=-1) worker pool to the SLURM allocation on the cluster; loky
+# otherwise sees every physical core on the node. Locally (no SLURM) it falls back to cpu_count.
+if os.environ.get("SLURM_CPUS_PER_TASK"):
+    os.environ.setdefault("LOKY_MAX_CPU_COUNT", os.environ["SLURM_CPUS_PER_TASK"])
 
-def run_analyses(start_date="2017-11-01", end_date="2017-12-20", stride=1):
+
+def run_analyses(
+    start_date="2017-11-01", end_date="2017-12-20", stride=1, parallel=True
+):
     inputs = get_inputs_lazio_underreporting_qrt(
         start_date=start_date, end_date=end_date, stride=stride
     )
@@ -61,6 +69,7 @@ def run_analyses(start_date="2017-11-01", end_date="2017-12-20", stride=1):
             reporting_prob=reporting_prob,
             delay_cdf=delay_cdf,
             rng=rng,
+            parallel=parallel,
             compute_diagnostics=True,
             raise_on_poor_diagnostics=False,
         )
@@ -148,8 +157,18 @@ if __name__ == "__main__":
         default=1,
         help="Subsample the daily snapshot grid (use a large value for a quick check)",
     )
+    parser.add_argument(
+        "--serial",
+        action="store_true",
+        help="Fit snapshots sequentially instead of in parallel (debugging / verification)",
+    )
     args = parser.parse_args()
-    run_analyses(start_date=args.start_date, end_date=args.end_date, stride=args.stride)
+    run_analyses(
+        start_date=args.start_date,
+        end_date=args.end_date,
+        stride=args.stride,
+        parallel=not args.serial,
+    )
     if not args.results_only:
         make_plots(
             start_date=args.start_date, end_date=args.end_date, stride=args.stride

@@ -237,6 +237,7 @@ def test_fit_model_quasi_real_time_concatenates_one_time_slice_per_day(monkeypat
         serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=True,
+        parallel=False,
         draws=6,
         chains=1,
         tune=0,
@@ -270,12 +271,14 @@ def test_fit_model_quasi_real_time_excludes_current_day_incidence(monkeypatch):
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=True,
+        parallel=False,
     )
     out_changed = inf._fit_model(
         incidence_vec=incidence_changed,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=True,
+        parallel=False,
     )
 
     # A change at day t should not affect QRT inference at day t or earlier.
@@ -317,6 +320,7 @@ def test_fit_model_qrt_sequence_mode_forwards_per_snapshot(monkeypatch):
         t_calc=np.array([1, 3]),
         reporting_prob=0.6,
         delay_cdf=delay_cdf,
+        parallel=False,
     )
 
     assert [int(c["t_calc"]) for c in calls] == [1, 3]
@@ -337,6 +341,76 @@ def test_fit_model_qrt_sequence_mode_requires_t_calc():
             serial_interval_dist_vec=np.array([1.0]),
             rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         )
+
+
+def test_fit_model_qrt_spawns_distinct_child_rng_per_step(monkeypatch):
+    # Each snapshot fit must receive its own spawned child RNG (not the single shared generator),
+    # so results depend on spawn order rather than execution order and serial == parallel. The
+    # per-snapshot slices are also reassembled in calc-time order.
+    seen_rngs = []
+
+    def fake_fit_model(**kwargs):
+        seen_rngs.append(kwargs["rng"])
+        t = int(kwargs["t_calc"])
+        return xr.Dataset({"rep_no_mean": ("time", [float(t)])}, coords={"time": [t]})
+
+    monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
+    monkeypatch.setattr(inf, "tqdm", lambda iterable, **kwargs: iterable)
+
+    parent_rng = np.random.default_rng(0)
+    out = inf._fit_model_qrt(
+        incidence_vec=[np.array([1, 1]), np.array([1, 1, 0]), np.array([1, 1, 0, 0])],
+        serial_interval_dist_vec=np.array([1.0]),
+        rep_no_vec_func=lambda t_stop: np.ones(t_stop),
+        t_calc=np.array([1, 2, 3]),
+        reporting_prob=0.6,
+        rng=parent_rng,
+        parallel=False,
+    )
+
+    assert len(seen_rngs) == 3
+    assert all(isinstance(r, np.random.Generator) for r in seen_rngs)
+    assert len({id(r) for r in seen_rngs}) == 3
+    assert all(r is not parent_rng for r in seen_rngs)
+    np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.array([1, 2, 3]))
+
+
+def test_fit_model_qrt_serial_matches_parallel():
+    # A small real under-reporting nowcast fit must give identical results whether the snapshots
+    # are fitted serially or across joblib worker processes: the spawned child RNGs make the
+    # output independent of execution order, and cores=1 keeps each fit single-process.
+    serial_interval_dist_vec = np.array([0.4, 0.4, 0.2])
+    rep_no_vec_func = rnm.build_known_rep_no(
+        rep_no_func=lambda t: np.full(np.shape(t), 0.7, dtype=float)
+    )
+    series = [np.array([1, 2, 1, 0, 0]), np.array([1, 2, 1, 1, 0, 0, 0])]
+    t_calc = np.array([4, 6])
+
+    def fit(parallel):
+        return inf._fit_model_qrt(
+            incidence_vec=series,
+            serial_interval_dist_vec=serial_interval_dist_vec,
+            rep_no_vec_func=rep_no_vec_func,
+            t_calc=t_calc,
+            reporting_prob=0.8,
+            rng=np.random.default_rng(3),
+            parallel=parallel,
+            draws=50,
+            tune=50,
+            chains=2,
+            cores=1,
+        )
+
+    ds_serial = fit(parallel=False)
+    ds_parallel = fit(parallel=True)
+
+    np.testing.assert_allclose(
+        ds_serial["additional_case_prob"].to_numpy(),
+        ds_parallel["additional_case_prob"].to_numpy(),
+    )
+    np.testing.assert_allclose(
+        ds_serial["rep_no_mean"].to_numpy(), ds_parallel["rep_no_mean"].to_numpy()
+    )
 
 
 def test_fit_model_single_series_qrt_rejects_explicit_t_calc():
