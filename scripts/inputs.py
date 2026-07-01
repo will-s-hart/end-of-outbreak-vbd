@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 from endoutbreakvbd.inference import DEFAULTS
 from endoutbreakvbd.utils import (
     discretise_cori,
+    fit_discretised_gamma,
     rep_no_from_grid,
     rescale_rep_no_grid_in_time,
 )
@@ -507,6 +508,154 @@ def get_inputs_lazio_epiestim() -> dict[str, Any]:
     return inputs
 
 
+def get_inputs_lazio_underreporting_qrt(
+    start_date: str = "2017-11-01",
+    end_date: str = "2017-12-20",
+    stride: int = 1,
+) -> dict[str, Any]:
+    serial_interval_dist_vec = _get_serial_interval_dist()
+    serial_interval_max = len(serial_interval_dist_vec)
+
+    df_reporting_matrix = _get_lazio_reporting_matrix()
+    outbreak_start_date = df_reporting_matrix.index[0]
+    doy_start = int(outbreak_start_date.dayofyear)
+    first_report_date = pd.Timestamp(df_reporting_matrix.columns[0])
+    last_report_date = pd.Timestamp(df_reporting_matrix.columns[-1])
+    delay = _fit_reporting_delay(df_reporting_matrix)
+
+    # Hardcoded calculation-time grid (outbreak-day snapshots). The earliest snapshot must
+    # have reporting data available; the latest must stay within the observed report span.
+    start_ts = pd.Timestamp(start_date)
+    end_ts = pd.Timestamp(end_date)
+    if start_ts < first_report_date:
+        raise ValueError(
+            f"start_date {start_date} precedes the first report date "
+            f"{first_report_date.date()}; no reporting data is available that early"
+        )
+    if end_ts > last_report_date:
+        raise ValueError(
+            f"end_date {end_date} is beyond the last report date "
+            f"{last_report_date.date()}"
+        )
+    snapshot_dates = pd.date_range(start_ts, end_ts, freq=f"{stride}D")
+    calc_times = np.array(
+        [(date - outbreak_start_date).days for date in snapshot_dates], dtype=int
+    )
+
+    # Right-truncated cases-by-onset known at each snapshot: the daily forward-filled matrix
+    # column at the snapshot date, over onset days 0..D (onsets after the snapshot are zero).
+    onset_axis = pd.date_range(outbreak_start_date, snapshot_dates[-1], freq="D")
+    df_available = df_reporting_matrix.reindex(index=onset_axis).fillna(0.0)
+    incidence_vecs = [
+        df_available.loc[onset_axis[: time_calc + 1], snapshot_date]
+        .to_numpy()
+        .round()
+        .astype(int)
+        for time_calc, snapshot_date in zip(calc_times, snapshot_dates, strict=True)
+    ]
+    latest_incidence_vec = incidence_vecs[-1]
+    latest_snapshot_date = snapshot_dates[-1]
+
+    # Suitability prior mean over onset days, extended by the serial interval so the offshoot
+    # can project R_t past the data (carrying the seasonal decline).
+    n_suitability = int(calc_times.max()) + 1 + serial_interval_max
+    doy_vec = (np.arange(doy_start, doy_start + n_suitability) - 1) % 365 + 1
+    suitability_by_doy = _get_2017_suitability_data().set_index("doy")[
+        "suitability_smoothed_lagged"
+    ]
+    suitability_mean_vec = suitability_by_doy.loc[doy_vec].to_numpy()
+
+    inputs_lazio = get_inputs_lazio_outbreak(quasi_real_time=False)
+    existing_decisions = inputs_lazio["existing_decisions"]
+    time_final_case = int(inputs_lazio["time_final_case"])
+
+    reporting_prob = 0.6
+    reporting_probs = (0.6, 0.8, 1.0)
+
+    results_dir = pathlib.Path(__file__).parents[1] / "results/lazio_underreporting_qrt"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    results_paths = {
+        "suitability_p60": results_dir / "suitability_p60.csv",
+        "suitability_p80": results_dir / "suitability_p80.csv",
+        "suitability_p100": results_dir / "suitability_p100.csv",
+        "autoregressive_p60": results_dir / "autoregressive_p60.csv",
+        "suitability_p60_diagnostics": results_dir / "suitability_p60_diagnostics.csv",
+        "suitability_p80_diagnostics": results_dir / "suitability_p80_diagnostics.csv",
+        "suitability_p100_diagnostics": results_dir
+        / "suitability_p100_diagnostics.csv",
+        "autoregressive_p60_diagnostics": results_dir
+        / "autoregressive_p60_diagnostics.csv",
+        "trajectory": results_dir / "trajectory.csv",
+        "delay": results_dir / "delay.csv",
+    }
+
+    fig_dir = pathlib.Path(__file__).parents[1] / "figures/lazio_underreporting_qrt"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    fig_paths = {
+        "cases": fig_dir / "cases.svg",
+        "additional_case_prob": fig_dir / "additional_case_prob.svg",
+        "decision": fig_dir / "decision.svg",
+        "reporting_sensitivity": fig_dir / "reporting_sensitivity.svg",
+        "suitability": fig_dir / "suitability.svg",
+        "scaling_factor": fig_dir / "scaling_factor.svg",
+        "rep_no": fig_dir / "rep_no.svg",
+        "delay": fig_dir / "delay.svg",
+    }
+
+    return {
+        "serial_interval_dist_vec": serial_interval_dist_vec,
+        "outbreak_start_date": outbreak_start_date,
+        "doy_start": doy_start,
+        "snapshot_dates": snapshot_dates,
+        "latest_snapshot_date": latest_snapshot_date,
+        "calc_times": calc_times,
+        "incidence_vecs": incidence_vecs,
+        "latest_incidence_vec": latest_incidence_vec,
+        "suitability_mean_vec": suitability_mean_vec,
+        "delay": delay,
+        "reporting_prob": reporting_prob,
+        "reporting_probs": reporting_probs,
+        "existing_decisions": existing_decisions,
+        "time_final_case": time_final_case,
+        "results_paths": results_paths,
+        "fig_paths": fig_paths,
+    }
+
+
+def get_inputs_sim_underreporting() -> dict[str, Any]:
+    serial_interval_dist_vec = _get_serial_interval_dist()
+
+    results_dir = pathlib.Path(__file__).parents[1] / "results/sim_underreporting"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    results_paths = {
+        "sim": results_dir / "sim.csv",
+        "diagnostics": results_dir / "diagnostics.csv",
+    }
+
+    fig_dir = pathlib.Path(__file__).parents[1] / "figures/sim_underreporting"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    fig_paths = {
+        "cases": fig_dir / "cases.svg",
+        "rep_no": fig_dir / "rep_no.svg",
+        "additional_case_prob": fig_dir / "additional_case_prob.svg",
+        "decision": fig_dir / "decision.svg",
+    }
+
+    return {
+        "serial_interval_dist_vec": serial_interval_dist_vec,
+        "seed": 100,
+        # A moderate reporting probability so that, in this realisation, several true cases
+        # occur after the final reported case (the naive analysis then ends the outbreak too
+        # early — the failure the under-reporting model is meant to avoid).
+        "reporting_prob": 0.4,
+        "min_outbreak_size": 30,
+        "incidence_init": 1,
+        "perc_risk_threshold_vals": (1, 2.5, 5),
+        "results_paths": results_paths,
+        "fig_paths": fig_paths,
+    }
+
+
 def _get_lazio_outbreak_data() -> pd.DataFrame:
     df = pd.read_csv(
         pathlib.Path(__file__).parents[1] / "data/lazio_chik_2017.csv",
@@ -515,6 +664,40 @@ def _get_lazio_outbreak_data() -> pd.DataFrame:
     )
     df["doy"] = pd.DatetimeIndex(df.index).day_of_year
     return df
+
+
+def _get_lazio_reporting_matrix() -> pd.DataFrame:
+    # Reporting triangle: cumulative cases of each onset date known as of each (irregular)
+    # report date. Forward-fill to a daily report grid; NA = onset after the snapshot, i.e.
+    # zero cases known. Rows = onset dates, columns = daily report dates.
+    df = pd.read_csv(
+        pathlib.Path(__file__).parents[1] / "data/lazio_chik_2017_reporting_matrix.csv",
+        index_col="onset_date",
+        parse_dates=True,
+    )
+    df.columns = pd.to_datetime(df.columns)
+    daily_report_dates = pd.date_range(df.columns[0], df.columns[-1], freq="D")
+    return df.reindex(columns=daily_report_dates).ffill(axis=1).fillna(0.0)
+
+
+def _fit_reporting_delay(df_reporting_matrix: pd.DataFrame) -> dict[str, Any]:
+    # Estimate the onset-to-report delay distribution directly from the daily reporting
+    # matrix. Only onset rows on/after the first report date have a fully observed accrual
+    # (left-censored otherwise), so the delay sample is the per-day increments for those
+    # rows. The discretised-gamma MLE itself lives in endoutbreakvbd.utils.
+    onset_dates = df_reporting_matrix.index
+    report_dates = df_reporting_matrix.columns
+    first_report_date = report_dates[0]
+    mat = df_reporting_matrix.to_numpy()
+    delays = []
+    for i, onset_date in enumerate(onset_dates):
+        if onset_date < first_report_date:
+            continue
+        for j, n_new in enumerate(np.diff(mat[i])):
+            if n_new > 0:
+                delay = (report_dates[j + 1] - onset_date).days
+                delays.extend([int(delay)] * int(round(n_new)))
+    return fit_discretised_gamma(np.asarray(delays, dtype=int))
 
 
 def _get_2017_suitability_data() -> pd.DataFrame:

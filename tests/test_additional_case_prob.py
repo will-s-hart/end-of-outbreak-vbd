@@ -1,5 +1,7 @@
 # Note that AI tools were used to generate tests
 
+from typing import Any, cast
+
 import numpy as np
 import pytest
 
@@ -66,6 +68,147 @@ def test_calc_additional_case_prob_analytical_handles_posterior_matrix_rep_no():
     )
     expected = 1 - np.mean(np.exp(-np.array([0.2, 0.6])))
     assert prob == pytest.approx(expected)
+
+
+def test_calc_additional_case_prob_analytical_matrix_incidence_equals_per_sample_mean():
+    # A (time, sample) incidence matrix with a scalar rep_no must equal the mean over the
+    # per-sample 1-D probabilities.
+    rng = np.random.default_rng(0)
+    incidence_mat = rng.integers(0, 3, size=(5, 4))
+    incidence_mat[0] = 1  # keep an index case in every sample
+    serial_interval_dist_vec = [0.5, 0.3, 0.2]
+
+    def rep_no_func(t):
+        return 0.5
+
+    for t_calc in (1, 2, 3):
+        prob_mat = acp.calc_additional_case_prob_analytical(
+            incidence_vec=incidence_mat,
+            rep_no_func=rep_no_func,
+            serial_interval_dist_vec=serial_interval_dist_vec,
+            t_calc=t_calc,
+        )
+        per_sample = [
+            acp.calc_additional_case_prob_analytical(
+                incidence_vec=incidence_mat[:, s],
+                rep_no_func=rep_no_func,
+                serial_interval_dist_vec=serial_interval_dist_vec,
+                t_calc=t_calc,
+            )
+            for s in range(incidence_mat.shape[1])
+        ]
+        assert prob_mat == pytest.approx(float(np.mean(per_sample)))
+
+
+def test_calc_additional_case_prob_analytical_matrix_incidence_and_rep_align():
+    # When both incidence and rep_no carry a sample dimension, draw s of the cases must be
+    # paired with draw s of the reproduction number (aligned, not an outer product).
+    rng = np.random.default_rng(1)
+    incidence_mat = rng.integers(0, 3, size=(5, 4))
+    incidence_mat[0] = 1
+    rep_no_mat = rng.uniform(0.1, 0.9, size=(20, 4))
+    serial_interval_dist_vec = [0.5, 0.3, 0.2]
+
+    def rep_no_func_mat(t):
+        return rep_no_mat[np.asarray(t)]
+
+    for t_calc in (1, 2, 3):
+        prob_mat = acp.calc_additional_case_prob_analytical(
+            incidence_vec=incidence_mat,
+            rep_no_func=rep_no_func_mat,
+            serial_interval_dist_vec=serial_interval_dist_vec,
+            t_calc=t_calc,
+        )
+        per_sample = [
+            acp.calc_additional_case_prob_analytical(
+                incidence_vec=incidence_mat[:, s],
+                rep_no_func=lambda t, s=s: rep_no_mat[np.asarray(t), s],
+                serial_interval_dist_vec=serial_interval_dist_vec,
+                t_calc=t_calc,
+            )
+            for s in range(incidence_mat.shape[1])
+        ]
+        assert prob_mat == pytest.approx(float(np.mean(per_sample)))
+
+
+def test_calc_additional_case_prob_analytical_singleton_sample_matches_1d():
+    # A (time, 1) incidence column must give the same probability as the 1-D series.
+    incidence_1d = np.array([1, 2, 0, 1, 0])
+    serial_interval_dist_vec = [0.5, 0.3, 0.2]
+    prob_1d = acp.calc_additional_case_prob_analytical(
+        incidence_vec=incidence_1d,
+        rep_no_func=lambda t: 0.4,
+        serial_interval_dist_vec=serial_interval_dist_vec,
+        t_calc=2,
+    )
+    prob_col = acp.calc_additional_case_prob_analytical(
+        incidence_vec=incidence_1d.reshape(-1, 1),
+        rep_no_func=lambda t: 0.4,
+        serial_interval_dist_vec=serial_interval_dist_vec,
+        t_calc=2,
+    )
+    assert prob_col == pytest.approx(prob_1d)
+
+
+def test_calc_additional_case_prob_analytical_broadcast_keeps_samples():
+    # additional_dims="broadcast" returns per-sample probabilities; averaging them must
+    # reproduce the default "average" result.
+    rng = np.random.default_rng(2)
+    incidence_mat = rng.integers(0, 3, size=(5, 4))
+    incidence_mat[0] = 1
+    rep_no_mat = rng.uniform(0.1, 0.9, size=(20, 4))
+    serial_interval_dist_vec = [0.5, 0.3, 0.2]
+
+    def rep_no_func(t):
+        return rep_no_mat[np.asarray(t)]
+
+    t_calc = np.array([1, 2, 3], dtype=int)
+    per_sample = acp.calc_additional_case_prob_analytical(
+        incidence_vec=incidence_mat,
+        rep_no_func=rep_no_func,
+        serial_interval_dist_vec=serial_interval_dist_vec,
+        t_calc=t_calc,
+        additional_dims="broadcast",
+    )
+    averaged = acp.calc_additional_case_prob_analytical(
+        incidence_vec=incidence_mat,
+        rep_no_func=rep_no_func,
+        serial_interval_dist_vec=serial_interval_dist_vec,
+        t_calc=t_calc,
+    )
+    assert per_sample.shape == (3, 4)
+    np.testing.assert_allclose(per_sample.mean(axis=1), averaged)
+
+
+def test_calc_additional_case_prob_analytical_broadcast_broadcasts_early_returns():
+    # An early-return t_calc (t_calc=0 -> prob 1) is broadcast to the sample shape so it
+    # stacks with the per-sample results.
+    incidence_mat = np.ones((4, 3), dtype=int)
+
+    def rep_no_func(t):
+        t_arr = np.atleast_1d(t)
+        return np.full((t_arr.size, 3), 0.5)
+
+    per_sample = acp.calc_additional_case_prob_analytical(
+        incidence_vec=incidence_mat,
+        rep_no_func=rep_no_func,
+        serial_interval_dist_vec=[1.0],
+        t_calc=np.array([0, 1], dtype=int),
+        additional_dims="broadcast",
+    )
+    assert per_sample.shape == (2, 3)
+    np.testing.assert_allclose(per_sample[0], 1.0)
+
+
+def test_calc_additional_case_prob_analytical_invalid_additional_dims():
+    with pytest.raises(ValueError, match="additional_dims"):
+        acp.calc_additional_case_prob_analytical(
+            incidence_vec=[1],
+            rep_no_func=lambda t: 0.5,
+            serial_interval_dist_vec=[1.0],
+            t_calc=1,
+            additional_dims=cast(Any, "nope"),
+        )
 
 
 def test_calc_additional_case_prob_analytical_all_zero_incidence_returns_zero():

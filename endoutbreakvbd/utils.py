@@ -1,10 +1,11 @@
 import functools
-from typing import overload
+from typing import Any, overload
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.integrate
+import scipy.optimize
 import scipy.stats
 import seaborn as sns
 from matplotlib.axes import Axes
@@ -182,6 +183,67 @@ def discretise_cori(
     return p_vec
 
 
+def fit_discretised_gamma(
+    samples: IntArray | list[int], *, x0: tuple[float, float] = (1.5, 8.0)
+) -> dict[str, Any]:
+    """
+    Fit a discretised gamma distribution to non-negative integer samples by maximum
+    likelihood.
+
+    Each integer value ``k`` is assigned the continuous-gamma mass on ``(k - 0.5, k +
+    0.5]`` (the first bin starting at ``-0.5``), renormalised over ``0..max(samples)`` so
+    the returned probability mass sums to one. The shape and scale are found by directly
+    maximising the discrete likelihood (Nelder-Mead).
+
+    Parameters
+    ----------
+    samples : IntArray or list[int]
+        Non-negative integer samples (e.g. onset-to-report delays in days).
+    x0 : tuple[float, float]
+        Initial ``(shape, scale)`` for the optimiser.
+
+    Returns
+    -------
+    dict[str, Any]
+        ``support`` (integers ``0..max``), the fitted ``pmf_fitted`` and ``cdf``, the
+        ``pmf_empirical`` of the samples, the maximum-likelihood ``shape`` and ``scale``,
+        the sample count ``n``, and the sample ``mean``.
+    """
+    samples = np.asarray(samples, dtype=int)
+    if samples.ndim != 1 or samples.size == 0:
+        raise ValueError("samples must be a non-empty 1-D array")
+    if np.any(samples < 0):
+        raise ValueError("samples must be non-negative")
+    max_val = int(samples.max())
+    bin_edges = np.arange(-0.5, max_val + 1.5)
+
+    def _pmf(shape: float, scale: float) -> NDArray[np.float64]:
+        pmf = np.diff(scipy.stats.gamma(a=shape, scale=scale).cdf(bin_edges))
+        return pmf / pmf.sum()
+
+    def _neg_log_likelihood(params: NDArray[np.float64]) -> float:
+        shape, scale = params
+        if shape <= 0 or scale <= 0:
+            return np.inf
+        return -float(np.sum(np.log(_pmf(shape, scale)[samples] + 1e-300)))
+
+    result = scipy.optimize.minimize(
+        _neg_log_likelihood, x0=np.asarray(x0, dtype=float), method="Nelder-Mead"
+    )
+    shape, scale = result.x
+    pmf_fitted = _pmf(shape, scale)
+    return {
+        "support": np.arange(max_val + 1),
+        "pmf_fitted": pmf_fitted,
+        "cdf": np.cumsum(pmf_fitted),
+        "pmf_empirical": np.bincount(samples, minlength=max_val + 1) / samples.size,
+        "shape": float(shape),
+        "scale": float(scale),
+        "n": int(samples.size),
+        "mean": float(samples.mean()),
+    }
+
+
 def lognormal_params_from_median_percentile_2_5(
     *, median: float, percentile_2_5: float
 ) -> dict[str, float]:
@@ -268,7 +330,13 @@ def month_start_xticks(ax: Axes, year: int = 2017, interval_months: int = 1) -> 
     ax.set_xticklabels(labels, rotation=0)
 
 
-def plot_data_on_twin_ax(ax: Axes, t_vec: ArrayLike, incidence_vec: ArrayLike) -> Axes:
+def plot_data_on_twin_ax(
+    ax: Axes,
+    t_vec: ArrayLike,
+    incidence_vec: ArrayLike,
+    incidence_vec_extra: ArrayLike | None = None,
+    color_extra: str = "lightgray",
+) -> Axes:
     """
     Plot an incidence time series as a bar chart on a twin y-axis.
 
@@ -283,6 +351,12 @@ def plot_data_on_twin_ax(ax: Axes, t_vec: ArrayLike, incidence_vec: ArrayLike) -
         Times (days) for the incidence bars.
     incidence_vec : ArrayLike
         Number of cases at each time.
+    incidence_vec_extra : ArrayLike, optional
+        A second series stacked on top of ``incidence_vec`` in a lighter colour (e.g.
+        unreported cases on top of reported ones). If None, only ``incidence_vec`` is
+        drawn.
+    color_extra : str
+        Colour of the stacked ``incidence_vec_extra`` bars.
 
     Returns
     -------
@@ -291,7 +365,17 @@ def plot_data_on_twin_ax(ax: Axes, t_vec: ArrayLike, incidence_vec: ArrayLike) -
     """
     twin_ax = ax.twinx()
     twin_ax.bar(t_vec, incidence_vec, color="tab:gray", alpha=0.5)
-    twin_ax.set_ylim(0, np.max(incidence_vec))
+    total = np.asarray(incidence_vec, dtype=float)
+    if incidence_vec_extra is not None:
+        twin_ax.bar(
+            t_vec,
+            incidence_vec_extra,
+            bottom=incidence_vec,
+            color=color_extra,
+            alpha=0.5,
+        )
+        total = total + np.asarray(incidence_vec_extra, dtype=float)
+    twin_ax.set_ylim(0, np.max(total))
     twin_ax.set_ylabel("Number of cases")
     twin_ax.yaxis.label.set_color("tab:gray")
     twin_ax.tick_params(axis="y", colors="tab:gray")

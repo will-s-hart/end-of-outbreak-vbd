@@ -9,6 +9,7 @@ import pytest
 import xarray as xr
 
 import endoutbreakvbd.inference as inf
+import endoutbreakvbd.rep_no_models as rnm
 
 
 class _DummyModel:
@@ -287,6 +288,88 @@ def test_fit_model_quasi_real_time_excludes_current_day_incidence(monkeypatch):
     )
 
 
+def test_fit_model_qrt_sequence_mode_forwards_per_snapshot(monkeypatch):
+    # The sequence-of-series entry (under-reporting nowcast) refits at each snapshot with the
+    # matching right-truncated series, calculation time, reporting_prob and delay_cdf, then
+    # concatenates the per-snapshot time slices.
+    calls = []
+
+    def fake_fit_model(**kwargs):
+        calls.append(kwargs)
+        t = int(kwargs["t_calc"])
+        return xr.Dataset(
+            {
+                "rep_no_mean": ("time", [float(t)]),
+                "additional_case_prob": ("time", [0.1 * t]),
+            },
+            coords={"time": [t]},
+        )
+
+    monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
+    monkeypatch.setattr(inf, "tqdm", lambda iterable, **kwargs: iterable)
+
+    series = [np.array([2, 1]), np.array([2, 1, 0, 0])]
+    delay_cdf = np.array([0.5, 1.0])
+    out = inf._fit_model_qrt(
+        incidence_vec=series,
+        serial_interval_dist_vec=np.array([1.0]),
+        rep_no_vec_func=lambda t_stop: np.ones(t_stop),
+        t_calc=np.array([1, 3]),
+        reporting_prob=0.6,
+        delay_cdf=delay_cdf,
+    )
+
+    assert [int(c["t_calc"]) for c in calls] == [1, 3]
+    assert all(c["reporting_prob"] == 0.6 for c in calls)
+    assert all(np.array_equal(c["delay_cdf"], delay_cdf) for c in calls)
+    np.testing.assert_array_equal(calls[0]["incidence_vec"], series[0])
+    # progressbar suppressed, but the full-reporting-only `quiet` flag is not injected here.
+    assert calls[0]["progressbar"] is False
+    assert "quiet" not in calls[0]
+    np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.array([1, 3]))
+    np.testing.assert_allclose(out["additional_case_prob"].to_numpy(), [0.1, 0.3])
+
+
+def test_fit_model_qrt_sequence_mode_requires_t_calc():
+    with pytest.raises(ValueError, match="t_calc .* is required"):
+        inf._fit_model_qrt(
+            incidence_vec=[np.array([1, 0]), np.array([1, 0, 0])],
+            serial_interval_dist_vec=np.array([1.0]),
+            rep_no_vec_func=lambda t_stop: np.ones(t_stop),
+        )
+
+
+def test_fit_model_single_series_qrt_rejects_explicit_t_calc():
+    with pytest.raises(ValueError, match="determined automatically"):
+        inf._fit_model(
+            incidence_vec=np.array([1, 0, 0]),
+            serial_interval_dist_vec=np.array([1.0]),
+            rep_no_vec_func=lambda t_stop: np.ones(t_stop),
+            quasi_real_time=True,
+            t_calc=2,
+        )
+
+
+def test_fit_model_scalar_t_calc_slices_output(monkeypatch):
+    _setup_minimal_pm_for_fit_model(monkeypatch)
+
+    out = inf._fit_model(
+        incidence_vec=np.array([1, 0, 0, 0]),
+        serial_interval_dist_vec=np.array([1.0]),
+        rep_no_vec_func=lambda t_stop: np.ones(t_stop),
+        quasi_real_time=False,
+        t_calc=2,
+        draws=6,
+        chains=1,
+        tune=0,
+        progressbar=False,
+    )
+
+    # A scalar t_calc returns a single-time slice at that calculation time.
+    np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.array([2]))
+    assert out["additional_case_prob"].dims == ("time",)
+
+
 def test_fit_model_freeze_from_final_case_freezes_tail(monkeypatch):
     _setup_pm_with_time_varying_rep_no(monkeypatch)
 
@@ -344,7 +427,7 @@ def test_fit_model_freeze_raises_with_quasi_real_time():
 
 def test_fit_autoregressive_model_forwards_freeze_from_final_case(monkeypatch):
     monkeypatch.setattr(
-        inf,
+        rnm,
         "lognormal_params_from_median_percentile_2_5",
         lambda *, median, percentile_2_5: {"mu": 0.0, "sigma": 1.0},
     )
@@ -377,7 +460,7 @@ def test_fit_autoregressive_model_uses_defaults(monkeypatch):
         return "posterior"
 
     monkeypatch.setattr(
-        inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal
+        rnm, "lognormal_params_from_median_percentile_2_5", fake_lognormal
     )
     monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
 
@@ -402,7 +485,7 @@ def test_fit_autoregressive_model_respects_overrides(monkeypatch):
         return {"mu": 0.0, "sigma": 1.0}
 
     monkeypatch.setattr(
-        inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal
+        rnm, "lognormal_params_from_median_percentile_2_5", fake_lognormal
     )
     monkeypatch.setattr(inf, "_fit_model", lambda **kwargs: kwargs)
 
@@ -432,7 +515,7 @@ def test_fit_suitability_model_uses_defaults(monkeypatch):
         return _fake_suitability_posterior(len(kwargs["incidence_vec"]))
 
     monkeypatch.setattr(
-        inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal
+        rnm, "lognormal_params_from_median_percentile_2_5", fake_lognormal
     )
     monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
 
@@ -458,7 +541,7 @@ def test_fit_suitability_model_respects_overrides(monkeypatch):
         return {"mu": 0.0, "sigma": 1.0}
 
     monkeypatch.setattr(
-        inf, "lognormal_params_from_median_percentile_2_5", fake_lognormal
+        rnm, "lognormal_params_from_median_percentile_2_5", fake_lognormal
     )
 
     def fake_fit_model(**kwargs):
@@ -490,10 +573,10 @@ def test_fit_suitability_model_rep_no_func_uses_softclip(monkeypatch):
         softclip_calls.append((np.array(x), lower, upper))
         return np.clip(x, lower, upper)
 
-    monkeypatch.setattr(inf, "_softclip", fake_softclip)
-    monkeypatch.setattr(inf.pm, "AR", lambda *args, **kwargs: np.zeros(4))
+    monkeypatch.setattr(rnm, "_softclip", fake_softclip)
+    monkeypatch.setattr(rnm.pm, "AR", lambda *args, **kwargs: np.zeros(4))
     monkeypatch.setattr(
-        inf.pm, "Deterministic", lambda name, value, dims=None: np.array(value)
+        rnm.pm, "Deterministic", lambda name, value, dims=None: np.array(value)
     )
 
     class _FakeMath:
@@ -501,14 +584,14 @@ def test_fit_suitability_model_rep_no_func_uses_softclip(monkeypatch):
         def exp(x):
             return np.exp(x)
 
-    monkeypatch.setattr(inf.pm, "math", _FakeMath)
+    monkeypatch.setattr(rnm.pm, "math", _FakeMath)
 
     class _FakeNormal:
         @staticmethod
         def dist(mu, sigma):
             return 0.0
 
-    monkeypatch.setattr(inf.pm, "Normal", _FakeNormal)
+    monkeypatch.setattr(rnm.pm, "Normal", _FakeNormal)
 
     captured = {}
 

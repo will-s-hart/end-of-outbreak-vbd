@@ -8,6 +8,7 @@ import scipy.stats
 
 from endoutbreakvbd.utils import (
     discretise_cori,
+    fit_discretised_gamma,
     get_colors,
     lognormal_params_from_median_percentile_2_5,
     month_start_xticks,
@@ -15,6 +16,32 @@ from endoutbreakvbd.utils import (
     rep_no_from_grid,
     set_plot_config,
 )
+
+
+def test_fit_discretised_gamma_recovers_known_parameters():
+    # A large sample drawn from a discretised gamma should recover its shape/scale.
+    rng = np.random.default_rng(0)
+    draws = np.rint(scipy.stats.gamma(a=1.24, scale=10.77).rvs(20000, random_state=rng))
+    samples = draws.astype(int)
+    fit = fit_discretised_gamma(samples)
+    assert fit["shape"] == pytest.approx(1.24, rel=0.1)
+    assert fit["scale"] == pytest.approx(10.77, rel=0.1)
+    assert fit["n"] == samples.size
+    assert fit["mean"] == pytest.approx(float(samples.mean()))
+    # Support/CDF/PMF are consistent and normalised.
+    assert len(fit["support"]) == len(fit["cdf"]) == len(fit["pmf_fitted"])
+    assert fit["support"][0] == 0 and fit["support"][-1] == int(samples.max())
+    assert np.all(np.diff(fit["cdf"]) >= 0)
+    assert fit["cdf"][-1] == pytest.approx(1.0)
+    assert fit["pmf_fitted"].sum() == pytest.approx(1.0)
+    assert fit["pmf_empirical"].sum() == pytest.approx(1.0)
+
+
+def test_fit_discretised_gamma_rejects_invalid_samples():
+    with pytest.raises(ValueError, match="non-empty"):
+        fit_discretised_gamma(np.array([], dtype=int))
+    with pytest.raises(ValueError, match="non-negative"):
+        fit_discretised_gamma(np.array([1, -2, 3]))
 
 
 def test_discretise_cori_probabilities_are_nonnegative_and_sum_to_one():

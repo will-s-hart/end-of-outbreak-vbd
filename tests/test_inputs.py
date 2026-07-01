@@ -1,6 +1,8 @@
 # Note that AI tools were used to generate tests
 
 import numpy as np
+import pandas as pd
+import pytest
 
 import scripts.inputs as inputs
 
@@ -116,6 +118,102 @@ def test_get_inputs_lazio_frozen_structure(monkeypatch):
     assert set(out["results_paths"].keys()) == {"suitability", "autoregressive_frozen"}
     assert "lazio_frozen" in str(out["results_paths"]["autoregressive_frozen"])
     assert set(out["fig_paths"].keys()) == {
+        "rep_no",
+        "additional_case_prob",
+        "decision",
+    }
+
+
+def test_get_lazio_reporting_matrix_is_daily_forward_filled():
+    df = inputs._get_lazio_reporting_matrix()
+    assert df.index.name == "onset_date"
+    assert isinstance(df.index, pd.DatetimeIndex)
+    assert isinstance(df.columns, pd.DatetimeIndex)
+    # Columns are a contiguous daily report grid; no NA (onset-after-snapshot filled to 0).
+    assert (df.columns.to_series().diff().dropna().dt.days == 1).all()
+    assert df.isna().sum().sum() == 0
+    # Cumulative-by-report-date: each onset row is non-decreasing across report columns.
+    assert (df.to_numpy()[:, 1:] >= df.to_numpy()[:, :-1]).all()
+
+
+def test_fit_reporting_delay_matches_expected_estimates():
+    df = inputs._get_lazio_reporting_matrix()
+    delay = inputs._fit_reporting_delay(df)
+    assert set(delay) == {
+        "support",
+        "cdf",
+        "pmf_fitted",
+        "pmf_empirical",
+        "shape",
+        "scale",
+        "n",
+        "mean",
+    }
+    # Only fully observed onset rows (onset >= first report date) contribute.
+    assert delay["n"] == 116
+    assert delay["mean"] == pytest.approx(13.17, abs=0.01)
+    assert delay["shape"] == pytest.approx(1.24, abs=0.02)
+    assert delay["scale"] == pytest.approx(10.77, abs=0.05)
+    # CDF is a non-decreasing distribution over the delay support, plateauing at 1.
+    assert len(delay["support"]) == len(delay["cdf"])
+    assert np.all(np.diff(delay["cdf"]) >= 0)
+    assert delay["cdf"][-1] == pytest.approx(1.0)
+    assert delay["pmf_empirical"].sum() == pytest.approx(1.0)
+    assert delay["pmf_fitted"].sum() == pytest.approx(1.0)
+
+
+def test_get_inputs_lazio_underreporting_qrt_structure(monkeypatch):
+    monkeypatch.setattr(inputs.pathlib.Path, "mkdir", lambda *args, **kwargs: None)
+
+    out = inputs.get_inputs_lazio_underreporting_qrt(
+        start_date="2017-11-01", end_date="2017-11-15", stride=7
+    )
+
+    # One right-truncated incidence series per calculation time.
+    assert len(out["incidence_vecs"]) == len(out["calc_times"])
+    assert len(out["snapshot_dates"]) == len(out["calc_times"])
+    # Each snapshot series spans onset days 0..t_calc inclusive.
+    for incidence_vec, calc_time in zip(out["incidence_vecs"], out["calc_times"]):
+        assert len(incidence_vec) == calc_time + 1
+        assert np.issubdtype(incidence_vec.dtype, np.integer)
+    assert np.array_equal(out["latest_incidence_vec"], out["incidence_vecs"][-1])
+    # Suitability prior extends a serial interval past the latest calculation time.
+    serial_interval_max = len(out["serial_interval_dist_vec"])
+    assert (
+        len(out["suitability_mean_vec"])
+        == int(out["calc_times"].max()) + 1 + serial_interval_max
+    )
+    assert out["reporting_prob"] == 0.6
+    assert out["reporting_probs"] == (0.6, 0.8, 1.0)
+    assert {"suitability_p60", "autoregressive_p60", "trajectory", "delay"}.issubset(
+        out["results_paths"]
+    )
+
+
+def test_get_inputs_lazio_underreporting_qrt_rejects_out_of_range_dates(monkeypatch):
+    monkeypatch.setattr(inputs.pathlib.Path, "mkdir", lambda *args, **kwargs: None)
+    with pytest.raises(ValueError, match="precedes the first report date"):
+        inputs.get_inputs_lazio_underreporting_qrt(start_date="2017-01-01")
+    with pytest.raises(ValueError, match="beyond the last report date"):
+        inputs.get_inputs_lazio_underreporting_qrt(end_date="2018-06-01")
+
+
+def test_get_inputs_sim_underreporting_structure(monkeypatch):
+    monkeypatch.setattr(inputs.pathlib.Path, "mkdir", lambda *args, **kwargs: None)
+    out = inputs.get_inputs_sim_underreporting()
+    assert {
+        "serial_interval_dist_vec",
+        "seed",
+        "reporting_prob",
+        "min_outbreak_size",
+        "incidence_init",
+        "perc_risk_threshold_vals",
+        "results_paths",
+        "fig_paths",
+    } == set(out)
+    assert 0 < out["reporting_prob"] <= 1
+    assert set(out["fig_paths"]) == {
+        "cases",
         "rep_no",
         "additional_case_prob",
         "decision",
