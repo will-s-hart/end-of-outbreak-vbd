@@ -21,7 +21,7 @@ def get_results_files_lazio_outbreak(qrt):
     )
 
 
-results_files_lazio_outbreak = get_results_files_lazio_outbreak(qrt=["", "_qrt"])
+results_files_lazio_outbreak = get_results_files_lazio_outbreak(qrt=[""])
 
 
 def get_results_files_inference_test(qrt):
@@ -49,6 +49,18 @@ results_files_sim_sensitivity = expand(
 )
 results_files_lazio_frozen = ["results/lazio_frozen/autoregressive_frozen.csv"]
 results_files_lazio_epiestim = ["results/lazio_epiestim/epiestim.csv"]
+results_files_lazio_underreporting_qrt = expand(
+    "results/lazio_underreporting_qrt/{name}.csv",
+    name=[
+        "suitability_p60",
+        "suitability_p80",
+        "suitability_p100",
+        "autoregressive_p60",
+        "trajectory",
+        "delay",
+    ],
+)
+results_files_sim_underreporting = ["results/sim_underreporting/sim.csv"]
 
 results_files = (
     results_files_schematic
@@ -59,6 +71,8 @@ results_files = (
     + results_files_sim_sensitivity
     + results_files_lazio_frozen
     + results_files_lazio_epiestim
+    + results_files_lazio_underreporting_qrt
+    + results_files_sim_underreporting
 )
 
 plot_files_weather_suitability_data = expand(
@@ -91,7 +105,7 @@ def get_plot_files_lazio_outbreak(qrt):
     )
 
 
-plot_files_lazio_outbreak = get_plot_files_lazio_outbreak(qrt=["", "_qrt"])
+plot_files_lazio_outbreak = get_plot_files_lazio_outbreak(qrt=[""])
 
 
 def get_plot_files_inference_test(qrt):
@@ -129,11 +143,28 @@ plot_files_lazio_epiestim = expand(
     "figures/lazio_epiestim/{name}.svg",
     name=["rep_no", "additional_case_prob", "decision"],
 )
+plot_files_lazio_underreporting_qrt = expand(
+    "figures/lazio_underreporting_qrt/{name}.svg",
+    name=[
+        "cases",
+        "additional_case_prob",
+        "decision",
+        "reporting_sensitivity",
+        "suitability",
+        "scaling_factor",
+        "rep_no",
+        "delay",
+    ],
+)
+plot_files_sim_underreporting = expand(
+    "figures/sim_underreporting/{name}.svg",
+    name=["cases", "rep_no", "additional_case_prob", "decision"],
+)
 
 schematic_figure_file = "figures/figure_1.svg"
 paper_figure_files_compiled = expand(
     "figures/figure_{number}.svg",
-    number=["2", "3", "4", "S1", "S2", "S3", "S4", "S5"],
+    number=["2", "3", "4", "5", "S1", "S2", "S3", "S4", "S5", "S6", "S7"],
 )
 paper_figure_files = [schematic_figure_file] + paper_figure_files_compiled
 paper_figure_files_png = [x.replace(".svg", ".png") for x in paper_figure_files]
@@ -147,6 +178,8 @@ plot_files = (
     + plot_files_sim_sensitivity
     + plot_files_lazio_frozen
     + plot_files_lazio_epiestim
+    + plot_files_lazio_underreporting_qrt
+    + plot_files_sim_underreporting
 )
 
 package_files = [
@@ -442,4 +475,57 @@ rule lazio_epiestim_plots:
     shell:
         """
         pixi run python scripts/lazio_epiestim_plots.py
+        """
+
+
+rule lazio_underreporting_qrt_results:
+    input:
+        shared_input_files,
+        results_files_weather_suitability_data,
+        "data/lazio_chik_2017_reporting_matrix.csv",
+        "scripts/lazio_underreporting_qrt.py",
+    output:
+        results_files_lazio_underreporting_qrt,
+    shell:
+        """
+        pixi run python scripts/lazio_underreporting_qrt.py -r
+        """
+
+
+rule lazio_underreporting_qrt_plots:
+    input:
+        shared_input_files,
+        results_files_weather_suitability_data,
+        results_files_lazio_underreporting_qrt,
+        "scripts/lazio_underreporting_qrt_plots.py",
+    output:
+        plot_files_lazio_underreporting_qrt,
+    shell:
+        """
+        pixi run python scripts/lazio_underreporting_qrt_plots.py
+        """
+
+
+rule sim_underreporting_results:
+    input:
+        shared_input_files,
+        "scripts/sim_underreporting.py",
+    output:
+        results_files_sim_underreporting,
+    shell:
+        """
+        pixi run python scripts/sim_underreporting.py -r
+        """
+
+
+rule sim_underreporting_plots:
+    input:
+        shared_input_files,
+        results_files_sim_underreporting,
+        "scripts/sim_underreporting_plots.py",
+    output:
+        plot_files_sim_underreporting,
+    shell:
+        """
+        pixi run python scripts/sim_underreporting_plots.py
         """

@@ -162,6 +162,20 @@ def compile_paper_figures():
         ],
         panel_sz=wide_panel_sz,
     )
+    # Figure 5 (real-time under-reporting nowcast)
+    compile_figure(
+        save_path=figure_dir / "figure_5.svg",
+        panel_paths=[
+            figure_dir / "lazio_underreporting_qrt" / f"{x}.svg"
+            for x in [
+                "cases",
+                "additional_case_prob",
+                "decision",
+                "reporting_sensitivity",
+            ]
+        ],
+        panel_sz=wide_panel_sz,
+    )
     # Figure S1
     compile_figure(
         save_path=figure_dir / "figure_S1.svg",
@@ -204,14 +218,17 @@ def compile_paper_figures():
     compile_figure(
         save_path=figure_dir / "figure_S4.svg",
         panel_paths=[
-            figure_dir / "lazio_outbreak_qrt" / f"{x}.svg"
-            for x in [
-                "suitability",
-                "scaling_factor",
-                "rep_no",
-                "additional_case_prob",
-                "decision",
-            ]
+            figure_dir / "lazio_epiestim" / f"{x}.svg"
+            for x in ["rep_no", "additional_case_prob", "decision"]
+        ],
+        panel_sz=wide_panel_sz,
+    )
+    # Figure S5 (under-reporting estimates + fitted delay distribution)
+    compile_figure(
+        save_path=figure_dir / "figure_S5.svg",
+        panel_paths=[
+            figure_dir / "lazio_underreporting_qrt" / f"{x}.svg"
+            for x in ["suitability", "scaling_factor", "rep_no", "delay"]
         ],
         panel_sz=wide_panel_sz,
     )
@@ -227,6 +244,15 @@ def compile_paper_figures():
                 "additional_case_prob",
                 "decision",
             ]
+        ],
+        panel_sz=wide_panel_sz,
+    )
+    # Figure S7 (under-reporting simulation study)
+    compile_figure(
+        save_path=figure_dir / "figure_S7.svg",
+        panel_paths=[
+            figure_dir / "sim_underreporting" / f"{x}.svg"
+            for x in ["cases", "rep_no", "additional_case_prob", "decision"]
         ],
         panel_sz=wide_panel_sz,
     )
