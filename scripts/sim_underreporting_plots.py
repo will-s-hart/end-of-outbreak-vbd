@@ -4,8 +4,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from endoutbreakvbd import calc_decision_delay
-from endoutbreakvbd.utils import get_colors, plot_data_on_twin_ax, set_plot_config
+from endoutbreakvbd.utils import (
+    decision_delays_from_final_case,
+    get_colors,
+    plot_data_on_twin_ax,
+    set_plot_config,
+)
 from scripts.inputs import get_inputs_sim_underreporting
 
 _PERC_RISK_THRESHOLDS = np.linspace(0.1, 10, 101)
@@ -23,23 +27,6 @@ def _prob_series(colors):
         ("known_r", colors[2], "Under-reporting (true R)"),
         ("naive", colors[1], "Naive (reported only)"),
     ]
-
-
-def _decision_delays(prob_vec, thresholds, time_final_case):
-    # Days from the last reported case until the risk first drops below each threshold
-    # (NaN where it never does).
-    prob_after = prob_vec[time_final_case + 1 :]
-    delays = np.full(len(thresholds), np.nan)
-    for j, threshold in enumerate(thresholds):
-        try:
-            delays[j] = calc_decision_delay(
-                prob_vec=prob_after,
-                perc_risk_threshold=float(threshold),
-                delay_of_first_prob=1,
-            )
-        except ValueError:
-            pass
-    return delays
 
 
 def make_plots():
@@ -114,10 +101,11 @@ def make_plots():
     # Decision delay vs threshold.
     fig, ax = plt.subplots()
     for suffix, color, label in _prob_series(colors):
-        delays = _decision_delays(
-            df[f"additional_case_prob_{suffix}"].to_numpy(),
-            _PERC_RISK_THRESHOLDS,
-            time_final_reported,
+        delays = decision_delays_from_final_case(
+            prob_vec=df[f"additional_case_prob_{suffix}"].to_numpy(),
+            days=day,
+            perc_risk_thresholds=_PERC_RISK_THRESHOLDS,
+            time_final_case=time_final_reported,
         )
         ax.plot(_PERC_RISK_THRESHOLDS, delays, color=color, label=label)
     ax.set_xlim(_PERC_RISK_THRESHOLDS[0], _PERC_RISK_THRESHOLDS[-1])

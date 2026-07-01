@@ -1,4 +1,6 @@
+import atexit
 import os
+import shutil
 import warnings
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -8,12 +10,12 @@ import arviz_base as azb
 import numpy as np
 import pymc as pm
 import pytensor
+import pytensor.tensor as pt
 import xarray as xr
 from arviz_stats import ess, rhat
 from joblib import Parallel, delayed, parallel_config
 from tqdm import tqdm
 
-from endoutbreakvbd import underreporting
 from endoutbreakvbd._types import (
     FloatArray,
     IncidenceSeriesInput,
@@ -23,24 +25,11 @@ from endoutbreakvbd._types import (
 )
 from endoutbreakvbd.additional_case_prob import calc_additional_case_prob_analytical
 from endoutbreakvbd.rep_no_models import (
-    DEFAULTS,
-    Defaults,
-    _ar_innovation_std,
     build_ar_rep_no,
     build_known_rep_no,
     build_suitability_rep_no,
 )
-from endoutbreakvbd.utils import rep_no_from_grid
-
-# Re-exported from rep_no_models so existing imports keep working.
-__all__ = [
-    "DEFAULTS",
-    "Defaults",
-    "_ar_innovation_std",
-    "fit_autoregressive_model",
-    "fit_known_rep_no_model",
-    "fit_suitability_model",
-]
+from endoutbreakvbd.utils import renewal_convolution_matrix, rep_no_from_grid
 
 
 def _compute_check_diagnostics(
@@ -141,6 +130,12 @@ def _fit_model(
         np.arange(t_data_to) if t_calc is None else np.asarray(t_calc)
     ).astype(int)
     underreporting_fit = reporting_prob is not None
+    t_infer_rep_no_to = _reproduction_number_horizon(
+        incidence_vec=incidence_vec,
+        serial_interval_max=len(serial_interval_dist_vec),
+        t_calc=t_calc,
+        underreporting_fit=underreporting_fit,
+    )
 
     # Resolve the sampler kwargs once, here, so there is a single place to change them:
     # nutpie NUTS (with low_rank mass-matrix adaptation) is used only on the full-reporting
@@ -167,20 +162,20 @@ def _fit_model(
             raise NotImplementedError(
                 "freeze_from_final_case is not supported with reporting_prob"
             )
-        model = underreporting.build_underreporting_model(
+        model = _build_underreporting_model(
             incidence_vec=incidence_vec,
             serial_interval_dist_vec=serial_interval_dist_vec,
             rep_no_vec_func=rep_no_vec_func,
             reporting_prob=reporting_prob,
             delay_cdf=delay_cdf,
-            t_calc=t_calc,
+            t_infer_rep_no_to=t_infer_rep_no_to,
         )
     else:
         model = _build_full_reporting_model(
             incidence_vec=incidence_vec,
             serial_interval_dist_vec=serial_interval_dist_vec,
             rep_no_vec_func=rep_no_vec_func,
-            t_calc=t_calc,
+            t_infer_rep_no_to=t_infer_rep_no_to,
         )
 
     with model:
@@ -199,7 +194,7 @@ def _fit_model(
     if thin > 1:
         trace = trace.isel(draw=slice(0, None, thin))
         trace = trace.assign_coords(draw=np.arange(len(trace.posterior.draw)))
-    ds = azb.convert_to_dataset(trace.posterior)
+    ds_posterior = azb.convert_to_dataset(trace.posterior)
 
     if freeze_from_final_case:
         # Hold R_t after the final case fixed at its final-case-day posterior samples
@@ -207,16 +202,18 @@ def _fit_model(
         t_final_case = (
             int(nonzero_incidence_idx[-1]) if nonzero_incidence_idx.size else 0
         )
-        rep_no_frozen = ds["rep_no"].isel(time=t_final_case)
-        ds = ds.assign(
-            rep_no=ds["rep_no"].where(ds["time"] <= t_final_case, rep_no_frozen)
+        rep_no_frozen = ds_posterior["rep_no"].isel(time=t_final_case)
+        ds_posterior = ds_posterior.assign(
+            rep_no=ds_posterior["rep_no"].where(
+                ds_posterior["time"] <= t_final_case, rep_no_frozen
+            )
         )
 
     # Posterior summaries for R_t (and, for the offshoot, the latent true cases).
     summary_vars = ["rep_no", "cases"] if underreporting_fit else ["rep_no"]
-    ds = ds.assign(
+    ds_posterior = ds_posterior.assign(
         {
-            f"{var}_{stat}": _posterior_summary(ds[var], stat)
+            f"{var}_{stat}": _posterior_summary(ds_posterior[var], stat)
             for var in summary_vars
             for stat in ("mean", "lower", "upper")
         }
@@ -225,16 +222,16 @@ def _fit_model(
     # Additional-case probability at the calculation times. For the offshoot each draw
     # supplies its own latent true cases, aligned with its R_t; for full reporting the fixed
     # incidence is pushed through the posterior R_t (sample dimensions averaged over).
-    rep_no_grid = ds["rep_no"].transpose("time", ...).values
+    rep_no_grid = ds_posterior["rep_no"].transpose("time", ...).values
 
     def rep_no_post_func(t: int | IntArray) -> RepNoOutput:
         return rep_no_from_grid(t, rep_no_grid=rep_no_grid, periodic=False)
 
     if underreporting_fit:
         # Each draw supplies its own latent true cases, aligned (across chain/draw) with its R_t.
-        incidence_for_prob = np.rint(ds["cases"].transpose("time", ...).values).astype(
-            int
-        )
+        incidence_for_prob = np.rint(
+            ds_posterior["cases"].transpose("time", ...).values
+        ).astype(int)
     else:
         incidence_for_prob = incidence_vec
 
@@ -249,8 +246,8 @@ def _fit_model(
             additional_dims="broadcast",
         )
     ).reshape(len(t_calc), -1)
-    ds = ds.isel(time=t_calc)
-    ds = ds.assign(
+    ds_posterior = ds_posterior.isel(time=t_calc)
+    ds_posterior = ds_posterior.assign(
         additional_case_prob=(("time",), prob_samples.mean(axis=1)),
         additional_case_prob_lower=(
             ("time",),
@@ -264,13 +261,13 @@ def _fit_model(
 
     if compute_diagnostics:
         diagnostics = _compute_check_diagnostics(
-            ds, sample_stats, raise_on_problems=raise_on_poor_diagnostics
+            ds_posterior, sample_stats, raise_on_problems=raise_on_poor_diagnostics
         )
         if underreporting_fit:
             # The latent true-case vector has a degenerate post-outbreak tail, so warn
             # (never raise) on its diagnostics; report the median mixing summaries.
             cases_diag = _compute_check_diagnostics(
-                ds, None, var_name="cases", raise_on_problems=False
+                ds_posterior, None, var_name="cases", raise_on_problems=False
             )
             diagnostics.update(
                 {
@@ -278,8 +275,8 @@ def _fit_model(
                     for k in ("rhat_max", "ess_min", "ess_median")
                 }
             )
-        ds.attrs["diagnostics"] = diagnostics
-    return ds
+        ds_posterior.attrs["diagnostics"] = diagnostics
+    return ds_posterior
 
 
 def _posterior_summary(data_array: xr.DataArray, stat: str) -> xr.DataArray:
@@ -290,38 +287,49 @@ def _posterior_summary(data_array: xr.DataArray, stat: str) -> xr.DataArray:
     return data_array.quantile(quantile, dim=["chain", "draw"]).drop_vars("quantile")
 
 
+def _reproduction_number_horizon(
+    *,
+    incidence_vec: IntArray,
+    serial_interval_max: int,
+    t_calc: IntArray,
+    underreporting_fit: bool,
+) -> int:
+    # Horizon to which R_t must be inferred so the additional-case projection (which needs R_t
+    # up to a source case plus the serial interval) is covered — never short of the latest
+    # calculation time. The two paths differ in which case is the last possible source:
+    #   full reporting: the last *observed* case, so project a serial interval past it;
+    #   under-reporting: the last *true* (latent) case can sit anywhere in the observed window,
+    #     so project a serial interval past *all* data (carrying any seasonal R_t decline).
+    t_data_to = len(incidence_vec)
+    if underreporting_fit:
+        base = t_data_to + serial_interval_max
+    else:
+        nonzero_incidence_idx = np.nonzero(incidence_vec)[0]
+        t_final_case = (
+            int(nonzero_incidence_idx[-1]) if nonzero_incidence_idx.size else 0
+        )
+        base = t_final_case + serial_interval_max + 1
+    return max(t_data_to, base, int(np.max(t_calc)) + 1)
+
+
 def _build_full_reporting_model(
     *,
     incidence_vec: IntArray,
     serial_interval_dist_vec: FloatArray,
     rep_no_vec_func: Callable[[int], Any],
-    t_calc: IntArray,
+    t_infer_rep_no_to: int,
 ) -> pm.Model:
     # Build the full-reporting renewal model (renewal force of infection as a precomputed
-    # convolution, observed incidence via a Poisson likelihood). R_t is inferred far enough
-    # that the additional-case projection (R_t up to the final case plus the serial interval)
-    # is covered; the input zero-tail usually makes this exactly t_data_to.
-    serial_interval_max = len(serial_interval_dist_vec)
+    # convolution, observed incidence via a Poisson likelihood). R_t is inferred to
+    # `t_infer_rep_no_to` (see `_reproduction_number_horizon`).
     t_data_to = len(incidence_vec)
-    nonzero_incidence_idx = np.nonzero(incidence_vec)[0]
-    t_final_case = int(nonzero_incidence_idx[-1]) if nonzero_incidence_idx.size else 0
-    t_infer_rep_no_to = max(
-        t_data_to, t_final_case + serial_interval_max + 1, int(t_calc.max()) + 1
-    )
-
-    serial_interval_dist_vec_ext = np.concatenate(
-        [
-            serial_interval_dist_vec,
-            np.zeros(np.maximum(t_data_to - 1 - serial_interval_max, 0)),
-        ]
-    )
 
     incidence_vec_local = np.zeros(t_data_to)
     incidence_vec_local[1:] = incidence_vec[1:]
 
-    foi_vec = np.zeros(t_data_to)
-    for t in range(1, t_data_to):
-        foi_vec[t] = np.sum(incidence_vec[:t][::-1] * serial_interval_dist_vec_ext[:t])
+    foi_vec = (
+        renewal_convolution_matrix(serial_interval_dist_vec, t_data_to) @ incidence_vec
+    )
 
     nonzero_foi_idx = foi_vec > 0
     if np.any(incidence_vec_local[~nonzero_foi_idx]):
@@ -337,6 +345,105 @@ def _build_full_reporting_model(
             "likelihood",
             mu=expected_incidence_local[nonzero_foi_idx],
             observed=incidence_vec_local[nonzero_foi_idx],
+        )
+    return model
+
+
+def _reporting_prob_vec(
+    incidence_vec: IntArray, reporting_prob: float, delay_cdf: FloatArray | None
+) -> FloatArray:
+    # Per-day effective reporting probability over onset days 0..t-1, for a snapshot taken on
+    # the last data day. Without a delay CDF it is a constant `reporting_prob` (pure
+    # under-reporting). With one it is `reporting_prob * P(delay <= (t - 1) - onset_day)`, so
+    # recent onset days (small available delay) are truncated toward zero (right-truncation /
+    # nowcasting) while old onset days plateau at `reporting_prob`.
+    t = len(incidence_vec)
+    if delay_cdf is None:
+        return np.full(t, float(reporting_prob))
+    delay_cdf = np.asarray(delay_cdf, dtype=float)
+    available_delay = (t - 1) - np.arange(t)
+    return (
+        float(reporting_prob)
+        * delay_cdf[np.clip(available_delay, 0, len(delay_cdf) - 1)]
+    )
+
+
+def _build_underreporting_model(
+    *,
+    incidence_vec: IntArray,
+    serial_interval_dist_vec: FloatArray,
+    rep_no_vec_func: Callable[[int], Any],
+    reporting_prob: float,
+    delay_cdf: FloatArray | None,
+    t_infer_rep_no_to: int,
+) -> pm.Model:
+    # Build the fixed-index Poisson-thinning under-reporting model. With per-day reporting
+    # probability pi_t, the true cases N_t by symptom-onset date follow the renewal process and
+    # are thinned into reported and unreported counts:
+    #     c_t ~ Poisson(pi_t * mu_t),  N_t ~ Poisson(mu_t),  mu_t = R_t * FOI_t(N).
+    # The latent unreported cases U = N - c carry the self-referential renewal density via a
+    # single pm.CustomDist ("unobserved"); the reported cases are a clean top-level pm.Poisson
+    # ("obs"). The first reported case(s) are the fixed index (no hidden day-0 infections), so
+    # only t >= 1 carries latent cases. R_t is inferred to `t_infer_rep_no_to` (see
+    # `_reproduction_number_horizon`). The discrete latent gets a Metropolis step from pm.sample
+    # automatically (NUTS handles the continuous R_t block), so no step is attached by the caller.
+    observed_vec = np.asarray(incidence_vec, dtype=int)
+    t_data_to = len(observed_vec)
+    serial_interval_dist_vec = np.asarray(serial_interval_dist_vec, dtype=float)
+    n_pad = t_infer_rep_no_to - t_data_to
+
+    reporting_prob_vec = np.clip(
+        _reporting_prob_vec(observed_vec, reporting_prob, delay_cdf), 1e-6, 1.0
+    )
+
+    index_incidence = float(max(int(observed_vec[0]), 1))
+    conv_mat = renewal_convolution_matrix(serial_interval_dist_vec, t_data_to)
+    observed_rest = observed_vec[1:].astype(float)
+    reporting_rest = reporting_prob_vec[1:]
+    index_col = pt.as_tensor_variable([index_incidence])
+
+    model = pm.Model(
+        coords={
+            "time": np.arange(t_infer_rep_no_to),
+            "gen_time": np.arange(1, t_data_to),
+        }
+    )
+    with model:
+        rep_no_vec = rep_no_vec_func(t_infer_rep_no_to)
+        rep_no_obs = rep_no_vec[:t_data_to]
+
+        def _logp(value: Any, rep_no_obs: Any) -> Any:
+            cases = pt.concatenate([index_col, observed_rest + value])
+            mu = rep_no_obs * pt.dot(conv_mat, cases)
+            return pm.logp(
+                pm.Poisson.dist(mu=(1 - reporting_rest) * mu[1:] + 1e-12), value
+            )
+
+        def _dist(rep_no_obs: Any, size: Any) -> Any:
+            return pm.Poisson.dist(
+                mu=np.maximum(
+                    observed_rest * (1 - reporting_rest) / reporting_rest, 0.1
+                ),
+                shape=t_data_to - 1,
+            )
+
+        latent_rv = pm.CustomDist(
+            "unobserved",
+            rep_no_obs,
+            logp=_logp,
+            dist=_dist,
+            dtype="int64",
+            dims=("gen_time",),
+        )
+        cases_obs = pt.concatenate([index_col, observed_rest + latent_rv])
+        pm.Deterministic(
+            "cases",
+            pt.concatenate([cases_obs, pt.zeros((n_pad,))]) if n_pad else cases_obs,
+            dims=("time",),
+        )
+        mu_vec = rep_no_obs * pt.dot(conv_mat, cases_obs)
+        pm.Poisson(
+            "obs", mu=reporting_rest * mu_vec[1:] + 1e-12, observed=observed_vec[1:]
         )
     return model
 
@@ -466,15 +573,15 @@ def _fit_model_qrt(
             )
         )
 
-    posterior_list: list[xr.Dataset | None] = [None] * len(tasks)
+    ds_posterior_list: list[xr.Dataset | None] = [None] * len(tasks)
     for idx, ds_subset in results:
-        posterior_list[idx] = ds_subset
-    posterior = xr.concat(posterior_list, dim="time")
+        ds_posterior_list[idx] = ds_subset
+    ds_posterior = xr.concat(ds_posterior_list, dim="time")
     if compute_diagnostics:
-        posterior.attrs["diagnostics"] = _compute_check_diagnostics(
-            posterior, None, raise_on_problems=raise_on_poor_diagnostics
+        ds_posterior.attrs["diagnostics"] = _compute_check_diagnostics(
+            ds_posterior, None, raise_on_problems=raise_on_poor_diagnostics
         )
-    return posterior
+    return ds_posterior
 
 
 # Guards the one-time per-worker environment setup below.
@@ -501,6 +608,9 @@ def _prepare_qrt_worker() -> None:
     )
     worker_compiledir.mkdir(parents=True, exist_ok=True)
     pytensor.config.compiledir = worker_compiledir
+    # Remove the per-worker compile dir when the worker process exits so they don't accumulate
+    # under base_compiledir across runs.
+    atexit.register(shutil.rmtree, worker_compiledir, ignore_errors=True)
     _WORKER_ENV_READY = True
 
 

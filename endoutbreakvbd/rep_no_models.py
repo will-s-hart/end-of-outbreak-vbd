@@ -205,6 +205,12 @@ def build_suitability_rep_no(
     )
 
     def rep_no_vec_func(t_infer_to: int) -> Any:
+        if len(suitability_mean_vec) < t_infer_to:
+            raise ValueError(
+                f"suitability_mean_vec has length {len(suitability_mean_vec)} but R_t is "
+                f"inferred to horizon {t_infer_to}; extend it (typically a serial interval "
+                "past the incidence) so R_t can be projected forward."
+            )
         log_rep_no_factor_deviation_vec = pm.AR(
             "log_rep_no_factor_deviation",
             sigma=rep_no_factor_lognormal_params["sigma"]

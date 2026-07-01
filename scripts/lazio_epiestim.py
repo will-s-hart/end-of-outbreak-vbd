@@ -10,7 +10,7 @@ from rpy2.robjects.vectors import FloatVector, IntVector
 
 from endoutbreakvbd import calc_additional_case_prob_analytical
 from endoutbreakvbd._types import IntArray, RepNoOutput
-from endoutbreakvbd.inference import Defaults
+from endoutbreakvbd.rep_no_models import Defaults
 from endoutbreakvbd.utils import (
     lognormal_params_from_median_percentile_2_5,
     rep_no_from_grid,
