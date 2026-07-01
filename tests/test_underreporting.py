@@ -96,7 +96,7 @@ def test_build_underreporting_model_structure():
     obs = np.array([2, 1, 1, 0, 0])
     serial_interval_dist_vec = np.array([0.4, 0.3, 0.2, 0.1])
     t_calc = np.array([0, 1, 2, 3, 4])
-    model, latent_rv = ur.build_underreporting_model(
+    model = ur.build_underreporting_model(
         incidence_vec=obs,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=build_ar_rep_no(),
@@ -110,7 +110,7 @@ def test_build_underreporting_model_structure():
     assert time_coord is not None and gen_time_coord is not None
     assert len(time_coord) == len(obs) + len(serial_interval_dist_vec)
     assert list(gen_time_coord) == list(range(1, len(obs)))
-    assert latent_rv.name == "unobserved"
+    assert model["unobserved"].name == "unobserved"
     assert {"cases", "obs", "unobserved"}.issubset(
         {v.name for v in model.basic_RVs + model.deterministics}
     )
@@ -121,7 +121,7 @@ def test_underreporting_model_p1_collapses_latent_to_zero():
     # forced to zero (cases == observed). Checked via the model logp being maximal at U=0.
     obs = np.array([2, 1, 1, 0, 0])
     serial_interval_dist_vec = np.array([0.4, 0.3, 0.2, 0.1])
-    model, latent_rv = ur.build_underreporting_model(
+    model = ur.build_underreporting_model(
         incidence_vec=obs,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=build_ar_rep_no(),
@@ -142,7 +142,7 @@ def test_underreporting_index_is_at_least_one():
     # The fixed index takes the first reported case(s), floored at 1 (no hidden day-0 cases).
     obs = np.array([0, 3, 1, 0])
     serial_interval_dist_vec = np.array([0.6, 0.4])
-    model, latent_rv = ur.build_underreporting_model(
+    model = ur.build_underreporting_model(
         incidence_vec=obs,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=build_ar_rep_no(),
@@ -150,6 +150,7 @@ def test_underreporting_index_is_at_least_one():
         delay_cdf=None,
         t_calc=np.arange(len(obs)),
     )
+    latent_rv = model["unobserved"]
     cases_det = next(d for d in model.deterministics if d.name == "cases")
     # Evaluate the deterministic with the latent held at zero -> cases[0] == 1 (index floor),
     # even though the first reported count is zero.
@@ -174,15 +175,16 @@ def test_build_known_rep_no_registers_fixed_reproduction_number():
 
 def test_fit_model_dispatches_to_underreporting_offshoot(monkeypatch):
     # A scalar reporting_prob routes _fit_model through the under-reporting builder (not the
-    # full-reporting one), attaches a Metropolis step on the latent, avoids nutpie, and
-    # returns cases summaries + a per-t_calc additional-case probability.
+    # full-reporting one), avoids nutpie and any explicit step (pm.sample auto-assigns the
+    # latent's Metropolis step), and returns cases summaries + a per-t_calc additional-case
+    # probability.
     obs = np.array([2, 1, 1, 0, 0])
     t_infer = 9
     captured: dict = {}
 
     def fake_build(**kwargs):
         captured["build_kwargs"] = kwargs
-        return _CtxModel(), "LATENT_RV"
+        return _CtxModel()
 
     def fake_build_full(**kwargs):
         raise AssertionError(
@@ -191,9 +193,6 @@ def test_fit_model_dispatches_to_underreporting_offshoot(monkeypatch):
 
     monkeypatch.setattr(inf.underreporting, "build_underreporting_model", fake_build)
     monkeypatch.setattr(inf, "_build_full_reporting_model", fake_build_full)
-    monkeypatch.setattr(
-        inf.pm, "Metropolis", lambda variables: ("STEP", tuple(variables))
-    )
 
     def fake_sample(**kwargs):
         captured["sample_kwargs"] = kwargs
@@ -227,12 +226,13 @@ def test_fit_model_dispatches_to_underreporting_offshoot(monkeypatch):
     )
 
     assert "build_kwargs" in captured
-    assert captured["sample_kwargs"]["step"] == [("STEP", ("LATENT_RV",))]
+    # No explicit step is attached; pm.sample assigns the latent's Metropolis step itself.
+    assert "step" not in captured["sample_kwargs"]
     assert "nuts_sampler" not in captured["sample_kwargs"]
     assert captured["sample_kwargs"]["draws"] == 2000
-    # The probability is computed from the integer latent-derived case matrix (time, sample).
+    # The probability is computed from the integer latent-derived case array (time, chain, draw).
     assert np.issubdtype(captured["prob_incidence"].dtype, np.integer)
-    assert captured["prob_incidence"].shape == (t_infer, 3)
+    assert captured["prob_incidence"].shape == (t_infer, 1, 3)
     # Per-sample probabilities are requested so a credible interval can be formed.
     assert captured["additional_dims"] == "broadcast"
     # Offshoot returns latent-case summaries and slices output to the default t_calc.

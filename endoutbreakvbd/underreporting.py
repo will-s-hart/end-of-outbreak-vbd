@@ -116,12 +116,13 @@ def build_underreporting_model(
     reporting_prob: float,
     delay_cdf: FloatArray | None,
     t_calc: IntArray,
-) -> tuple[pm.Model, Any]:
+) -> pm.Model:
     """
     Build the fixed-index Poisson-thinning under-reporting model.
 
-    Returns the (unentered) PyMC model and the latent ``unobserved`` random variable, so the
-    caller can attach the Metropolis step that targets it.
+    Returns the (unentered) PyMC model. The latent ``unobserved`` vector is discrete, so
+    ``pm.sample`` assigns it a Metropolis step automatically (NUTS handles the continuous R_t
+    block); no step needs to be attached by the caller.
     """
     observed_vec = np.asarray(incidence_vec, dtype=int)
     t_data_to = len(observed_vec)
@@ -188,4 +189,4 @@ def build_underreporting_model(
         pm.Poisson(
             "obs", mu=reporting_rest * mu_vec[1:] + 1e-12, observed=observed_vec[1:]
         )
-    return model, latent_rv
+    return model
