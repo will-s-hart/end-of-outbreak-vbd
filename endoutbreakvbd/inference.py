@@ -143,8 +143,10 @@ def _fit_model(
     underreporting_fit = reporting_prob is not None
 
     # Resolve the sampler kwargs once, here, so there is a single place to change them:
-    # nutpie NUTS is used only on the full-reporting path; the under-reporting offshoot uses
-    # a compound NUTS + Metropolis sampler (the Metropolis step is added below).
+    # nutpie NUTS (with low_rank mass-matrix adaptation) is used only on the full-reporting
+    # path. The under-reporting offshoot carries a discrete latent, which nutpie cannot sample,
+    # so it falls back to PyMC's native compound NUTS + Metropolis (assigned automatically by
+    # pm.sample); low_rank adaptation is a nutpie feature and is unavailable there.
     if underreporting_fit:
         kwargs_sample = {"draws": 2000, "tune": 2000, "chains": 4, **kwargs_sample}
     else:
@@ -160,13 +162,12 @@ def _fit_model(
         kwargs_sample = {**kwargs_sample, "random_seed": rng}
 
     # Constructing the PyMC model is the only path-specific step; everything below is shared.
-    latent_rv = None
     if underreporting_fit:
         if freeze_from_final_case:
             raise NotImplementedError(
                 "freeze_from_final_case is not supported with reporting_prob"
             )
-        model, latent_rv = underreporting.build_underreporting_model(
+        model = underreporting.build_underreporting_model(
             incidence_vec=incidence_vec,
             serial_interval_dist_vec=serial_interval_dist_vec,
             rep_no_vec_func=rep_no_vec_func,
@@ -183,9 +184,10 @@ def _fit_model(
         )
 
     with model:
-        if latent_rv is not None:
-            kwargs_sample = {"step": [pm.Metropolis([latent_rv])], **kwargs_sample}
-        elif step_func is not None:
+        # The offshoot's discrete latent gets a Metropolis step (and the continuous R_t block
+        # NUTS) assigned automatically by pm.sample, so only the full-reporting step_func is
+        # attached explicitly here.
+        if step_func is not None:
             kwargs_sample = {"step": step_func(), **kwargs_sample}
         trace = pm.sample(**kwargs_sample)
 
@@ -223,29 +225,18 @@ def _fit_model(
     # Additional-case probability at the calculation times. For the offshoot each draw
     # supplies its own latent true cases, aligned with its R_t; for full reporting the fixed
     # incidence is pushed through the posterior R_t (sample dimensions averaged over).
+    rep_no_grid = ds["rep_no"].transpose("time", ...).values
+
+    def rep_no_post_func(t: int | IntArray) -> RepNoOutput:
+        return rep_no_from_grid(t, rep_no_grid=rep_no_grid, periodic=False)
+
     if underreporting_fit:
-        cases_mat = (
-            ds["cases"]
-            .stack(sample=("chain", "draw"))
-            .transpose("time", "sample")
-            .values
+        # Each draw supplies its own latent true cases, aligned (across chain/draw) with its R_t.
+        incidence_for_prob = np.rint(ds["cases"].transpose("time", ...).values).astype(
+            int
         )
-        rep_no_mat = (
-            ds["rep_no"]
-            .stack(sample=("chain", "draw"))
-            .transpose("time", "sample")
-            .values
-        )
-        incidence_for_prob = np.rint(cases_mat).astype(int)
-
-        def rep_no_post_func(t: int | IntArray) -> RepNoOutput:
-            return rep_no_mat[np.asarray(t)]
     else:
-        rep_no_grid = ds["rep_no"].transpose("time", ...).values
         incidence_for_prob = incidence_vec
-
-        def rep_no_post_func(t: int | IntArray) -> RepNoOutput:
-            return rep_no_from_grid(t, rep_no_grid=rep_no_grid, periodic=False)
 
     # Keep the per-sample probabilities (additional_dims="broadcast") so we can report the
     # posterior mean and a credible interval, not just the mean.
