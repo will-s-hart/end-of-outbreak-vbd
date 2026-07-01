@@ -1,12 +1,16 @@
+import os
 import warnings
 from collections.abc import Callable, Sequence
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
 import arviz_base as azb
 import numpy as np
 import pymc as pm
+import pytensor
 import xarray as xr
 from arviz_stats import ess, rhat
+from joblib import Parallel, delayed, parallel_config
 from tqdm import tqdm
 
 from endoutbreakvbd import underreporting
@@ -99,6 +103,7 @@ def _fit_model(
     reporting_prob: float | None = None,
     delay_cdf: FloatArray | None = None,
     freeze_from_final_case: bool = False,
+    parallel: bool = True,
     compute_diagnostics: bool = False,
     raise_on_poor_diagnostics: bool = False,
     **kwargs_sample: Any,
@@ -123,6 +128,7 @@ def _fit_model(
             step_func=step_func,
             thin=thin,
             rng=rng,
+            parallel=parallel,
             compute_diagnostics=compute_diagnostics,
             raise_on_poor_diagnostics=raise_on_poor_diagnostics,
             **kwargs_sample,
@@ -355,6 +361,7 @@ def _fit_model_qrt(
     step_func: Callable[[], Any] | None = None,
     thin: int = 1,
     rng: np.random.Generator | int | None = None,
+    parallel: bool = True,
     compute_diagnostics: bool = False,
     raise_on_poor_diagnostics: bool = False,
     **kwargs_sample: Any,
@@ -364,6 +371,9 @@ def _fit_model_qrt(
     #   - a single incidence series -> the data up to each successive day (full reporting);
     #   - a sequence of series (one per calculation time) -> the right-truncated data known
     #     at each snapshot (the under-reporting nowcast), with `t_calc` the matching days.
+    # The per-snapshot fits are independent, so with `parallel` they are run across processes via
+    # joblib (mirroring calc_additional_case_prob_simulation); each fit then samples chains
+    # sequentially (cores=1) so joblib, not pm.sample, owns the parallelism.
     sequence_mode = isinstance(incidence_vec, (list, tuple))
     extra_kwargs: dict[str, Any] = {"progressbar": False}
     if reporting_prob is None:
@@ -402,38 +412,125 @@ def _fit_model_qrt(
             for t in range(1, len(incidence_vec))
         ]
 
-    posterior_list = []
-    for incidence_vec_step, t_calc_step in tqdm(
-        steps, desc="Inferring R_t using data up to each time"
-    ):
-        ds_posterior_curr = _fit_model(
-            incidence_vec=incidence_vec_step,
-            serial_interval_dist_vec=serial_interval_dist_vec,
-            rep_no_vec_func=rep_no_vec_func,
-            quasi_real_time=False,
-            t_calc=t_calc_step,
-            reporting_prob=reporting_prob,
-            delay_cdf=delay_cdf,
-            step_func=step_func,
-            thin=thin,
-            rng=rng,
-            **{**extra_kwargs, **kwargs_sample},
+    # One child RNG per fit so results depend on spawn order, not execution order (mirrors
+    # calc_additional_case_prob_simulation); serial and parallel then agree exactly. A bare int
+    # or None seed is replicated to preserve the previous shared-seed behaviour.
+    if isinstance(rng, np.random.Generator):
+        child_rngs: list[np.random.Generator | int | None] = list(rng.spawn(len(steps)))
+    else:
+        child_rngs = [rng] * len(steps)
+
+    fit_kwargs_shared: dict[str, Any] = {
+        "serial_interval_dist_vec": serial_interval_dist_vec,
+        "rep_no_vec_func": rep_no_vec_func,
+        "quasi_real_time": False,
+        "reporting_prob": reporting_prob,
+        "delay_cdf": delay_cdf,
+        "step_func": step_func,
+        "thin": thin,
+        **extra_kwargs,
+        **kwargs_sample,
+    }
+    if parallel:
+        # Chains sequential within a fit; joblib owns the cross-fit parallelism.
+        fit_kwargs_shared = {"cores": 1, **fit_kwargs_shared}
+    tasks = [
+        (
+            idx,
+            {
+                **fit_kwargs_shared,
+                "incidence_vec": incidence_vec_step,
+                "t_calc": t_calc_step,
+                "rng": child_rng,
+            },
         )
-        posterior_list.append(
-            ds_posterior_curr[
-                [
-                    var
-                    for var in ds_posterior_curr.data_vars
-                    if "time" in ds_posterior_curr[var].dims
-                ]
-            ]
+        for idx, ((incidence_vec_step, t_calc_step), child_rng) in enumerate(
+            zip(steps, child_rngs, strict=True)
         )
+    ]
+
+    desc = "Inferring R_t using data up to each time"
+    if parallel:
+        # inner_max_num_threads pins the numeric threadpools in each worker so a single-core fit
+        # doesn't spawn its own pool on top of joblib's process parallelism (loky is required for
+        # inner_max_num_threads to take effect).
+        with parallel_config(backend="loky", inner_max_num_threads=1):
+            results = list(
+                tqdm(
+                    Parallel(
+                        n_jobs=-1,
+                        return_as="generator",
+                        batch_size="auto",
+                    )(delayed(_fit_model_qrt_step)(task, True) for task in tasks),
+                    total=len(tasks),
+                    desc=desc,
+                )
+            )
+    else:
+        results = list(
+            tqdm(
+                (_fit_model_qrt_step(task, False) for task in tasks),
+                total=len(tasks),
+                desc=desc,
+            )
+        )
+
+    posterior_list: list[xr.Dataset | None] = [None] * len(tasks)
+    for idx, ds_subset in results:
+        posterior_list[idx] = ds_subset
     posterior = xr.concat(posterior_list, dim="time")
     if compute_diagnostics:
         posterior.attrs["diagnostics"] = _compute_check_diagnostics(
             posterior, None, raise_on_problems=raise_on_poor_diagnostics
         )
     return posterior
+
+
+# Guards the one-time per-worker environment setup below.
+_WORKER_ENV_READY = False
+
+
+def _prepare_qrt_worker() -> None:
+    # Isolate this worker's PyTensor compile dir: the compile FileLock is taken on
+    # `config.compiledir/.lock` (read dynamically per compilation), so sharing one dir across
+    # workers would serialise the C-compilation phase and defeat the parallelism. Pin the numeric
+    # threadpools too, belt-and-braces alongside joblib's inner_max_num_threads.
+    global _WORKER_ENV_READY
+    if _WORKER_ENV_READY:
+        return
+    for var in (
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "RAYON_NUM_THREADS",
+    ):
+        os.environ.setdefault(var, "1")
+    worker_compiledir = (
+        Path(pytensor.config.base_compiledir) / f"qrt_worker_{os.getpid()}"
+    )
+    worker_compiledir.mkdir(parents=True, exist_ok=True)
+    pytensor.config.compiledir = worker_compiledir
+    _WORKER_ENV_READY = True
+
+
+def _fit_model_qrt_step(
+    task: tuple[int, dict[str, Any]], isolate: bool
+) -> tuple[int, xr.Dataset]:
+    # Fit a single quasi-real-time snapshot and keep only its time-indexed variables (the
+    # chain/draw dims survive for the aggregate diagnostics). `isolate` is True when running in a
+    # joblib worker process, where the PyTensor compile dir must be made per-process.
+    idx, fit_kwargs = task
+    if isolate:
+        _prepare_qrt_worker()
+    ds_posterior_curr = _fit_model(**fit_kwargs)
+    ds_subset = ds_posterior_curr[
+        [
+            var
+            for var in ds_posterior_curr.data_vars
+            if "time" in ds_posterior_curr[var].dims
+        ]
+    ]
+    return idx, cast(xr.Dataset, ds_subset)
 
 
 def fit_autoregressive_model(
@@ -448,6 +545,7 @@ def fit_autoregressive_model(
     reporting_prob: float | None = None,
     delay_cdf: FloatArray | None = None,
     freeze_from_final_case: bool = False,
+    parallel: bool = True,
     compute_diagnostics: bool = True,
     raise_on_poor_diagnostics: bool = False,
     **kwargs: Any,
@@ -485,6 +583,9 @@ def fit_autoregressive_model(
     freeze_from_final_case : bool
         If True, hold the reproduction number fixed at its final-case-day posterior
         samples after the final observed case.
+    parallel : bool
+        If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
+        with joblib. No effect on a single (non-quasi-real-time) fit.
     compute_diagnostics : bool
         If True, compute convergence diagnostics, attach them to the returned
         dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
@@ -513,6 +614,7 @@ def fit_autoregressive_model(
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
         freeze_from_final_case=freeze_from_final_case,
+        parallel=parallel,
         compute_diagnostics=compute_diagnostics,
         raise_on_poor_diagnostics=raise_on_poor_diagnostics,
         **kwargs,
@@ -533,6 +635,7 @@ def fit_suitability_model(
     t_calc: int | IntArray | None = None,
     reporting_prob: float | None = None,
     delay_cdf: FloatArray | None = None,
+    parallel: bool = True,
     compute_diagnostics: bool = True,
     raise_on_poor_diagnostics: bool = False,
     **kwargs: Any,
@@ -576,6 +679,9 @@ def fit_suitability_model(
     delay_cdf : FloatArray, optional
         Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
         (nowcasting) to the under-reporting model.
+    parallel : bool
+        If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
+        with joblib. No effect on a single (non-quasi-real-time) fit.
     compute_diagnostics : bool
         If True, compute convergence diagnostics, attach them to the returned
         dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
@@ -607,6 +713,7 @@ def fit_suitability_model(
         t_calc=t_calc,
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
+        parallel=parallel,
         compute_diagnostics=compute_diagnostics,
         raise_on_poor_diagnostics=raise_on_poor_diagnostics,
         **kwargs,
@@ -640,6 +747,7 @@ def fit_known_rep_no_model(
     t_calc: int | IntArray | None = None,
     reporting_prob: float | None = None,
     delay_cdf: FloatArray | None = None,
+    parallel: bool = True,
     compute_diagnostics: bool = True,
     raise_on_poor_diagnostics: bool = False,
     **kwargs: Any,
@@ -672,6 +780,9 @@ def fit_known_rep_no_model(
     delay_cdf : FloatArray, optional
         Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
         (nowcasting) to the under-reporting model.
+    parallel : bool
+        If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
+        with joblib. No effect on a single (non-quasi-real-time) fit.
     compute_diagnostics : bool
         If True, compute convergence diagnostics, attach them to the returned dataset's
         ``attrs["diagnostics"]``, and warn on poor sampling. Reproduction-number diagnostics
@@ -696,6 +807,7 @@ def fit_known_rep_no_model(
         t_calc=t_calc,
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
+        parallel=parallel,
         compute_diagnostics=compute_diagnostics,
         raise_on_poor_diagnostics=raise_on_poor_diagnostics,
         **kwargs,
