@@ -183,7 +183,7 @@ def _fake_suitability_posterior(t_stop):
 
 
 def test_defaults_dataclass_is_frozen():
-    defaults = inf.Defaults()
+    defaults = rnm.Defaults()
     assert defaults.rep_no_prior_median == 1.0
     assert defaults.log_rep_no_rho == 0.975
     with pytest.raises(FrozenInstanceError):
@@ -545,8 +545,8 @@ def test_fit_autoregressive_model_uses_defaults(monkeypatch):
     )
 
     assert out == "posterior"
-    assert captured["median"] == inf.DEFAULTS.rep_no_prior_median
-    assert captured["percentile_2_5"] == inf.DEFAULTS.rep_no_prior_percentile_2_5
+    assert captured["median"] == rnm.DEFAULTS.rep_no_prior_median
+    assert captured["percentile_2_5"] == rnm.DEFAULTS.rep_no_prior_percentile_2_5
     assert captured["fit_model_kwargs"]["quasi_real_time"] is True
 
 
@@ -601,8 +601,8 @@ def test_fit_suitability_model_uses_defaults(monkeypatch):
     )
 
     assert isinstance(out, xr.Dataset)
-    assert captured["median"] == inf.DEFAULTS.rep_no_factor_prior_median
-    assert captured["percentile_2_5"] == inf.DEFAULTS.rep_no_factor_prior_percentile_2_5
+    assert captured["median"] == rnm.DEFAULTS.rep_no_factor_prior_median
+    assert captured["percentile_2_5"] == rnm.DEFAULTS.rep_no_factor_prior_percentile_2_5
     assert captured["fit_model_kwargs"]["quasi_real_time"] is True
 
 

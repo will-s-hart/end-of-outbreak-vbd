@@ -17,7 +17,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from endoutbreakvbd.inference import _fit_model_qrt
+from endoutbreakvbd.inference import _fit_model_qrt, fit_suitability_model
 from endoutbreakvbd.rep_no_models import build_ar_rep_no, build_suitability_rep_no
 from scripts.inputs import get_inputs_lazio_underreporting_qrt
 from scripts.lazio_underreporting_qrt_plots import make_plots
@@ -92,8 +92,6 @@ def run_analyses(
 
 def _run_trajectory(inputs, rng):
     # Full-output suitability fit at the latest snapshot for the true-case / R_t panels.
-    from endoutbreakvbd.inference import fit_suitability_model
-
     incidence_vec = inputs["latest_incidence_vec"]
     ds = fit_suitability_model(
         incidence_vec=incidence_vec,

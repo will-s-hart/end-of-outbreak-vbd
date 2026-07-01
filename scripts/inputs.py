@@ -7,7 +7,7 @@ import pandas as pd
 import scipy.stats
 from numpy.typing import NDArray
 
-from endoutbreakvbd.inference import DEFAULTS
+from endoutbreakvbd.rep_no_models import DEFAULTS
 from endoutbreakvbd.utils import (
     discretise_cori,
     fit_discretised_gamma,

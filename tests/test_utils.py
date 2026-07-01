@@ -7,6 +7,7 @@ import pytest
 import scipy.stats
 
 from endoutbreakvbd.utils import (
+    decision_delays_from_final_case,
     discretise_cori,
     fit_discretised_gamma,
     get_colors,
@@ -16,6 +17,35 @@ from endoutbreakvbd.utils import (
     rep_no_from_grid,
     set_plot_config,
 )
+
+
+def test_decision_delays_from_final_case_maps_non_contiguous_days():
+    # prob measured on non-contiguous "days"; delay is (crossing day - final case), and NaN
+    # for a threshold the risk never falls below.
+    days = np.array([2, 4, 6, 8])
+    prob_vec = np.array([0.9, 0.5, 0.2, 0.02])
+    delays = decision_delays_from_final_case(
+        prob_vec=prob_vec,
+        days=days,
+        perc_risk_thresholds=[60, 30, 1],
+        time_final_case=3,
+    )
+    # 60% first crossed on day 4 -> delay 1; 30% on day 6 -> delay 3; 1% never -> NaN.
+    np.testing.assert_array_equal(delays[:2], np.array([1.0, 3.0]))
+    assert np.isnan(delays[2])
+
+
+def test_decision_delays_from_final_case_ignores_days_before_final_case():
+    # A sub-threshold day before the final case does not count.
+    days = np.array([0, 1, 2, 3, 4])
+    prob_vec = np.array([0.0, 0.9, 0.9, 0.9, 0.1])
+    delays = decision_delays_from_final_case(
+        prob_vec=prob_vec,
+        days=days,
+        perc_risk_thresholds=[50],
+        time_final_case=2,
+    )
+    np.testing.assert_array_equal(delays, np.array([2.0]))
 
 
 def test_fit_discretised_gamma_recovers_known_parameters():

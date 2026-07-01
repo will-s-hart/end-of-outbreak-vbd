@@ -7,7 +7,7 @@ import xarray as xr
 import pymc as pm
 
 import endoutbreakvbd.inference as inf
-import endoutbreakvbd.underreporting as ur
+from endoutbreakvbd.utils import renewal_convolution_matrix
 from endoutbreakvbd.rep_no_models import build_ar_rep_no, build_known_rep_no
 
 
@@ -30,7 +30,7 @@ def test_convolution_matrix_matches_renewal_foi():
     serial_interval_dist_vec = np.array([0.5, 0.3, 0.15, 0.05])
     t = 8
     cases = np.array([2.0, 1.0, 3.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-    conv_mat = ur._build_convolution_matrix(serial_interval_dist_vec, t)
+    conv_mat = renewal_convolution_matrix(serial_interval_dist_vec, t)
 
     w_ext = np.concatenate(
         [
@@ -50,59 +50,75 @@ def test_convolution_matrix_matches_renewal_foi():
 def test_convolution_matrix_serial_interval_longer_than_series():
     # w longer than the padded band is simply truncated by the s-length slice.
     serial_interval_dist_vec = np.array([0.6, 0.3, 0.1])
-    conv_mat = ur._build_convolution_matrix(serial_interval_dist_vec, 3)
+    conv_mat = renewal_convolution_matrix(serial_interval_dist_vec, 3)
     np.testing.assert_allclose(conv_mat[2, :2], np.array([0.3, 0.6]))
     assert conv_mat[1, 0] == pytest.approx(0.6)
 
 
-def test_resolve_reporting_prob_constant_when_no_delay():
-    vec = ur._resolve_reporting_prob(np.array([3, 1, 0, 0]), 0.6, delay_cdf=None)
+def test_reporting_prob_vec_constant_when_no_delay():
+    vec = inf._reporting_prob_vec(np.array([3, 1, 0, 0]), 0.6, delay_cdf=None)
     np.testing.assert_allclose(vec, np.full(4, 0.6))
 
 
-def test_resolve_reporting_prob_uses_snapshot_at_last_day():
-    delay_cdf = np.array([0.0, 0.5, 1.0])
-    vec = ur._resolve_reporting_prob(np.zeros(4, dtype=int), 0.8, delay_cdf=delay_cdf)
-    # Snapshot (analysis_time) is the last data day (index 3); available delay = 3 - onset.
-    expected = ur.build_reporting_prob_vec(
-        t=4, analysis_time=3, reporting_prob_ceiling=0.8, delay_cdf=delay_cdf
-    )
-    np.testing.assert_allclose(vec, expected)
-
-
-def test_build_reporting_prob_vec_truncation_and_plateau():
+def test_reporting_prob_vec_truncates_recent_onsets():
+    # Snapshot on the last data day (index 3): available delay = 3 - onset_day. Recent onsets
+    # are truncated toward zero; the earliest onset has plateaued at the ceiling.
     delay_cdf = np.array([0.0, 0.4, 0.7, 1.0])
-    vec = ur.build_reporting_prob_vec(
-        t=6, analysis_time=4, reporting_prob_ceiling=0.5, delay_cdf=delay_cdf
+    vec = inf._reporting_prob_vec(np.zeros(4, dtype=int), 0.5, delay_cdf=delay_cdf)
+    # onset 0 -> avail 3 -> cdf 1.0 (plateau); onset 3 -> avail 0 -> cdf 0.0.
+    np.testing.assert_allclose(vec, 0.5 * np.array([1.0, 0.7, 0.4, 0.0]))
+    # Non-decreasing from recent (last) to old (first) onset.
+    assert np.all(np.diff(vec[::-1]) >= 0)
+
+
+def test_reproduction_number_horizon_full_vs_underreporting():
+    # Under-reporting projects R_t a full serial interval past *all* data (the latent final
+    # case can sit anywhere); full reporting only past the last *observed* case. Same inputs,
+    # different horizon.
+    incidence_vec = np.array(
+        [1, 1, 0, 0, 0, 0, 0, 0, 0, 0]
+    )  # t_data_to=10, last case idx 1
+    t_calc = np.array([0, 5])
+    assert (
+        inf._reproduction_number_horizon(
+            incidence_vec=incidence_vec,
+            serial_interval_max=4,
+            t_calc=t_calc,
+            underreporting_fit=True,
+        )
+        == 14
     )
-    # Onset after the snapshot (index 5 > 4) has no available delay -> zero.
-    assert vec[5] == 0.0
-    # Recent onsets are truncated; the earliest onset has plateaued at the ceiling.
-    assert vec[4] == pytest.approx(0.5 * 0.0)  # avail 0
-    assert vec[3] == pytest.approx(0.5 * 0.4)  # avail 1
-    assert vec[0] == pytest.approx(0.5 * 1.0)  # avail 4 -> CDF clipped to plateau
-    # Monotone non-decreasing from recent to old onset.
-    assert np.all(np.diff(vec[:5][::-1]) >= 0)
-
-
-def test_reproduction_number_horizon_covers_data_and_calc():
-    # R_t is inferred a full serial interval past the data.
-    assert ur.reproduction_number_horizon(10, 4, np.array([0, 5])) == 14
-    # ... but never short of the latest calculation time.
-    assert ur.reproduction_number_horizon(3, 2, np.array([0, 20])) == 21
+    assert (
+        inf._reproduction_number_horizon(
+            incidence_vec=incidence_vec,
+            serial_interval_max=4,
+            t_calc=t_calc,
+            underreporting_fit=False,
+        )
+        == 10
+    )
+    # Never short of the latest calculation time.
+    assert (
+        inf._reproduction_number_horizon(
+            incidence_vec=np.ones(3, dtype=int),
+            serial_interval_max=2,
+            t_calc=np.array([0, 20]),
+            underreporting_fit=True,
+        )
+        == 21
+    )
 
 
 def test_build_underreporting_model_structure():
     obs = np.array([2, 1, 1, 0, 0])
     serial_interval_dist_vec = np.array([0.4, 0.3, 0.2, 0.1])
-    t_calc = np.array([0, 1, 2, 3, 4])
-    model = ur.build_underreporting_model(
+    model = inf._build_underreporting_model(
         incidence_vec=obs,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=build_ar_rep_no(),
         reporting_prob=0.6,
         delay_cdf=None,
-        t_calc=t_calc,
+        t_infer_rep_no_to=len(obs) + len(serial_interval_dist_vec),
     )
     # R_t horizon = t_data_to + serial_interval_max; latents live on gen_time = 1..D-1.
     time_coord = model.coords["time"]
@@ -121,13 +137,13 @@ def test_underreporting_model_p1_collapses_latent_to_zero():
     # forced to zero (cases == observed). Checked via the model logp being maximal at U=0.
     obs = np.array([2, 1, 1, 0, 0])
     serial_interval_dist_vec = np.array([0.4, 0.3, 0.2, 0.1])
-    model = ur.build_underreporting_model(
+    model = inf._build_underreporting_model(
         incidence_vec=obs,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=build_ar_rep_no(),
         reporting_prob=1.0,
         delay_cdf=None,
-        t_calc=np.arange(len(obs)),
+        t_infer_rep_no_to=len(obs) + len(serial_interval_dist_vec),
     )
     logp_fn = model.compile_logp(sum=True)
     point = model.initial_point()
@@ -142,13 +158,13 @@ def test_underreporting_index_is_at_least_one():
     # The fixed index takes the first reported case(s), floored at 1 (no hidden day-0 cases).
     obs = np.array([0, 3, 1, 0])
     serial_interval_dist_vec = np.array([0.6, 0.4])
-    model = ur.build_underreporting_model(
+    model = inf._build_underreporting_model(
         incidence_vec=obs,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=build_ar_rep_no(),
         reporting_prob=0.6,
         delay_cdf=None,
-        t_calc=np.arange(len(obs)),
+        t_infer_rep_no_to=len(obs) + len(serial_interval_dist_vec),
     )
     latent_rv = model["unobserved"]
     cases_det = next(d for d in model.deterministics if d.name == "cases")
@@ -191,7 +207,7 @@ def test_fit_model_dispatches_to_underreporting_offshoot(monkeypatch):
             "full-reporting model should not be built for the offshoot"
         )
 
-    monkeypatch.setattr(inf.underreporting, "build_underreporting_model", fake_build)
+    monkeypatch.setattr(inf, "_build_underreporting_model", fake_build)
     monkeypatch.setattr(inf, "_build_full_reporting_model", fake_build_full)
 
     def fake_sample(**kwargs):

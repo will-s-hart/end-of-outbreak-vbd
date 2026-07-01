@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from endoutbreakvbd.utils import (
+    decision_delays_from_final_case,
     get_colors,
     month_start_xticks,
     plot_data_on_twin_ax,
@@ -24,17 +25,6 @@ _PERC_RISK_THRESHOLDS = np.linspace(0.1, 10, 101)
 
 def _doy(dates) -> np.ndarray:
     return pd.DatetimeIndex(dates).dayofyear.to_numpy()
-
-
-def _decision_delays(calc_times, prob_vec, thresholds, time_final_case) -> np.ndarray:
-    # Days from the last observed case until the real-time probability first drops below
-    # each threshold (NaN where it never does over the snapshot window).
-    delays = np.full(len(thresholds), np.nan)
-    for j, threshold in enumerate(thresholds):
-        below = np.nonzero(prob_vec < threshold / 100)[0]
-        if below.size:
-            delays[j] = calc_times[below[0]] - time_final_case
-    return delays
 
 
 def make_plots(start_date="2017-11-01", end_date="2017-12-20", stride=1):
@@ -119,11 +109,11 @@ def _make_decision_plots(inputs, colors):
         (df_suit, colors[0], "Suitability-based"),
         (df_ar, colors[1], "Autoregressive"),
     ]:
-        delays = _decision_delays(
-            calc_times,
-            df["additional_case_prob"].to_numpy(),
-            _PERC_RISK_THRESHOLDS,
-            time_final_case,
+        delays = decision_delays_from_final_case(
+            prob_vec=df["additional_case_prob"].to_numpy(),
+            days=calc_times,
+            perc_risk_thresholds=_PERC_RISK_THRESHOLDS,
+            time_final_case=time_final_case,
         )
         ax.plot(_PERC_RISK_THRESHOLDS, delays, color=color, label=label)
     ax.axhline(
@@ -147,11 +137,11 @@ def _make_decision_plots(inputs, colors):
         ("suitability_p100", "100%", colors[3]),
     ]:
         df = pd.read_csv(inputs["results_paths"][name])
-        delays = _decision_delays(
-            calc_times,
-            df["additional_case_prob"].to_numpy(),
-            _PERC_RISK_THRESHOLDS,
-            time_final_case,
+        delays = decision_delays_from_final_case(
+            prob_vec=df["additional_case_prob"].to_numpy(),
+            days=calc_times,
+            perc_risk_thresholds=_PERC_RISK_THRESHOLDS,
+            time_final_case=time_final_case,
         )
         ax.plot(
             _PERC_RISK_THRESHOLDS, delays, color=color, label=f"Reporting {prob_label}"
