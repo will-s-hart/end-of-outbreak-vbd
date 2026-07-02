@@ -102,6 +102,12 @@ def _fit_model(
     # reported); the returned dataset is sliced to those times. A scalar `reporting_prob`
     # (optionally with a `delay_cdf` for right-truncation) dispatches to the under-reporting
     # offshoot; otherwise the full-reporting renewal model is fit.
+    #
+    # Two distinct day indices are in play and are deliberately independent: the reporting
+    # "as-of" day (how much delayed reporting has accrued) is fixed by the last day of
+    # `incidence_vec`, whereas `t_calc` is the day from which the additional-case probability is
+    # projected. The under-reporting nowcast caller pairs an end-of-day-`d` snapshot with
+    # `t_calc = d + 1` (a start-of-next-day decision); nothing here requires the two to coincide.
     if quasi_real_time:
         if freeze_from_final_case:
             raise NotImplementedError(
@@ -351,16 +357,21 @@ def _build_full_reporting_model(
 def _reporting_prob_vec(
     incidence_vec: IntArray, reporting_prob: float, delay_cdf: FloatArray | None
 ) -> FloatArray:
-    # Per-day effective reporting probability over onset days 0..t-1, for a snapshot taken on
-    # the last data day. Without a delay CDF it is a constant `reporting_prob` (pure
-    # under-reporting). With one it is `reporting_prob * P(delay <= (t - 1) - onset_day)`, so
-    # recent onset days (small available delay) are truncated toward zero (right-truncation /
-    # nowcasting) while old onset days plateau at `reporting_prob`.
+    # Per-day effective reporting probability over onset days 0..(t_data_to - 1), as seen from an
+    # "as-of" day equal to the last day of this incidence snapshot (t_data_to - 1) — i.e. the
+    # snapshot encodes reporting known by the end of that day. The as-of day is set purely by the
+    # length of `incidence_vec` and is independent of `t_calc` (the day the additional-case
+    # probability is later projected). Without a delay CDF the probability is a constant
+    # `reporting_prob` (pure under-reporting). With one it is
+    # `reporting_prob * P(delay <= as_of_day - onset_day)`, so recent onset days (small available
+    # delay) are truncated toward zero (right-truncation / nowcasting) while old onset days plateau
+    # at `reporting_prob`.
     t_data_to = len(incidence_vec)
     if delay_cdf is None:
         return np.full(t_data_to, float(reporting_prob))
     delay_cdf = np.asarray(delay_cdf, dtype=float)
-    available_delay = (t_data_to - 1) - np.arange(t_data_to)
+    as_of_day = t_data_to - 1
+    available_delay = as_of_day - np.arange(t_data_to)
     return (
         float(reporting_prob)
         * delay_cdf[np.clip(available_delay, 0, len(delay_cdf) - 1)]
@@ -478,9 +489,12 @@ def _fit_model_qrt(
 ) -> xr.Dataset:
     # Quasi-real-time loop: refit using only the data available at each calculation time and
     # keep that time's slice. Two input shapes:
-    #   - a single incidence series -> the data up to each successive day (full reporting);
-    #   - a sequence of series (one per calculation time) -> the right-truncated data known
-    #     at each snapshot (the under-reporting nowcast), with `t_calc` the matching days.
+    #   - a single incidence series -> for calc time t, fit the data up to day t-1
+    #     (`incidence_vec[:t]`) and report the probability at day t (full reporting);
+    #   - a sequence of series (one per calculation time) -> the right-truncated data known at
+    #     each snapshot (the under-reporting nowcast). Each series' reporting as-of day is its own
+    #     last day (see `_reporting_prob_vec`); the matching `t_calc` is supplied separately and
+    #     need not equal it (the nowcast passes `t_calc = as_of_day + 1`).
     # The per-snapshot fits are independent, so with `parallel` they are run across processes via
     # joblib (mirroring calc_additional_case_prob_simulation); each fit then samples chains
     # sequentially (cores=1) so joblib, not pm.sample, owns the parallelism.

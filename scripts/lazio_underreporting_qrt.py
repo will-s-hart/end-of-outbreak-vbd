@@ -76,7 +76,7 @@ def run_analyses(
         df_out = pd.DataFrame(
             {
                 "calc_time": inputs["calc_times"],
-                "date": inputs["snapshot_dates"],
+                "date": inputs["decision_dates"],
                 "additional_case_prob": ds["additional_case_prob"].values,
                 "reproduction_number_mean": ds["rep_no_mean"].values,
             }

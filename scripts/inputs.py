@@ -523,8 +523,8 @@ def get_inputs_lazio_underreporting_qrt(
     last_report_date = pd.Timestamp(df_reporting_matrix.columns[-1])
     delay = _fit_reporting_delay(df_reporting_matrix)
 
-    # Hardcoded calculation-time grid (outbreak-day snapshots). The earliest snapshot must
-    # have reporting data available; the latest must stay within the observed report span.
+    # Hardcoded snapshot grid (outbreak-day report dates). The earliest snapshot must have
+    # reporting data available; the latest must stay within the observed report span.
     start_ts = pd.Timestamp(start_date)
     end_ts = pd.Timestamp(end_date)
     if start_ts < first_report_date:
@@ -538,27 +538,38 @@ def get_inputs_lazio_underreporting_qrt(
             f"{last_report_date.date()}"
         )
     snapshot_dates = pd.date_range(start_ts, end_ts, freq=f"{stride}D")
-    calc_times = np.array(
+    snapshot_days = np.array(
         [(date - outbreak_start_date).days for date in snapshot_dates], dtype=int
     )
+    # A snapshot dated day D reflects reporting known by the end of day D, so it informs the
+    # start-of-day-(D+1) relaxation decision: the additional-case probability is evaluated one
+    # day after the snapshot (matching the full-reporting quasi-real-time convention, where the
+    # decision on day t uses data through day t-1). The delay right-truncation stays referenced
+    # to day D (implicit in the incidence length), i.e. end-of-day-D knowledge.
+    calc_times = snapshot_days + 1
+    decision_dates = snapshot_dates + pd.Timedelta(days=1)
 
     # Right-truncated cases-by-onset known at each snapshot: the daily forward-filled matrix
     # column at the snapshot date, over onset days 0..D (onsets after the snapshot are zero).
     onset_axis = pd.date_range(outbreak_start_date, snapshot_dates[-1], freq="D")
     df_available = df_reporting_matrix.reindex(index=onset_axis).fillna(0.0)
     incidence_vecs = [
-        df_available.loc[onset_axis[: time_calc + 1], snapshot_date]
+        df_available.loc[onset_axis[: snapshot_day + 1], snapshot_date]
         .to_numpy()
         .round()
         .astype(int)
-        for time_calc, snapshot_date in zip(calc_times, snapshot_dates, strict=True)
+        for snapshot_day, snapshot_date in zip(
+            snapshot_days, snapshot_dates, strict=True
+        )
     ]
     latest_incidence_vec = incidence_vecs[-1]
     latest_snapshot_date = snapshot_dates[-1]
 
     # Suitability prior mean over onset days, extended by the serial interval so the offshoot
-    # can project R_t past the data (carrying the seasonal decline).
-    n_suitability = int(calc_times.max()) + 1 + serial_interval_max
+    # can project R_t past the data (carrying the seasonal decline). Sized to the latest fit's
+    # inference horizon (onset extent + serial interval), set by the snapshot day, not the
+    # (one-day-later) decision time.
+    n_suitability = int(snapshot_days.max()) + 1 + serial_interval_max
     doy_vec = (np.arange(doy_start, doy_start + n_suitability) - 1) % 365 + 1
     suitability_by_doy = _get_2017_suitability_data().set_index("doy")[
         "suitability_smoothed_lagged"
@@ -607,6 +618,7 @@ def get_inputs_lazio_underreporting_qrt(
         "outbreak_start_date": outbreak_start_date,
         "doy_start": doy_start,
         "snapshot_dates": snapshot_dates,
+        "decision_dates": decision_dates,
         "latest_snapshot_date": latest_snapshot_date,
         "calc_times": calc_times,
         "incidence_vecs": incidence_vecs,
