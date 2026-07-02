@@ -4,6 +4,7 @@ from typing import Annotated, Literal, cast, overload
 import numpy as np
 from annotated_types import Ge
 from joblib import Parallel, delayed
+from numpy.typing import ArrayLike
 from tqdm import tqdm
 
 from endoutbreakvbd.model import run_renewal_model
@@ -168,8 +169,12 @@ def _calc_additional_case_prob_analytical_scalar(
         rep_no_vec_future = np.full(t_max - t_calc + 1, rep_no_vec_future, dtype=float)
     foi_vec_future = np.zeros((t_max - t_calc + 1, *sample_shape))
     for t in range(t_calc, t_max + 1):
-        w_col = serial_interval_dist_vec[:t].reshape((t, *(1,) * len(sample_shape)))
-        foi_vec_future[t - t_calc] = (incidence_vec_theor[:t][::-1] * w_col).sum(axis=0)
+        serial_interval_col = serial_interval_dist_vec[:t].reshape(
+            (t, *(1,) * len(sample_shape))
+        )
+        foi_vec_future[t - t_calc] = (
+            incidence_vec_theor[:t][::-1] * serial_interval_col
+        ).sum(axis=0)
     # Contract over the leading time axis; the einsum aligns incidence and rep_no sample
     # dimensions when both are present (so draw s of the cases pairs with draw s of the
     # reproduction number). The per-sample additional-case probability is then averaged
@@ -349,37 +354,46 @@ def _additional_cases_one_sim(
 
 def calc_decision_delay(
     *,
-    prob_vec: FloatArray,
+    prob_vec: ArrayLike,
+    days: ArrayLike,
     perc_risk_threshold: PercRiskThresholdInput,
-    delay_of_first_prob: int,
-) -> int | IntArray:
+    time_final_case: int,
+) -> FloatArray:
     """
-    Compute the delay until the probability of additional cases first drops below a risk
-    threshold.
+    Days from the final case until the probability of additional cases first drops below each
+    risk threshold, considering only the days after the final case.
+
+    ``prob_vec[i]`` is the probability on outbreak day ``days[i]``; the two share an ordering
+    but ``days`` need not be contiguous (e.g. strided real-time snapshots). Returns NaN for any
+    threshold the risk never crosses over the days after the final case.
 
     Parameters
     ----------
-    prob_vec : FloatArray
-        Probability of additional cases at successive times.
+    prob_vec : ArrayLike
+        Probability of additional cases at each of ``days``.
+    days : ArrayLike
+        Outbreak day of each entry in ``prob_vec``.
     perc_risk_threshold : PercRiskThresholdInput
         Risk threshold(s), expressed as a percentage.
-    delay_of_first_prob : int
-        Time (day) corresponding to the first element of ``prob_vec``.
+    time_final_case : int
+        Outbreak day of the final case; delays are measured from it.
 
     Returns
     -------
-    int or IntArray
-        Delay (days) at which the risk first falls below each threshold.
+    FloatArray
+        Delay (days) at which the risk first falls below each threshold (NaN if it never does).
     """
-    perc_risk_threshold = np.atleast_1d(perc_risk_threshold)
-    below_threshold = prob_vec < (perc_risk_threshold[:, None] / 100)
-    never_below_threshold = ~np.any(below_threshold, axis=1)
-    if np.any(never_below_threshold):
-        raise ValueError(
-            "Risk does not drop below one or more thresholds: "
-            f"{perc_risk_threshold[never_below_threshold]}"
-        )
-    decision_delay: IntArray = np.argmax(below_threshold, axis=1) + delay_of_first_prob
-    if decision_delay.size == 1:
-        return int(decision_delay.item())
+    prob_vec = np.asarray(prob_vec, dtype=float)
+    days = np.asarray(days)
+    if prob_vec.shape != days.shape:
+        raise ValueError("prob_vec and days must have the same shape")
+    perc_risk_threshold = np.atleast_1d(np.asarray(perc_risk_threshold, dtype=float))
+    after_final_case = days > time_final_case
+    prob_after = prob_vec[after_final_case]
+    days_after = days[after_final_case]
+    decision_delay = np.full(len(perc_risk_threshold), np.nan)
+    for j, threshold in enumerate(perc_risk_threshold):
+        below = np.nonzero(prob_after < threshold / 100)[0]
+        if below.size:
+            decision_delay[j] = days_after[below[0]] - time_final_case
     return decision_delay

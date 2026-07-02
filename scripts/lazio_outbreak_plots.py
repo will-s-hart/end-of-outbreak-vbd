@@ -180,8 +180,9 @@ def _make_decision_plot(
         prob_vals = df["additional_case_prob"].to_numpy()[prob_days]
         decision_delays = calc_decision_delay(
             prob_vec=prob_vals,
+            days=prob_days,
             perc_risk_threshold=perc_risk_thresholds,
-            delay_of_first_prob=1,
+            time_final_case=time_final_case,
         )
         ax.plot(perc_risk_thresholds, decision_delays, color=color, label=model_name)
     if existing_decisions:

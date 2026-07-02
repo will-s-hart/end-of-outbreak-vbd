@@ -33,9 +33,9 @@ def true_rep_no(t):
     with the long chikungunya serial interval (mean ~12.5 days), the outbreak grows over
     several generations before dying out.
     """
-    a = np.asarray(t, dtype=float)
-    r = np.clip(2.5 - 0.02 * a, 0.3, 2.5)
-    return float(r) if np.ndim(t) == 0 else r
+    t_arr = np.asarray(t, dtype=float)
+    rep_no = np.clip(2.5 - 0.02 * t_arr, 0.3, 2.5)
+    return float(rep_no) if np.ndim(t) == 0 else rep_no
 
 
 def simulate_outbreak(

@@ -284,53 +284,6 @@ def renewal_convolution_matrix(
     return conv_mat
 
 
-def decision_delays_from_final_case(
-    *,
-    prob_vec: ArrayLike,
-    days: ArrayLike,
-    perc_risk_thresholds: ArrayLike,
-    time_final_case: int,
-) -> FloatArray:
-    """
-    Days from the final case until the additional-case probability first drops below each risk
-    threshold, considering only the days after the final case.
-
-    ``prob_vec[i]`` is the probability on outbreak day ``days[i]``; the two share an ordering
-    but ``days`` need not be contiguous (e.g. strided real-time snapshots). Returns NaN for any
-    threshold the risk never crosses over that window.
-
-    Parameters
-    ----------
-    prob_vec : ArrayLike
-        Probability of additional cases at each of ``days``.
-    days : ArrayLike
-        Outbreak day of each entry in ``prob_vec``.
-    perc_risk_thresholds : ArrayLike
-        Risk threshold(s), expressed as a percentage.
-    time_final_case : int
-        Outbreak day of the final case; delays are measured from it.
-
-    Returns
-    -------
-    FloatArray
-        Delay (days) at which the risk first falls below each threshold (NaN if it never does).
-    """
-    prob_vec = np.asarray(prob_vec, dtype=float)
-    days = np.asarray(days)
-    if prob_vec.shape != days.shape:
-        raise ValueError("prob_vec and days must have the same shape")
-    thresholds = np.atleast_1d(np.asarray(perc_risk_thresholds, dtype=float))
-    after_final_case = days > time_final_case
-    prob_after = prob_vec[after_final_case]
-    days_after = days[after_final_case]
-    delays = np.full(len(thresholds), np.nan)
-    for j, threshold in enumerate(thresholds):
-        below = np.nonzero(prob_after < threshold / 100)[0]
-        if below.size:
-            delays[j] = days_after[below[0]] - time_final_case
-    return delays
-
-
 def lognormal_params_from_median_percentile_2_5(
     *, median: float, percentile_2_5: float
 ) -> dict[str, float]:

@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from endoutbreakvbd import calc_decision_delay
 from endoutbreakvbd.utils import (
-    decision_delays_from_final_case,
     get_colors,
     month_start_xticks,
     plot_data_on_twin_ax,
@@ -109,10 +109,10 @@ def _make_decision_plots(inputs, colors):
         (df_suit, colors[0], "Suitability-based"),
         (df_ar, colors[1], "Autoregressive"),
     ]:
-        delays = decision_delays_from_final_case(
+        delays = calc_decision_delay(
             prob_vec=df["additional_case_prob"].to_numpy(),
             days=calc_times,
-            perc_risk_thresholds=_PERC_RISK_THRESHOLDS,
+            perc_risk_threshold=_PERC_RISK_THRESHOLDS,
             time_final_case=time_final_case,
         )
         ax.plot(_PERC_RISK_THRESHOLDS, delays, color=color, label=label)
@@ -137,10 +137,10 @@ def _make_decision_plots(inputs, colors):
         ("suitability_p100", "100%", colors[3]),
     ]:
         df = pd.read_csv(inputs["results_paths"][name])
-        delays = decision_delays_from_final_case(
+        delays = calc_decision_delay(
             prob_vec=df["additional_case_prob"].to_numpy(),
             days=calc_times,
-            perc_risk_thresholds=_PERC_RISK_THRESHOLDS,
+            perc_risk_threshold=_PERC_RISK_THRESHOLDS,
             time_final_case=time_final_case,
         )
         ax.plot(

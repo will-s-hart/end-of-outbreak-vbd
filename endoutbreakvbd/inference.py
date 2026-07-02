@@ -198,10 +198,7 @@ def _fit_model(
 
     if freeze_from_final_case:
         # Hold R_t after the final case fixed at its final-case-day posterior samples
-        nonzero_incidence_idx = np.nonzero(incidence_vec)[0]
-        t_final_case = (
-            int(nonzero_incidence_idx[-1]) if nonzero_incidence_idx.size else 0
-        )
+        t_final_case = _final_case_time(incidence_vec)
         rep_no_frozen = ds_posterior["rep_no"].isel(time=t_final_case)
         ds_posterior = ds_posterior.assign(
             rep_no=ds_posterior["rep_no"].where(
@@ -287,6 +284,12 @@ def _posterior_summary(data_array: xr.DataArray, stat: str) -> xr.DataArray:
     return data_array.quantile(quantile, dim=["chain", "draw"]).drop_vars("quantile")
 
 
+def _final_case_time(incidence_vec: IntArray) -> int:
+    # Outbreak day of the last observed case (0 if there are none).
+    nonzero_incidence_idx = np.nonzero(incidence_vec)[0]
+    return int(nonzero_incidence_idx[-1]) if nonzero_incidence_idx.size else 0
+
+
 def _reproduction_number_horizon(
     *,
     incidence_vec: IntArray,
@@ -304,11 +307,7 @@ def _reproduction_number_horizon(
     if underreporting_fit:
         base = t_data_to + serial_interval_max
     else:
-        nonzero_incidence_idx = np.nonzero(incidence_vec)[0]
-        t_final_case = (
-            int(nonzero_incidence_idx[-1]) if nonzero_incidence_idx.size else 0
-        )
-        base = t_final_case + serial_interval_max + 1
+        base = _final_case_time(incidence_vec) + serial_interval_max + 1
     return max(t_data_to, base, int(np.max(t_calc)) + 1)
 
 
@@ -357,11 +356,11 @@ def _reporting_prob_vec(
     # under-reporting). With one it is `reporting_prob * P(delay <= (t - 1) - onset_day)`, so
     # recent onset days (small available delay) are truncated toward zero (right-truncation /
     # nowcasting) while old onset days plateau at `reporting_prob`.
-    t = len(incidence_vec)
+    t_data_to = len(incidence_vec)
     if delay_cdf is None:
-        return np.full(t, float(reporting_prob))
+        return np.full(t_data_to, float(reporting_prob))
     delay_cdf = np.asarray(delay_cdf, dtype=float)
-    available_delay = (t - 1) - np.arange(t)
+    available_delay = (t_data_to - 1) - np.arange(t_data_to)
     return (
         float(reporting_prob)
         * delay_cdf[np.clip(available_delay, 0, len(delay_cdf) - 1)]
@@ -392,14 +391,16 @@ def _build_underreporting_model(
     serial_interval_dist_vec = np.asarray(serial_interval_dist_vec, dtype=float)
     n_pad = t_infer_rep_no_to - t_data_to
 
+    # Floor the per-day reporting probability above zero so (1 - pi) / pi stays finite and pi * mu
+    # is non-degenerate in the likelihoods below.
     reporting_prob_vec = np.clip(
         _reporting_prob_vec(observed_vec, reporting_prob, delay_cdf), 1e-6, 1.0
     )
 
     index_incidence = float(max(int(observed_vec[0]), 1))
     conv_mat = renewal_convolution_matrix(serial_interval_dist_vec, t_data_to)
-    observed_rest = observed_vec[1:].astype(float)
-    reporting_rest = reporting_prob_vec[1:]
+    observed_after_index = observed_vec[1:].astype(float)
+    reporting_prob_after_index = reporting_prob_vec[1:]
     index_col = pt.as_tensor_variable([index_incidence])
 
     model = pm.Model(
@@ -410,40 +411,51 @@ def _build_underreporting_model(
     )
     with model:
         rep_no_vec = rep_no_vec_func(t_infer_rep_no_to)
-        rep_no_obs = rep_no_vec[:t_data_to]
+        rep_no_data = rep_no_vec[:t_data_to]
 
-        def _logp(value: Any, rep_no_obs: Any) -> Any:
-            cases = pt.concatenate([index_col, observed_rest + value])
-            mu = rep_no_obs * pt.dot(conv_mat, cases)
+        def _logp(value: Any, rep_no_data: Any) -> Any:
+            cases = pt.concatenate([index_col, observed_after_index + value])
+            mu = rep_no_data * pt.dot(conv_mat, cases)
+            # +1e-12 keeps the Poisson mu > 0 where FOI is 0 (day 0 / no sources) or pi == 1.
             return pm.logp(
-                pm.Poisson.dist(mu=(1 - reporting_rest) * mu[1:] + 1e-12), value
+                pm.Poisson.dist(mu=(1 - reporting_prob_after_index) * mu[1:] + 1e-12),
+                value,
             )
 
-        def _dist(rep_no_obs: Any, size: Any) -> Any:
+        def _dist(rep_no_data: Any, size: Any) -> Any:
+            # Initial values / prior-predictive only (the density is overridden by _logp), so this
+            # does not change the target posterior. Moment-match the latent unreported cases to the
+            # reported count, U ~ Poisson(reported * (1 - pi) / pi); the floor only keeps mu > 0 for
+            # the draw (`size` is unused — the latent length is fixed via `shape`).
             return pm.Poisson.dist(
                 mu=np.maximum(
-                    observed_rest * (1 - reporting_rest) / reporting_rest, 0.1
+                    observed_after_index
+                    * (1 - reporting_prob_after_index)
+                    / reporting_prob_after_index,
+                    1e-3,
                 ),
                 shape=t_data_to - 1,
             )
 
         latent_rv = pm.CustomDist(
             "unobserved",
-            rep_no_obs,
+            rep_no_data,
             logp=_logp,
             dist=_dist,
             dtype="int64",
             dims=("gen_time",),
         )
-        cases_obs = pt.concatenate([index_col, observed_rest + latent_rv])
+        cases_data = pt.concatenate([index_col, observed_after_index + latent_rv])
         pm.Deterministic(
             "cases",
-            pt.concatenate([cases_obs, pt.zeros((n_pad,))]) if n_pad else cases_obs,
+            pt.concatenate([cases_data, pt.zeros((n_pad,))]) if n_pad else cases_data,
             dims=("time",),
         )
-        mu_vec = rep_no_obs * pt.dot(conv_mat, cases_obs)
+        mu_vec = rep_no_data * pt.dot(conv_mat, cases_data)
         pm.Poisson(
-            "obs", mu=reporting_rest * mu_vec[1:] + 1e-12, observed=observed_vec[1:]
+            "obs",
+            mu=reporting_prob_after_index * mu_vec[1:] + 1e-12,
+            observed=observed_vec[1:],
         )
     return model
 
@@ -821,20 +833,11 @@ def fit_suitability_model(
     )
     # Extract further summary stats
     ds_posterior = ds_posterior.assign(
-        suitability_mean=ds_posterior["suitability"].mean(dim=["chain", "draw"]),
-        suitability_lower=ds_posterior["suitability"]
-        .quantile(0.025, dim=["chain", "draw"])
-        .drop_vars("quantile"),
-        suitability_upper=ds_posterior["suitability"]
-        .quantile(0.975, dim=["chain", "draw"])
-        .drop_vars("quantile"),
-        rep_no_factor_mean=ds_posterior["rep_no_factor"].mean(dim=["chain", "draw"]),
-        rep_no_factor_lower=ds_posterior["rep_no_factor"]
-        .quantile(0.025, dim=["chain", "draw"])
-        .drop_vars("quantile"),
-        rep_no_factor_upper=ds_posterior["rep_no_factor"]
-        .quantile(0.975, dim=["chain", "draw"])
-        .drop_vars("quantile"),
+        {
+            f"{var}_{stat}": _posterior_summary(ds_posterior[var], stat)
+            for var in ("suitability", "rep_no_factor")
+            for stat in ("mean", "lower", "upper")
+        }
     )
     return ds_posterior
 

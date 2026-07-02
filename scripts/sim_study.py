@@ -124,8 +124,9 @@ def _run_example_outbreak_decision_analysis(
         )
         decision_delay_vals = calc_decision_delay(
             prob_vec=prob_vals,
+            days=prob_days,
             perc_risk_threshold=perc_risk_threshold_vals,
-            delay_of_first_prob=1,
+            time_final_case=time_final_case,
         )
         decision_delay_df.loc[
             (list(perc_risk_threshold_vals), doy_final_case), "delay_to_decision"
@@ -247,12 +248,11 @@ def _many_outbreak_analysis_one_sim(args):
         serial_interval_dist_vec=serial_interval_dist_vec,
         t_calc=prob_days,
     )
-    decision_delay = np.atleast_1d(
-        calc_decision_delay(
-            prob_vec=prob_vals,
-            perc_risk_threshold=perc_risk_threshold_vals,
-            delay_of_first_prob=1,
-        )
+    decision_delay = calc_decision_delay(
+        prob_vec=prob_vals,
+        days=prob_days,
+        perc_risk_threshold=perc_risk_threshold_vals,
+        time_final_case=time_final_case,
     )
     if 150 < doy_final_case < 250 and np.any(decision_delay == 0):
         print("Possible error - zero days to decision for outbreak ending mid-year")

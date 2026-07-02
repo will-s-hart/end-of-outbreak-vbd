@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from endoutbreakvbd import calc_decision_delay
 from endoutbreakvbd.utils import (
-    decision_delays_from_final_case,
     get_colors,
     plot_data_on_twin_ax,
     set_plot_config,
@@ -101,10 +101,10 @@ def make_plots():
     # Decision delay vs threshold.
     fig, ax = plt.subplots()
     for suffix, color, label in _prob_series(colors):
-        delays = decision_delays_from_final_case(
+        delays = calc_decision_delay(
             prob_vec=df[f"additional_case_prob_{suffix}"].to_numpy(),
             days=day,
-            perc_risk_thresholds=_PERC_RISK_THRESHOLDS,
+            perc_risk_threshold=_PERC_RISK_THRESHOLDS,
             time_final_case=time_final_reported,
         )
         ax.plot(_PERC_RISK_THRESHOLDS, delays, color=color, label=label)

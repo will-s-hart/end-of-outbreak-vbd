@@ -279,31 +279,47 @@ def test_additional_cases_one_sim_raises_when_t_calc_does_not_match_incidence_le
         )
 
 
-def test_calc_decision_delay_scalar_threshold():
-    delay = acp.calc_decision_delay(
+def test_calc_decision_delay_contiguous_days_and_nan_when_never_below():
+    # Contiguous days measured from the final case (the retrospective use): prob at days 1..3
+    # after a final case on day 0. 5% first crossed on day 2 -> delay 2; 2% on day 3 -> delay 3;
+    # 0.5% never crossed -> NaN (not an error).
+    delays = acp.calc_decision_delay(
         prob_vec=np.array([0.2, 0.04, 0.01]),
-        perc_risk_threshold=5,
-        delay_of_first_prob=1,
+        days=np.array([1, 2, 3]),
+        perc_risk_threshold=np.array([5, 2, 0.5]),
+        time_final_case=0,
     )
-    assert delay == 2
+    np.testing.assert_array_equal(delays[:2], np.array([2.0, 3.0]))
+    assert np.isnan(delays[2])
 
 
-def test_calc_decision_delay_vector_thresholds():
-    delay = acp.calc_decision_delay(
-        prob_vec=np.array([0.2, 0.04, 0.01]),
-        perc_risk_threshold=np.array([5, 2]),
-        delay_of_first_prob=1,
+def test_calc_decision_delay_maps_non_contiguous_days():
+    # prob measured on non-contiguous "days"; delay is (crossing day - final case), and NaN
+    # for a threshold the risk never falls below.
+    days = np.array([2, 4, 6, 8])
+    prob_vec = np.array([0.9, 0.5, 0.2, 0.02])
+    delays = acp.calc_decision_delay(
+        prob_vec=prob_vec,
+        days=days,
+        perc_risk_threshold=np.array([60, 30, 1]),
+        time_final_case=3,
     )
-    np.testing.assert_array_equal(delay, np.array([2, 3]))
+    # 60% first crossed on day 4 -> delay 1; 30% on day 6 -> delay 3; 1% never -> NaN.
+    np.testing.assert_array_equal(delays[:2], np.array([1.0, 3.0]))
+    assert np.isnan(delays[2])
 
 
-def test_calc_decision_delay_raises_when_prob_never_below_threshold():
-    with pytest.raises(ValueError, match="does not drop below"):
-        acp.calc_decision_delay(
-            prob_vec=np.array([0.2, 0.15, 0.1]),
-            perc_risk_threshold=5,
-            delay_of_first_prob=1,
-        )
+def test_calc_decision_delay_ignores_days_before_final_case():
+    # A sub-threshold day before the final case does not count.
+    days = np.array([0, 1, 2, 3, 4])
+    prob_vec = np.array([0.0, 0.9, 0.9, 0.9, 0.1])
+    delays = acp.calc_decision_delay(
+        prob_vec=prob_vec,
+        days=days,
+        perc_risk_threshold=np.array([50]),
+        time_final_case=2,
+    )
+    np.testing.assert_array_equal(delays, np.array([2.0]))
 
 
 def test_simulation_prob_t_calc_zero_should_not_crash(rng):
