@@ -1,8 +1,8 @@
 """Plots for the under-reporting simulation study (figure S7)."""
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from endoutbreakvbd import calc_decision_delay
 from endoutbreakvbd.utils import (
@@ -12,7 +12,6 @@ from endoutbreakvbd.utils import (
 )
 from scripts.inputs import get_inputs_sim_underreporting
 
-_PERC_RISK_THRESHOLDS = np.linspace(0.1, 10, 101)
 # Reported cases in neutral gray; unreported (true minus reported) in a distinct colour so
 # it stands out against the reported bars and the inferred-cases band.
 _REPORTED_COLOR = "tab:gray"
@@ -99,16 +98,17 @@ def make_plots():
     fig.savefig(inputs["fig_paths"]["additional_case_prob"])
 
     # Decision delay vs threshold.
+    thresholds = inputs["perc_risk_threshold_grid"]
     fig, ax = plt.subplots()
     for suffix, color, label in _prob_series(colors):
         delays = calc_decision_delay(
             prob_vec=df[f"additional_case_prob_{suffix}"].to_numpy(),
             days=day,
-            perc_risk_threshold=_PERC_RISK_THRESHOLDS,
+            perc_risk_threshold=thresholds,
             time_final_case=time_final_reported,
         )
-        ax.plot(_PERC_RISK_THRESHOLDS, delays, color=color, label=label)
-    ax.set_xlim(_PERC_RISK_THRESHOLDS[0], _PERC_RISK_THRESHOLDS[-1])
+        ax.plot(thresholds, delays, color=color, label=label)
+    ax.set_xlim(thresholds[0], thresholds[-1])
     ax.set_ylim(0, None)
     ax.set_xlabel("Risk threshold (%)")
     ax.set_ylabel("Days from last reported case\nuntil risk falls below threshold")

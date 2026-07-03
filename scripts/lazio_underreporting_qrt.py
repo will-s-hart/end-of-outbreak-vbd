@@ -41,25 +41,16 @@ def run_analyses(
     # A single shared random number generator threads through every sweep and the trajectory.
     rng = np.random.default_rng(2)
 
-    # Real-time nowcast sweeps: suitability at 60/80/100% and autoregressive at 60%.
+    # Real-time nowcast sweeps: the suitability reporting-ceiling sweep (single-sourced from
+    # inputs) plus the autoregressive model at the primary (60%) ceiling.
     sweeps = [
         (
-            "suitability_p60",
+            name,
             build_suitability_rep_no(suitability_mean_vec=suitability_mean_vec),
-            0.6,
-        ),
-        (
-            "suitability_p80",
-            build_suitability_rep_no(suitability_mean_vec=suitability_mean_vec),
-            0.8,
-        ),
-        (
-            "suitability_p100",
-            build_suitability_rep_no(suitability_mean_vec=suitability_mean_vec),
-            1.0,
-        ),
-        ("autoregressive_p60", build_ar_rep_no(), 0.6),
-    ]
+            prob,
+        )
+        for name, prob in inputs["suitability_sweep"]
+    ] + [("autoregressive_p60", build_ar_rep_no(), inputs["reporting_prob"])]
     for name, rep_no_vec_func, reporting_prob in sweeps:
         ds = _fit_model_qrt(
             incidence_vec=inputs["incidence_vecs"],

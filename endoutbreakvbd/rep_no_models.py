@@ -213,8 +213,10 @@ def build_suitability_rep_no(
             )
         log_rep_no_factor_deviation_vec = pm.AR(
             "log_rep_no_factor_deviation",
-            sigma=rep_no_factor_lognormal_params["sigma"]
-            * np.sqrt(1 - log_rep_no_factor_rho**2),
+            sigma=_ar_innovation_std(
+                stationary_std=rep_no_factor_lognormal_params["sigma"],
+                rho=log_rep_no_factor_rho,
+            ),
             rho=log_rep_no_factor_rho,
             dims=("time",),
             init_dist=pm.Normal.dist(

@@ -15,6 +15,9 @@ from endoutbreakvbd.utils import (
     rescale_rep_no_grid_in_time,
 )
 
+# Shared risk-threshold grid for the decision-delay-vs-threshold plots.
+PERC_RISK_THRESHOLD_GRID = np.linspace(0.1, 10, 101)
+
 
 def get_inputs_schematic() -> dict[str, Any]:
     seasonal_amplitude = 2.5
@@ -379,6 +382,7 @@ def get_inputs_inference_test(quasi_real_time: bool = False) -> dict[str, Any]:
         "suitability_mean_grid": suitability_mean_grid,
         "suitability_model_params": suitability_model_params,
         "doy_start": doy_start,
+        "perc_risk_threshold_grid": PERC_RISK_THRESHOLD_GRID,
         "results_paths": results_paths,
         "fig_paths": fig_paths,
     }
@@ -459,6 +463,7 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
         "incidence_vec": incidence_vec,
         "suitability_mean_vec": suitability_mean_vec,
         "existing_decisions": existing_decisions,
+        "perc_risk_threshold_grid": PERC_RISK_THRESHOLD_GRID,
         "results_paths": results_paths,
         "fig_paths": fig_paths,
     }
@@ -563,7 +568,6 @@ def get_inputs_lazio_underreporting_qrt(
         )
     ]
     latest_incidence_vec = incidence_vecs[-1]
-    latest_snapshot_date = snapshot_dates[-1]
 
     # Suitability prior mean over onset days, extended by the serial interval so the offshoot
     # can project R_t past the data (carrying the seasonal decline). Sized to the latest fit's
@@ -580,22 +584,24 @@ def get_inputs_lazio_underreporting_qrt(
     existing_decisions = inputs_lazio["existing_decisions"]
     time_final_case = int(inputs_lazio["time_final_case"])
 
+    # Reporting-ceiling sweep. `suitability_sweep` (name, reporting probability) is the single
+    # source for the sweep result files, the analysis fits, and the sensitivity-panel labels;
+    # `reporting_prob` (the 60% ceiling) additionally drives the autoregressive sweep and the
+    # full-output trajectory fit.
     reporting_prob = 0.6
-    reporting_probs = (0.6, 0.8, 1.0)
+    suitability_sweep = tuple(
+        (f"suitability_p{int(round(p * 100))}", float(p)) for p in (0.6, 0.8, 1.0)
+    )
+    sweep_names = [name for name, _ in suitability_sweep] + ["autoregressive_p60"]
 
     results_dir = pathlib.Path(__file__).parents[1] / "results/lazio_underreporting_qrt"
     results_dir.mkdir(parents=True, exist_ok=True)
     results_paths = {
-        "suitability_p60": results_dir / "suitability_p60.csv",
-        "suitability_p80": results_dir / "suitability_p80.csv",
-        "suitability_p100": results_dir / "suitability_p100.csv",
-        "autoregressive_p60": results_dir / "autoregressive_p60.csv",
-        "suitability_p60_diagnostics": results_dir / "suitability_p60_diagnostics.csv",
-        "suitability_p80_diagnostics": results_dir / "suitability_p80_diagnostics.csv",
-        "suitability_p100_diagnostics": results_dir
-        / "suitability_p100_diagnostics.csv",
-        "autoregressive_p60_diagnostics": results_dir
-        / "autoregressive_p60_diagnostics.csv",
+        **{name: results_dir / f"{name}.csv" for name in sweep_names},
+        **{
+            f"{name}_diagnostics": results_dir / f"{name}_diagnostics.csv"
+            for name in sweep_names
+        },
         "trajectory": results_dir / "trajectory.csv",
         "delay": results_dir / "delay.csv",
     }
@@ -616,19 +622,17 @@ def get_inputs_lazio_underreporting_qrt(
     return {
         "serial_interval_dist_vec": serial_interval_dist_vec,
         "outbreak_start_date": outbreak_start_date,
-        "doy_start": doy_start,
-        "snapshot_dates": snapshot_dates,
         "decision_dates": decision_dates,
-        "latest_snapshot_date": latest_snapshot_date,
         "calc_times": calc_times,
         "incidence_vecs": incidence_vecs,
         "latest_incidence_vec": latest_incidence_vec,
         "suitability_mean_vec": suitability_mean_vec,
         "delay": delay,
         "reporting_prob": reporting_prob,
-        "reporting_probs": reporting_probs,
+        "suitability_sweep": suitability_sweep,
         "existing_decisions": existing_decisions,
         "time_final_case": time_final_case,
+        "perc_risk_threshold_grid": PERC_RISK_THRESHOLD_GRID,
         "results_paths": results_paths,
         "fig_paths": fig_paths,
     }
@@ -662,7 +666,7 @@ def get_inputs_sim_underreporting() -> dict[str, Any]:
         "reporting_prob": 0.4,
         "min_outbreak_size": 30,
         "incidence_init": 1,
-        "perc_risk_threshold_vals": (1, 2.5, 5),
+        "perc_risk_threshold_grid": PERC_RISK_THRESHOLD_GRID,
         "results_paths": results_paths,
         "fig_paths": fig_paths,
     }

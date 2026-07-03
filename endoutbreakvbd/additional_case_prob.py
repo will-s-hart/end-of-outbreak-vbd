@@ -7,23 +7,22 @@ from joblib import Parallel, delayed
 from numpy.typing import ArrayLike
 from tqdm import tqdm
 
-from endoutbreakvbd.model import run_renewal_model
 from endoutbreakvbd._types import (
     FloatArray,
-    SerialIntervalInput,
     IncidenceSeriesInput,
     IntArray,
     PercRiskThresholdInput,
     RepNoFunc,
+    SerialIntervalInput,
 )
+from endoutbreakvbd.model import run_renewal_model
 
 nonnegint = Annotated[int, Ge(0)]
 
 
-# Overloaded on t_calc so a scalar yields a scalar probability and an array yields an array
-# (callers such as calc_decision_delay require the FloatArray). With
-# additional_dims="broadcast" a scalar t_calc actually returns a per-sample array, but only
-# the array-t_calc form is used that way, so a single pair of overloads suffices.
+# Overloaded on t_calc: a scalar (only ever used with the default "average") yields a scalar
+# probability, while an array yields a FloatArray for either reduction. The unsupported
+# scalar-t_calc + "broadcast" combination is intentionally omitted, so it type-errors.
 @overload
 def calc_additional_case_prob_analytical(
     *,
@@ -31,7 +30,7 @@ def calc_additional_case_prob_analytical(
     rep_no_func: RepNoFunc,
     serial_interval_dist_vec: SerialIntervalInput,
     t_calc: nonnegint,
-    additional_dims: Literal["average", "broadcast"] = ...,
+    additional_dims: Literal["average"] = ...,
 ) -> float: ...
 
 
@@ -391,9 +390,11 @@ def calc_decision_delay(
     after_final_case = days > time_final_case
     prob_after = prob_vec[after_final_case]
     days_after = days[after_final_case]
-    decision_delay = np.full(len(perc_risk_threshold), np.nan)
-    for j, threshold in enumerate(perc_risk_threshold):
-        below = np.nonzero(prob_after < threshold / 100)[0]
-        if below.size:
-            decision_delay[j] = days_after[below[0]] - time_final_case
-    return decision_delay
+    if days_after.size == 0:
+        return np.full(perc_risk_threshold.shape, np.nan)
+    below = prob_after[None, :] < (
+        perc_risk_threshold[:, None] / 100
+    )  # (n_thr, n_after)
+    ever_below = below.any(axis=1)
+    first_below = below.argmax(axis=1)
+    return np.where(ever_below, days_after[first_below] - time_final_case, np.nan)

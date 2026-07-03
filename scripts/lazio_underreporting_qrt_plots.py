@@ -20,8 +20,6 @@ from endoutbreakvbd.utils import (
 )
 from scripts.inputs import get_inputs_lazio_underreporting_qrt
 
-_PERC_RISK_THRESHOLDS = np.linspace(0.1, 10, 101)
-
 
 def _doy(dates) -> np.ndarray:
     return pd.DatetimeIndex(dates).dayofyear.to_numpy()
@@ -98,6 +96,7 @@ def _make_prob_plot(inputs, colors):
 def _make_decision_plots(inputs, colors):
     time_final_case = inputs["time_final_case"]
     calc_times = inputs["calc_times"]
+    thresholds = inputs["perc_risk_threshold_grid"]
     decisions = inputs["existing_decisions"]
 
     df_suit = pd.read_csv(inputs["results_paths"]["suitability_p60"])
@@ -112,41 +111,43 @@ def _make_decision_plots(inputs, colors):
         delays = calc_decision_delay(
             prob_vec=df["additional_case_prob"].to_numpy(),
             days=calc_times,
-            perc_risk_threshold=_PERC_RISK_THRESHOLDS,
+            perc_risk_threshold=thresholds,
             time_final_case=time_final_case,
         )
-        ax.plot(_PERC_RISK_THRESHOLDS, delays, color=color, label=label)
+        ax.plot(thresholds, delays, color=color, label=label)
     ax.axhline(
         decisions["blood_resumed_anzio"]["days_from_final_case"],
         color=colors[-1],
         linestyle="dashed",
         label="Blood measures lifted",
     )
-    ax.set_xlim(_PERC_RISK_THRESHOLDS[0], _PERC_RISK_THRESHOLDS[-1])
+    ax.set_xlim(thresholds[0], thresholds[-1])
     ax.set_ylim(0, None)
     ax.set_xlabel("Risk threshold (%)")
     ax.set_ylabel("Days from last observed case\nuntil risk falls below threshold")
     ax.legend(loc="upper right")
     fig.savefig(inputs["fig_paths"]["decision"])
 
-    # Panel D: reporting-probability sensitivity (suitability at 60/80/100%).
+    # Panel D: reporting-probability sensitivity (the suitability reporting-ceiling sweep).
     fig, ax = plt.subplots()
-    for name, prob_label, color in [
-        ("suitability_p60", "60%", colors[0]),
-        ("suitability_p80", "80%", colors[2]),
-        ("suitability_p100", "100%", colors[3]),
-    ]:
+    sweep_colors = [colors[0], colors[2], colors[3]]
+    for (name, prob), color in zip(
+        inputs["suitability_sweep"], sweep_colors, strict=True
+    ):
         df = pd.read_csv(inputs["results_paths"][name])
         delays = calc_decision_delay(
             prob_vec=df["additional_case_prob"].to_numpy(),
             days=calc_times,
-            perc_risk_threshold=_PERC_RISK_THRESHOLDS,
+            perc_risk_threshold=thresholds,
             time_final_case=time_final_case,
         )
         ax.plot(
-            _PERC_RISK_THRESHOLDS, delays, color=color, label=f"Reporting {prob_label}"
+            thresholds,
+            delays,
+            color=color,
+            label=f"Reporting {int(round(prob * 100))}%",
         )
-    ax.set_xlim(_PERC_RISK_THRESHOLDS[0], _PERC_RISK_THRESHOLDS[-1])
+    ax.set_xlim(thresholds[0], thresholds[-1])
     ax.set_ylim(0, None)
     ax.set_xlabel("Risk threshold (%)")
     ax.set_ylabel("Days from last observed case\nuntil risk falls below threshold")

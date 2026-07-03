@@ -1,14 +1,13 @@
 # Note that AI tools were used to generate tests
 
 import numpy as np
+import pymc as pm
 import pytest
 import xarray as xr
 
-import pymc as pm
-
 import endoutbreakvbd.inference as inf
-from endoutbreakvbd.utils import renewal_convolution_matrix
 from endoutbreakvbd.rep_no_models import build_ar_rep_no, build_known_rep_no
+from endoutbreakvbd.utils import renewal_convolution_matrix
 
 
 class _CtxModel:

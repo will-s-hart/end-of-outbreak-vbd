@@ -171,23 +171,31 @@ def test_get_inputs_lazio_underreporting_qrt_structure(monkeypatch):
 
     # One right-truncated incidence series per calculation time.
     assert len(out["incidence_vecs"]) == len(out["calc_times"])
-    assert len(out["snapshot_dates"]) == len(out["calc_times"])
-    # Each snapshot series spans onset days 0..t_calc inclusive.
+    assert len(out["decision_dates"]) == len(out["calc_times"])
+    # Each snapshot series spans onset days 0..(t_calc - 1) inclusive (the last known onset
+    # day; t_calc is the next-day decision), so its length equals t_calc.
     for incidence_vec, calc_time in zip(out["incidence_vecs"], out["calc_times"]):
-        assert len(incidence_vec) == calc_time + 1
+        assert len(incidence_vec) == calc_time
         assert np.issubdtype(incidence_vec.dtype, np.integer)
     assert np.array_equal(out["latest_incidence_vec"], out["incidence_vecs"][-1])
-    # Suitability prior extends a serial interval past the latest calculation time.
+    # Suitability prior is sized to the latest fit's inference horizon: the latest snapshot day
+    # (t_calc - 1) plus one, extended a serial interval to project R_t forward.
     serial_interval_max = len(out["serial_interval_dist_vec"])
     assert (
         len(out["suitability_mean_vec"])
-        == int(out["calc_times"].max()) + 1 + serial_interval_max
+        == int(out["calc_times"].max()) + serial_interval_max
     )
     assert out["reporting_prob"] == 0.6
-    assert out["reporting_probs"] == (0.6, 0.8, 1.0)
+    # The reporting-ceiling sweep is the single source for the suitability sweep names/probs.
+    assert out["suitability_sweep"] == (
+        ("suitability_p60", 0.6),
+        ("suitability_p80", 0.8),
+        ("suitability_p100", 1.0),
+    )
     assert {"suitability_p60", "autoregressive_p60", "trajectory", "delay"}.issubset(
         out["results_paths"]
     )
+    assert "perc_risk_threshold_grid" in out
 
 
 def test_get_inputs_lazio_underreporting_qrt_rejects_out_of_range_dates(monkeypatch):
@@ -207,7 +215,7 @@ def test_get_inputs_sim_underreporting_structure(monkeypatch):
         "reporting_prob",
         "min_outbreak_size",
         "incidence_init",
-        "perc_risk_threshold_vals",
+        "perc_risk_threshold_grid",
         "results_paths",
         "fig_paths",
     } == set(out)

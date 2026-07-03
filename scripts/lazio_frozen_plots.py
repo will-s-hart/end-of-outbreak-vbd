@@ -4,8 +4,8 @@ from endoutbreakvbd.utils import set_plot_config
 from scripts.inputs import get_inputs_lazio_frozen
 from scripts.lazio_outbreak_plots import (
     _make_decision_plot,
-    _make_rep_no_plot,
     _make_prob_plot,
+    _make_rep_no_plot,
 )
 
 
@@ -37,6 +37,7 @@ def make_plots():
         model_names=model_names,
         existing_decisions=inputs["existing_decisions"],
         data_paths=data_paths,
+        perc_risk_thresholds=inputs["perc_risk_threshold_grid"],
         save_path=inputs["fig_paths"]["decision"],
     )
 
