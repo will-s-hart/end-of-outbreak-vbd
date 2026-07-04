@@ -41,7 +41,12 @@ def make_plots(start_date="2017-10-01", end_date="2017-12-31", stride=1):
     colors = get_colors()
     _make_delay_plot(inputs)
     _make_cases_plot(inputs, colors)
-    _make_prob_plot(inputs, colors, ylabel="Real-time probability of additional cases")
+    _make_prob_plot(
+        inputs,
+        colors,
+        ylabel="Real-time probability of additional cases",
+        left_date=start_date,
+    )
 
 
 def _make_delay_plot(inputs):
@@ -79,7 +84,9 @@ def _make_cases_plot(inputs, colors):
     return fig, ax
 
 
-def _make_prob_plot(inputs, colors, *, ylabel="Probability of additional cases"):
+def _make_prob_plot(
+    inputs, colors, *, ylabel="Probability of additional cases", left_date=None
+):
     df_suit = pd.read_csv(
         inputs["results_paths"]["suitability_p60"], parse_dates=["date"]
     )
@@ -131,9 +138,15 @@ def _make_prob_plot(inputs, colors, *, ylabel="Probability of additional cases")
         linestyle="dotted",
         label="45-day rule",
     )
-    # Focus on the decision window: from the first estimate to just past the later marker (the
-    # estimate may run on into a flat post-outbreak tail, which is clipped).
-    ax.set_xlim(min(d.min() for d in doys), max(marker_doys) + 6)
+    # Focus on the decision window: from the first estimate (or an explicit ``left_date``, e.g. the
+    # nowcast start, so its month tick is labelled) to just past the later marker; the estimate may
+    # run on into a flat post-outbreak tail, which is clipped.
+    left = (
+        _doy([pd.Timestamp(left_date)])[0]
+        if left_date is not None
+        else min(d.min() for d in doys)
+    )
+    ax.set_xlim(left, max(marker_doys) + 6)
     month_start_xticks(ax)
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, 1.01)

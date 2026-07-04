@@ -98,6 +98,8 @@ def _make_decision_plot(inputs, colors):
         linestyle="dotted",
         label="45-day rule",
     )
+    # Label the lower threshold (0.1%) so the axis floor is not misread as 0 (as in figure 4).
+    ax.set_xticks(np.append(thresholds[0], ax.get_xticks()))
     ax.set_xlim(thresholds[0], thresholds[-1])
     ax.set_ylim(0, None)
     ax.set_xlabel("Risk threshold (%)")
