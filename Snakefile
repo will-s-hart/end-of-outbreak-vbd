@@ -51,14 +51,11 @@ results_files_lazio_frozen = ["results/lazio_frozen/autoregressive_frozen.csv"]
 results_files_lazio_epiestim = ["results/lazio_epiestim/epiestim.csv"]
 results_files_lazio_underreporting_qrt = expand(
     "results/lazio_underreporting_qrt/{name}.csv",
-    name=[
-        "suitability_p60",
-        "suitability_p80",
-        "suitability_p100",
-        "autoregressive_p60",
-        "trajectory",
-        "delay",
-    ],
+    name=["suitability_p60", "autoregressive_p60", "trajectory", "delay"],
+)
+results_files_lazio_underreporting_retro = expand(
+    "results/lazio_underreporting_retro/{name}.csv",
+    name=["suitability_p60", "autoregressive_p60", "trajectory"],
 )
 results_files_sim_underreporting = ["results/sim_underreporting/sim.csv"]
 
@@ -72,6 +69,7 @@ results_files = (
     + results_files_lazio_frozen
     + results_files_lazio_epiestim
     + results_files_lazio_underreporting_qrt
+    + results_files_lazio_underreporting_retro
     + results_files_sim_underreporting
 )
 
@@ -145,15 +143,17 @@ plot_files_lazio_epiestim = expand(
 )
 plot_files_lazio_underreporting_qrt = expand(
     "figures/lazio_underreporting_qrt/{name}.svg",
+    name=["delay", "cases", "additional_case_prob"],
+)
+plot_files_lazio_underreporting_retro = expand(
+    "figures/lazio_underreporting_retro/{name}.svg",
     name=[
         "cases",
         "additional_case_prob",
         "decision",
-        "reporting_sensitivity",
         "suitability",
         "scaling_factor",
         "rep_no",
-        "delay",
     ],
 )
 plot_files_sim_underreporting = expand(
@@ -164,7 +164,7 @@ plot_files_sim_underreporting = expand(
 schematic_figure_file = "figures/figure_1.svg"
 paper_figure_files_compiled = expand(
     "figures/figure_{number}.svg",
-    number=["2", "3", "4", "5", "S1", "S2", "S3", "S4", "S5", "S6", "S7"],
+    number=["2", "3", "4", "5", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"],
 )
 paper_figure_files = [schematic_figure_file] + paper_figure_files_compiled
 paper_figure_files_png = [x.replace(".svg", ".png") for x in paper_figure_files]
@@ -179,6 +179,7 @@ plot_files = (
     + plot_files_lazio_frozen
     + plot_files_lazio_epiestim
     + plot_files_lazio_underreporting_qrt
+    + plot_files_lazio_underreporting_retro
     + plot_files_sim_underreporting
 )
 
@@ -497,12 +498,42 @@ rule lazio_underreporting_qrt_plots:
         shared_input_files,
         results_files_weather_suitability_data,
         results_files_lazio_underreporting_qrt,
+        get_results_files_lazio_outbreak(qrt=""),
         "scripts/lazio_underreporting_qrt_plots.py",
     output:
         plot_files_lazio_underreporting_qrt,
     shell:
         """
         pixi run python scripts/lazio_underreporting_qrt_plots.py
+        """
+
+
+rule lazio_underreporting_retro_results:
+    input:
+        shared_input_files,
+        results_files_weather_suitability_data,
+        "scripts/lazio_underreporting_retro.py",
+    output:
+        results_files_lazio_underreporting_retro,
+    shell:
+        """
+        pixi run python scripts/lazio_underreporting_retro.py -r
+        """
+
+
+rule lazio_underreporting_retro_plots:
+    input:
+        shared_input_files,
+        results_files_weather_suitability_data,
+        results_files_lazio_underreporting_retro,
+        get_results_files_lazio_outbreak(qrt=""),
+        "scripts/lazio_underreporting_retro_plots.py",
+        "scripts/lazio_underreporting_qrt_plots.py",
+    output:
+        plot_files_lazio_underreporting_retro,
+    shell:
+        """
+        pixi run python scripts/lazio_underreporting_retro_plots.py
         """
 
 

@@ -514,8 +514,8 @@ def get_inputs_lazio_epiestim() -> dict[str, Any]:
 
 
 def get_inputs_lazio_underreporting_qrt(
-    start_date: str = "2017-11-01",
-    end_date: str = "2017-12-20",
+    start_date: str = "2017-10-01",
+    end_date: str = "2017-12-31",
     stride: int = 1,
 ) -> dict[str, Any]:
     serial_interval_dist_vec = _get_serial_interval_dist()
@@ -584,13 +584,13 @@ def get_inputs_lazio_underreporting_qrt(
     existing_decisions = inputs_lazio["existing_decisions"]
     time_final_case = int(inputs_lazio["time_final_case"])
 
-    # Reporting-ceiling sweep. `suitability_sweep` (name, reporting probability) is the single
-    # source for the sweep result files, the analysis fits, and the sensitivity-panel labels;
-    # `reporting_prob` (the 60% ceiling) additionally drives the autoregressive sweep and the
-    # full-output trajectory fit.
+    # The nowcast reports a single reporting ceiling (60%); the reporting-ceiling sensitivity
+    # sweep now lives in the retrospective analysis. `suitability_sweep` is kept as the (single-
+    # entry) source for the suitability fit's result file, and `reporting_prob` additionally
+    # drives the autoregressive fit and the full-output trajectory fit.
     reporting_prob = 0.6
-    suitability_sweep = tuple(
-        (f"suitability_p{int(round(p * 100))}", float(p)) for p in (0.6, 0.8, 1.0)
+    suitability_sweep = (
+        (f"suitability_p{int(round(reporting_prob * 100))}", reporting_prob),
     )
     sweep_names = [name for name, _ in suitability_sweep] + ["autoregressive_p60"]
 
@@ -609,14 +609,9 @@ def get_inputs_lazio_underreporting_qrt(
     fig_dir = pathlib.Path(__file__).parents[1] / "figures/lazio_underreporting_qrt"
     fig_dir.mkdir(parents=True, exist_ok=True)
     fig_paths = {
+        "delay": fig_dir / "delay.svg",
         "cases": fig_dir / "cases.svg",
         "additional_case_prob": fig_dir / "additional_case_prob.svg",
-        "decision": fig_dir / "decision.svg",
-        "reporting_sensitivity": fig_dir / "reporting_sensitivity.svg",
-        "suitability": fig_dir / "suitability.svg",
-        "scaling_factor": fig_dir / "scaling_factor.svg",
-        "rep_no": fig_dir / "rep_no.svg",
-        "delay": fig_dir / "delay.svg",
     }
 
     return {
@@ -633,6 +628,109 @@ def get_inputs_lazio_underreporting_qrt(
         "existing_decisions": existing_decisions,
         "time_final_case": time_final_case,
         "perc_risk_threshold_grid": PERC_RISK_THRESHOLD_GRID,
+        # Existing full-reporting retrospective fits, overlaid (dashed) on the prob panel as the
+        # "full outbreak knowledge" benchmark.
+        "full_reporting_paths": {
+            "suitability": inputs_lazio["results_paths"]["suitability"],
+            "autoregressive": inputs_lazio["results_paths"]["autoregressive"],
+        },
+        "full_reporting_start_date": inputs_lazio["start_date"],
+        "results_paths": results_paths,
+        "fig_paths": fig_paths,
+    }
+
+
+def get_inputs_lazio_underreporting_retro() -> dict[str, Any]:
+    inputs_lazio = get_inputs_lazio_outbreak(quasi_real_time=False)
+    serial_interval_dist_vec = inputs_lazio["serial_interval_dist_vec"]
+    serial_interval_max = len(serial_interval_dist_vec)
+
+    # Retrospective under-reporting fit over the full reported outbreak with a constant per-day
+    # reporting probability and *no* delay/right-truncation. The incidence is padded with a serial
+    # interval (+1) of zero-report days, exactly like the main Lazio analysis, so the additional-
+    # case probability is reported over the post-outbreak tail (declining to ~0, spanning the
+    # relaxation-decision dates). The under-reporting model then projects R_t a further serial
+    # interval beyond the padded data, so `suitability_mean_vec` is extended to match.
+    df_data = _get_lazio_outbreak_data()
+    outbreak_start_date = df_data.index[0]
+    doy_start = int(df_data["doy"].to_numpy()[0])
+    real_cases = df_data["cases"].to_numpy()
+    final_case_idx = int(np.nonzero(real_cases)[0][-1])
+    # Pad with zero-report days out to ~10 days past the 45-day relaxation rule (final case + 45),
+    # so the post-outbreak probability decline and both decision markers are visible; never
+    # shorter than the serial-interval projection convention used by the main Lazio analysis.
+    n_pad = max(serial_interval_max + 1, final_case_idx + 55 - (len(real_cases) - 1))
+    incidence_vec = np.append(real_cases, np.zeros(n_pad, dtype=int)).astype(int)
+    n_days = len(incidence_vec)
+
+    n_suitability = n_days + serial_interval_max
+    doy_vec = (np.arange(doy_start, doy_start + n_suitability) - 1) % 365 + 1
+    suitability_by_doy = _get_2017_suitability_data().set_index("doy")[
+        "suitability_smoothed_lagged"
+    ]
+    suitability_mean_vec = suitability_by_doy.loc[doy_vec].to_numpy()
+
+    # The additional-case probability is reported for every day of the series; the decision-delay
+    # panels index it by day-of-outbreak (`calc_times`), dated from the outbreak start.
+    calc_times = np.arange(n_days)
+    decision_dates = outbreak_start_date + pd.to_timedelta(calc_times, unit="D")
+
+    time_final_case = int(inputs_lazio["time_final_case"])
+    existing_decisions = inputs_lazio["existing_decisions"]
+
+    # Single (60%) reporting ceiling — constant reporting probability, no delay. Kept as a
+    # single-entry sweep for parity with the QRT inputs and the analysis loop.
+    reporting_prob = 0.6
+    suitability_sweep = (
+        (f"suitability_p{int(round(reporting_prob * 100))}", reporting_prob),
+    )
+    sweep_names = [name for name, _ in suitability_sweep] + ["autoregressive_p60"]
+
+    results_dir = (
+        pathlib.Path(__file__).parents[1] / "results/lazio_underreporting_retro"
+    )
+    results_dir.mkdir(parents=True, exist_ok=True)
+    results_paths = {
+        **{name: results_dir / f"{name}.csv" for name in sweep_names},
+        **{
+            f"{name}_diagnostics": results_dir / f"{name}_diagnostics.csv"
+            for name in sweep_names
+        },
+        "trajectory": results_dir / "trajectory.csv",
+    }
+
+    fig_dir = pathlib.Path(__file__).parents[1] / "figures/lazio_underreporting_retro"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    fig_paths = {
+        # Fig S5 (results): cases + prob + decision (both with the full-outbreak-knowledge overlay)
+        "cases": fig_dir / "cases.svg",
+        "additional_case_prob": fig_dir / "additional_case_prob.svg",
+        "decision": fig_dir / "decision.svg",
+        # Fig S6 (inference diagnostics)
+        "suitability": fig_dir / "suitability.svg",
+        "scaling_factor": fig_dir / "scaling_factor.svg",
+        "rep_no": fig_dir / "rep_no.svg",
+    }
+
+    return {
+        "serial_interval_dist_vec": serial_interval_dist_vec,
+        "outbreak_start_date": outbreak_start_date,
+        "incidence_vec": incidence_vec,
+        "suitability_mean_vec": suitability_mean_vec,
+        "calc_times": calc_times,
+        "decision_dates": decision_dates,
+        "reporting_prob": reporting_prob,
+        "suitability_sweep": suitability_sweep,
+        "existing_decisions": existing_decisions,
+        "time_final_case": time_final_case,
+        "perc_risk_threshold_grid": PERC_RISK_THRESHOLD_GRID,
+        # Existing full-reporting retrospective fits, overlaid (dashed) on the prob panel as the
+        # "full outbreak knowledge" benchmark.
+        "full_reporting_paths": {
+            "suitability": inputs_lazio["results_paths"]["suitability"],
+            "autoregressive": inputs_lazio["results_paths"]["autoregressive"],
+        },
+        "full_reporting_start_date": inputs_lazio["start_date"],
         "results_paths": results_paths,
         "fig_paths": fig_paths,
     }

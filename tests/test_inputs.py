@@ -186,15 +186,14 @@ def test_get_inputs_lazio_underreporting_qrt_structure(monkeypatch):
         == int(out["calc_times"].max()) + serial_interval_max
     )
     assert out["reporting_prob"] == 0.6
-    # The reporting-ceiling sweep is the single source for the suitability sweep names/probs.
-    assert out["suitability_sweep"] == (
-        ("suitability_p60", 0.6),
-        ("suitability_p80", 0.8),
-        ("suitability_p100", 1.0),
-    )
+    # The nowcast reports a single (60%) reporting ceiling; the multi-ceiling sweep moved to the
+    # retrospective analysis.
+    assert out["suitability_sweep"] == (("suitability_p60", 0.6),)
     assert {"suitability_p60", "autoregressive_p60", "trajectory", "delay"}.issubset(
         out["results_paths"]
     )
+    # The full-reporting lazio_outbreak fits back the dashed "full outbreak knowledge" overlay.
+    assert {"suitability", "autoregressive"}.issubset(out["full_reporting_paths"])
     assert "perc_risk_threshold_grid" in out
 
 
@@ -204,6 +203,31 @@ def test_get_inputs_lazio_underreporting_qrt_rejects_out_of_range_dates(monkeypa
         inputs.get_inputs_lazio_underreporting_qrt(start_date="2017-01-01")
     with pytest.raises(ValueError, match="beyond the last report date"):
         inputs.get_inputs_lazio_underreporting_qrt(end_date="2018-06-01")
+
+
+def test_get_inputs_lazio_underreporting_retro_structure(monkeypatch):
+    monkeypatch.setattr(inputs.pathlib.Path, "mkdir", lambda *args, **kwargs: None)
+
+    out = inputs.get_inputs_lazio_underreporting_retro()
+
+    serial_interval_max = len(out["serial_interval_dist_vec"])
+    # The additional-case probability is reported for every (padded) day; the incidence is padded
+    # with a serial interval (+1) of zero-report days.
+    assert len(out["calc_times"]) == len(out["incidence_vec"])
+    assert out["incidence_vec"][-1] == 0
+    # Suitability prior extends a further serial interval beyond the padded data (the under-
+    # reporting projection horizon).
+    assert (
+        len(out["suitability_mean_vec"])
+        == len(out["incidence_vec"]) + serial_interval_max
+    )
+    assert out["reporting_prob"] == 0.6
+    assert out["suitability_sweep"] == (("suitability_p60", 0.6),)
+    assert {"suitability_p60", "autoregressive_p60", "trajectory"}.issubset(
+        out["results_paths"]
+    )
+    assert {"suitability", "autoregressive"}.issubset(out["full_reporting_paths"])
+    assert "perc_risk_threshold_grid" in out
 
 
 def test_get_inputs_sim_underreporting_structure(monkeypatch):

@@ -162,17 +162,13 @@ def compile_paper_figures():
         ],
         panel_sz=wide_panel_sz,
     )
-    # Figure 5 (real-time under-reporting nowcast)
+    # Figure 5 (real-time under-reporting nowcast): delay distribution, latest-snapshot true
+    # cases, real-time additional-case probability (with the full-outbreak-knowledge benchmark).
     compile_figure(
         save_path=figure_dir / "figure_5.svg",
         panel_paths=[
             figure_dir / "lazio_underreporting_qrt" / f"{x}.svg"
-            for x in [
-                "cases",
-                "additional_case_prob",
-                "decision",
-                "reporting_sensitivity",
-            ]
+            for x in ["delay", "cases", "additional_case_prob"]
         ],
         panel_sz=wide_panel_sz,
     )
@@ -223,18 +219,29 @@ def compile_paper_figures():
         ],
         panel_sz=wide_panel_sz,
     )
-    # Figure S5 (under-reporting estimates + fitted delay distribution)
+    # Figure S5 (retrospective under-reporting — results): latent true cases, additional-case
+    # probability, and decision delay — the latter two with the full-outbreak-knowledge benchmark.
     compile_figure(
         save_path=figure_dir / "figure_S5.svg",
         panel_paths=[
-            figure_dir / "lazio_underreporting_qrt" / f"{x}.svg"
-            for x in ["suitability", "scaling_factor", "rep_no", "delay"]
+            figure_dir / "lazio_underreporting_retro" / f"{x}.svg"
+            for x in ["cases", "additional_case_prob", "decision"]
         ],
         panel_sz=wide_panel_sz,
     )
-    # Figure S5
+    # Figure S6 (retrospective under-reporting — inference diagnostics): suitability / R_t-factor /
+    # R_t posteriors, each overlaid with the full-reporting (no under-reporting) estimate.
     compile_figure(
         save_path=figure_dir / "figure_S5.svg",
+        panel_paths=[
+            figure_dir / "lazio_underreporting_retro" / f"{x}.svg"
+            for x in ["suitability", "scaling_factor", "rep_no"]
+        ],
+        panel_sz=wide_panel_sz,
+    )
+    # Figure S7 (inference test)
+    compile_figure(
+        save_path=figure_dir / "figure_S7.svg",
         panel_paths=[
             figure_dir / "inference_test" / f"{x}.svg"
             for x in [
@@ -247,9 +254,9 @@ def compile_paper_figures():
         ],
         panel_sz=wide_panel_sz,
     )
-    # Figure S7 (under-reporting simulation study)
+    # Figure S8 (under-reporting simulation study)
     compile_figure(
-        save_path=figure_dir / "figure_S7.svg",
+        save_path=figure_dir / "figure_S8.svg",
         panel_paths=[
             figure_dir / "sim_underreporting" / f"{x}.svg"
             for x in ["cases", "rep_no", "additional_case_prob", "decision"]

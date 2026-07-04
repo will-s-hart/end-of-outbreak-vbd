@@ -29,7 +29,7 @@ if os.environ.get("SLURM_CPUS_PER_TASK"):
 
 
 def run_analyses(
-    start_date="2017-11-01", end_date="2017-12-20", stride=1, parallel=True
+    start_date="2017-10-01", end_date="2017-12-31", stride=1, parallel=True
 ):
     inputs = get_inputs_lazio_underreporting_qrt(
         start_date=start_date, end_date=end_date, stride=stride
@@ -138,8 +138,8 @@ if __name__ == "__main__":
         action="store_true",
         help="Only run analyses and save results (no plots)",
     )
-    parser.add_argument("--start-date", default="2017-11-01")
-    parser.add_argument("--end-date", default="2017-12-20")
+    parser.add_argument("--start-date", default="2017-10-01")
+    parser.add_argument("--end-date", default="2017-12-31")
     parser.add_argument(
         "--stride",
         type=int,
