@@ -84,11 +84,19 @@ def _make_decision_plot(inputs, colors):
     ax.plot(
         [], [], color="tab:gray", linestyle="dashed", label="Full outbreak knowledge"
     )
+    # Decision markers follow figure 4 colours: C3 (blood), C4 (45-day rule). The 45-day line is
+    # included here (unlike figure 4, where it sits well above the panel's y-range).
     ax.axhline(
         decisions["blood_resumed_anzio"]["days_from_final_case"],
         color=colors[3],
         linestyle="dotted",
         label="Blood measures lifted",
+    )
+    ax.axhline(
+        decisions["45_day_rule"]["days_from_final_case"],
+        color=colors[4],
+        linestyle="dotted",
+        label="45-day rule",
     )
     ax.set_xlim(thresholds[0], thresholds[-1])
     ax.set_ylim(0, None)

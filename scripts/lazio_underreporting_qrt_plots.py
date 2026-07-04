@@ -27,7 +27,10 @@ from scripts.inputs import get_inputs_lazio_underreporting_qrt
 
 
 def _doy(dates) -> np.ndarray:
-    return pd.DatetimeIndex(dates).dayofyear.to_numpy()
+    # Continuous day index anchored at the start of 2017 (equals day-of-year within 2017). Using
+    # dayofyear directly would wrap a window that crosses into 2018 (e.g. QRT decision dates past
+    # 31 Dec) back to 1, collapsing the x-axis.
+    return (pd.DatetimeIndex(dates) - pd.Timestamp("2017-01-01")).days.to_numpy() + 1
 
 
 def make_plots(start_date="2017-10-01", end_date="2017-12-31", stride=1):
@@ -128,10 +131,9 @@ def _make_prob_plot(inputs, colors, *, ylabel="Probability of additional cases")
         linestyle="dotted",
         label="45-day rule",
     )
-    # Keep both decision markers (plus a margin) in view even when the estimate stops earlier.
-    left = min(d.min() for d in doys)
-    right = max(max(d.max() for d in doys), max(marker_doys)) + 6
-    ax.set_xlim(left, right)
+    # Focus on the decision window: from the first estimate to just past the later marker (the
+    # estimate may run on into a flat post-outbreak tail, which is clipped).
+    ax.set_xlim(min(d.min() for d in doys), max(marker_doys) + 6)
     month_start_xticks(ax)
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, 1.01)
