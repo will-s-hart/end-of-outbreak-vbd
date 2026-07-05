@@ -514,7 +514,7 @@ def get_inputs_lazio_epiestim() -> dict[str, Any]:
 
 
 def get_inputs_lazio_underreporting_qrt(
-    start_date: str = "2017-10-01",
+    start_date: str = "2017-09-30",
     end_date: str = "2017-12-31",
     stride: int = 1,
 ) -> dict[str, Any]:

@@ -33,7 +33,7 @@ def _doy(dates) -> np.ndarray:
     return (pd.DatetimeIndex(dates) - pd.Timestamp("2017-01-01")).days.to_numpy() + 1
 
 
-def make_plots(start_date="2017-10-01", end_date="2017-12-31", stride=1):
+def make_plots(start_date="2017-09-30", end_date="2017-12-31", stride=1):
     set_plot_config()
     inputs = get_inputs_lazio_underreporting_qrt(
         start_date=start_date, end_date=end_date, stride=stride
@@ -41,12 +41,7 @@ def make_plots(start_date="2017-10-01", end_date="2017-12-31", stride=1):
     colors = get_colors()
     _make_delay_plot(inputs)
     _make_cases_plot(inputs, colors)
-    _make_prob_plot(
-        inputs,
-        colors,
-        ylabel="Real-time probability of additional cases",
-        left_date=start_date,
-    )
+    _make_prob_plot(inputs, colors, ylabel="Real-time probability of additional cases")
 
 
 def _make_delay_plot(inputs):
@@ -84,9 +79,7 @@ def _make_cases_plot(inputs, colors):
     return fig, ax
 
 
-def _make_prob_plot(
-    inputs, colors, *, ylabel="Probability of additional cases", left_date=None
-):
+def _make_prob_plot(inputs, colors, *, ylabel="Probability of additional cases"):
     df_suit = pd.read_csv(
         inputs["results_paths"]["suitability_p60"], parse_dates=["date"]
     )
@@ -138,15 +131,10 @@ def _make_prob_plot(
         linestyle="dotted",
         label="45-day rule",
     )
-    # Focus on the decision window: from the first estimate (or an explicit ``left_date``, e.g. the
-    # nowcast start, so its month tick is labelled) to just past the later marker; the estimate may
-    # run on into a flat post-outbreak tail, which is clipped.
-    left = (
-        _doy([pd.Timestamp(left_date)])[0]
-        if left_date is not None
-        else min(d.min() for d in doys)
-    )
-    ax.set_xlim(left, max(marker_doys) + 6)
+    # Focus on the decision window: from the first estimate (the first decision date; with the
+    # snapshot grid starting 30 Sep this is 1 Oct, whose month tick then shows) to just past the
+    # later marker; the estimate may run on into a flat post-outbreak tail, which is clipped.
+    ax.set_xlim(min(d.min() for d in doys), max(marker_doys) + 6)
     month_start_xticks(ax)
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, 1.01)
