@@ -34,7 +34,7 @@ def make_plots():
     set_plot_config()
     inputs = get_inputs_lazio_underreporting_retro()
     colors = get_colors()
-    _make_prob_plot(inputs, colors)
+    _make_prob_plot(inputs, colors, benchmark_label="Full reporting")
     _make_decision_plot(inputs, colors)
     _make_cases_plot(inputs, colors)
     _make_estimate_plots(inputs)
@@ -81,9 +81,7 @@ def _make_decision_plot(inputs, colors):
             color=color,
             linestyle="dashed",
         )
-    ax.plot(
-        [], [], color="tab:gray", linestyle="dashed", label="Full outbreak knowledge"
-    )
+    ax.plot([], [], color="tab:gray", linestyle="dashed", label="Full reporting")
     # Decision markers follow figure 4 colours: C3 (blood), C4 (45-day rule). The 45-day line is
     # included here (unlike figure 4, where it sits well above the panel's y-range).
     ax.axhline(

@@ -79,7 +79,13 @@ def _make_cases_plot(inputs, colors):
     return fig, ax
 
 
-def _make_prob_plot(inputs, colors, *, ylabel="Probability of additional cases"):
+def _make_prob_plot(
+    inputs,
+    colors,
+    *,
+    ylabel="Probability of additional cases",
+    benchmark_label="Full outbreak knowledge",
+):
     df_suit = pd.read_csv(
         inputs["results_paths"]["suitability_p60"], parse_dates=["date"]
     )
@@ -111,9 +117,7 @@ def _make_prob_plot(inputs, colors, *, ylabel="Probability of additional cases")
             full_doy, df_full["additional_case_prob"], color=color, linestyle="dashed"
         )
     # A neutral proxy entry names the dashed style without doubling the legend.
-    ax.plot(
-        [], [], color="tab:gray", linestyle="dashed", label="Full outbreak knowledge"
-    )
+    ax.plot([], [], color="tab:gray", linestyle="dashed", label=benchmark_label)
     # Decision markers follow the main Lazio (figure 4) colours: C3 (blood), C4 (45-day rule).
     marker_doys = [
         decisions["blood_resumed_anzio"]["doy"],
