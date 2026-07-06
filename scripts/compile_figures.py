@@ -263,6 +263,16 @@ def compile_paper_figures():
         ],
         panel_sz=wide_panel_sz,
     )
+    # Figure S9 (under + delayed reporting nowcast verification): the onset-to-report delay
+    # distribution (A) and the snapshot verification panel (B).
+    compile_figure(
+        save_path=figure_dir / "figure_S9.svg",
+        panel_paths=[
+            figure_dir / "sim_underreporting_nowcast" / f"{x}.svg"
+            for x in ["delay", "verification"]
+        ],
+        panel_sz=wide_panel_sz,
+    )
 
 
 if __name__ == "__main__":

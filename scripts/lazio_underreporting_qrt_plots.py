@@ -26,13 +26,6 @@ from endoutbreakvbd.utils import (
 from scripts.inputs import get_inputs_lazio_underreporting_qrt
 
 
-def _doy(dates) -> np.ndarray:
-    # Continuous day index anchored at the start of 2017 (equals day-of-year within 2017). Using
-    # dayofyear directly would wrap a window that crosses into 2018 (e.g. QRT decision dates past
-    # 31 Dec) back to 1, collapsing the x-axis.
-    return (pd.DatetimeIndex(dates) - pd.Timestamp("2017-01-01")).days.to_numpy() + 1
-
-
 def make_plots(start_date="2017-09-30", end_date="2017-12-31", stride=1):
     set_plot_config()
     inputs = get_inputs_lazio_underreporting_qrt(
@@ -146,6 +139,13 @@ def _make_prob_plot(
     ax.legend(loc="upper right")
     fig.savefig(inputs["fig_paths"]["additional_case_prob"])
     return fig, ax
+
+
+def _doy(dates) -> np.ndarray:
+    # Continuous day index anchored at the start of 2017 (equals day-of-year within 2017). Using
+    # dayofyear directly would wrap a window that crosses into 2018 (e.g. QRT decision dates past
+    # 31 Dec) back to 1, collapsing the x-axis.
+    return (pd.DatetimeIndex(dates) - pd.Timestamp("2017-01-01")).days.to_numpy() + 1
 
 
 if __name__ == "__main__":

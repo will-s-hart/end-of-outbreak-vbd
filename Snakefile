@@ -58,6 +58,10 @@ results_files_lazio_underreporting_retro = expand(
     name=["suitability_p60", "autoregressive_p60", "trajectory"],
 )
 results_files_sim_underreporting = ["results/sim_underreporting/sim.csv"]
+results_files_sim_underreporting_nowcast = expand(
+    "results/sim_underreporting_nowcast/{name}.csv",
+    name=["trajectory", "probs"],
+)
 
 results_files = (
     results_files_schematic
@@ -71,6 +75,7 @@ results_files = (
     + results_files_lazio_underreporting_qrt
     + results_files_lazio_underreporting_retro
     + results_files_sim_underreporting
+    + results_files_sim_underreporting_nowcast
 )
 
 plot_files_weather_suitability_data = expand(
@@ -160,11 +165,15 @@ plot_files_sim_underreporting = expand(
     "figures/sim_underreporting/{name}.svg",
     name=["cases", "rep_no", "additional_case_prob", "decision"],
 )
+plot_files_sim_underreporting_nowcast = expand(
+    "figures/sim_underreporting_nowcast/{name}.svg",
+    name=["delay", "verification"],
+)
 
 schematic_figure_file = "figures/figure_1.svg"
 paper_figure_files_compiled = expand(
     "figures/figure_{number}.svg",
-    number=["2", "3", "4", "5", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"],
+    number=["2", "3", "4", "5", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9"],
 )
 paper_figure_files = [schematic_figure_file] + paper_figure_files_compiled
 paper_figure_files_png = [x.replace(".svg", ".png") for x in paper_figure_files]
@@ -181,6 +190,7 @@ plot_files = (
     + plot_files_lazio_underreporting_qrt
     + plot_files_lazio_underreporting_retro
     + plot_files_sim_underreporting
+    + plot_files_sim_underreporting_nowcast
 )
 
 package_files = [
@@ -559,4 +569,30 @@ rule sim_underreporting_plots:
     shell:
         """
         pixi run python scripts/sim_underreporting_plots.py
+        """
+
+
+rule sim_underreporting_nowcast_results:
+    input:
+        shared_input_files,
+        "scripts/sim_underreporting.py",
+        "scripts/sim_underreporting_nowcast.py",
+    output:
+        results_files_sim_underreporting_nowcast,
+    shell:
+        """
+        pixi run python scripts/sim_underreporting_nowcast.py -r
+        """
+
+
+rule sim_underreporting_nowcast_plots:
+    input:
+        shared_input_files,
+        results_files_sim_underreporting_nowcast,
+        "scripts/sim_underreporting_nowcast_plots.py",
+    output:
+        plot_files_sim_underreporting_nowcast,
+    shell:
+        """
+        pixi run python scripts/sim_underreporting_nowcast_plots.py
         """

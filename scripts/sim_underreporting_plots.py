@@ -1,4 +1,4 @@
-"""Plots for the under-reporting simulation study (figure S7)."""
+"""Plots for the under-reporting simulation study (figure S8)."""
 
 import matplotlib.pyplot as plt
 import numpy as np

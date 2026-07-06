@@ -770,6 +770,70 @@ def get_inputs_sim_underreporting() -> dict[str, Any]:
     }
 
 
+def get_inputs_sim_underreporting_nowcast() -> dict[str, Any]:
+    serial_interval_dist_vec = _get_serial_interval_dist()
+    # Synthetic onset-to-report delay (panel A): a gamma (specified by its mean/sd, so
+    # shape = mean^2/sd^2, scale = sd^2/mean) with a longer mean than the real Lazio delay
+    # (~13 days) and a similar spread, so the right-truncation window is wide and the "reported
+    # later" cases dominate the recent onsets at the snapshot. Discretised (same-day reports
+    # allowed) with the Cori method used elsewhere; the CDF, capped at 1 here, is the model's
+    # delay_cdf. `max_val` is set well into the tail (residual mass < 1e-4) so the Cori method's
+    # dump of the surviving mass onto the final day is negligible. Self-contained — no Lazio data.
+    delay_mean, delay_sd, delay_max = 25.0, 12.0, 100
+    delay_pmf = discretise_cori(
+        dist_cont=scipy.stats.gamma(
+            a=delay_mean**2 / delay_sd**2, scale=delay_sd**2 / delay_mean
+        ),
+        max_val=delay_max,
+        allow_zero=True,
+    )
+    delay = {
+        "support": np.arange(delay_max + 1),
+        "pmf": delay_pmf,
+        "cdf": np.minimum(np.cumsum(delay_pmf), 1.0),
+    }
+
+    results_dir = (
+        pathlib.Path(__file__).parents[1] / "results/sim_underreporting_nowcast"
+    )
+    results_dir.mkdir(parents=True, exist_ok=True)
+    results_paths = {
+        "trajectory": results_dir / "trajectory.csv",
+        "probs": results_dir / "probs.csv",
+        "diagnostics": results_dir / "diagnostics.csv",
+    }
+
+    fig_dir = pathlib.Path(__file__).parents[1] / "figures/sim_underreporting_nowcast"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    fig_paths = {
+        "delay": fig_dir / "delay.svg",
+        "verification": fig_dir / "verification.svg",
+    }
+
+    return {
+        "serial_interval_dist_vec": serial_interval_dist_vec,
+        "delay": delay,
+        # Same true-outbreak realisation as the under-reporting simulation study (figure S8):
+        # the seed threads through simulate_outbreak before any reporting draws, so the true
+        # epidemic curve is identical; only the (delayed + under) reporting differs.
+        "seed": 100,
+        "min_outbreak_size": 30,
+        "incidence_init": 1,
+        # Reporting ceiling. Deliberately high so that "never reported" (pure under-reporting) is
+        # a thin sliver and the figure isolates the *delay* (right-truncation): recent onsets are
+        # mostly "reported later" while earlier onsets are essentially complete.
+        "reporting_prob": 0.9,
+        # Snapshot day D (nowcast "as-of" day); the decision is evaluated at D + 1. This
+        # realisation peaks on day 66 but transmission continues into a long declining tail (last
+        # true case day 127); D is chosen in that tail so the probabilities separate and are not
+        # all ~1 — here the true/under-reporting risk stays high (~0.95) while the naive analysis,
+        # blind to the delayed recent cases, prematurely drops toward the outbreak-over verdict.
+        "snapshot_day": 120,
+        "results_paths": results_paths,
+        "fig_paths": fig_paths,
+    }
+
+
 def _get_lazio_outbreak_data() -> pd.DataFrame:
     df = pd.read_csv(
         pathlib.Path(__file__).parents[1] / "data/lazio_chik_2017.csv",
