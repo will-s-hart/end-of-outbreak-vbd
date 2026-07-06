@@ -16,7 +16,7 @@ final_case_to_blood_measures_lifted = existing_decisions["blood_resumed_anzio"][
 start_date = inputs["start_date"]
 time_final_case = inputs["time_final_case"]
 
-example_prob_level = 0.05
+example_prob_level = 0.01
 
 for model in ["autoregressive", "suitability"]:
     results_path = inputs["results_paths"][model]
