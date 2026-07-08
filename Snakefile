@@ -133,7 +133,7 @@ plot_files_lazio_epiestim = expand(
 schematic_figure_file = "figures/figure_1.svg"
 paper_figure_files_compiled = expand(
     "figures/figure_{number}.svg",
-    number=["2", "3", "4", "S1", "S2", "S3", "S4", "S5", "S6"],
+    number=["2", "3", "4", "S1", "S2", "S3", "S4", "S5"],
 )
 paper_figure_files = [schematic_figure_file] + paper_figure_files_compiled
 paper_figure_files_png = [x.replace(".svg", ".png") for x in paper_figure_files]

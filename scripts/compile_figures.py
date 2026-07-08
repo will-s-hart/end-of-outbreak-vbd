@@ -186,11 +186,16 @@ def compile_paper_figures():
         ],
         panel_sz=wide_panel_sz,
     )
-    # Figure S3
+    # Figure S3 (Lazio R_t-method comparison): frozen autoregressive (A-C) vs EpiEstim
+    # (D-F), each showing R_t, additional-case probability and decision delay.
     compile_figure(
         save_path=figure_dir / "figure_S3.svg",
         panel_paths=[
             figure_dir / "lazio_frozen" / f"{x}.svg"
+            for x in ["rep_no", "additional_case_prob", "decision"]
+        ]
+        + [
+            figure_dir / "lazio_epiestim" / f"{x}.svg"
             for x in ["rep_no", "additional_case_prob", "decision"]
         ],
         panel_sz=wide_panel_sz,
@@ -198,15 +203,6 @@ def compile_paper_figures():
     # Figure S4
     compile_figure(
         save_path=figure_dir / "figure_S4.svg",
-        panel_paths=[
-            figure_dir / "lazio_epiestim" / f"{x}.svg"
-            for x in ["rep_no", "additional_case_prob", "decision"]
-        ],
-        panel_sz=wide_panel_sz,
-    )
-    # Figure S5
-    compile_figure(
-        save_path=figure_dir / "figure_S5.svg",
         panel_paths=[
             figure_dir / "lazio_outbreak_qrt" / f"{x}.svg"
             for x in [
@@ -219,9 +215,9 @@ def compile_paper_figures():
         ],
         panel_sz=wide_panel_sz,
     )
-    # Figure S6
+    # Figure S5
     compile_figure(
-        save_path=figure_dir / "figure_S6.svg",
+        save_path=figure_dir / "figure_S5.svg",
         panel_paths=[
             figure_dir / "inference_test" / f"{x}.svg"
             for x in [
