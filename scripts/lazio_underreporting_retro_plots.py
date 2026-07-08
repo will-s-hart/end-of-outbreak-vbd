@@ -1,11 +1,11 @@
-"""Plots for the retrospective under-reporting analysis (supplementary figures S5 + S6).
+"""Plots for the retrospective under-reporting analysis.
 
-Fig S5 (results): the additional-case probability with the "full outbreak knowledge" dashed
-benchmark (S5A), decision delay vs risk threshold (S5B), and the reporting-ceiling sensitivity
-sweep (S5C). Fig S6 (diagnostics): the latent true-case trajectory (S6A) and the suitability /
-R_t-factor / R_t posteriors (S6B–D).
+Results: the additional-case probability with the "full outbreak knowledge" dashed
+benchmark, decision delay vs risk threshold, and the reporting-ceiling sensitivity
+sweep. Diagnostics: the latent true-case trajectory and the suitability /
+R_t-factor / R_t posteriors.
 
-The cases (S6A) and probability (S5A) panels are shared with the quasi-real-time nowcast
+The cases and probability panels are shared with the quasi-real-time nowcast
 (``lazio_underreporting_qrt_plots``); this module adds the decision and estimate panels.
 """
 
@@ -82,8 +82,9 @@ def _make_decision_plot(inputs, colors):
             linestyle="dashed",
         )
     ax.plot([], [], color="tab:gray", linestyle="dashed", label="Full reporting")
-    # Decision markers follow figure 4 colours: C3 (blood), C4 (45-day rule). The 45-day line is
-    # included here (unlike figure 4, where it sits well above the panel's y-range).
+    # Decision markers follow the main Lazio outbreak colours: C3 (blood), C4 (45-day rule). The
+    # 45-day line is included here (unlike in the main Lazio outbreak analysis, where it sits well
+    # above the panel's y-range).
     ax.axhline(
         decisions["blood_resumed_anzio"]["days_from_final_case"],
         color=colors[3],
@@ -96,7 +97,7 @@ def _make_decision_plot(inputs, colors):
         linestyle="dotted",
         label="45-day rule",
     )
-    # Label the lower threshold (0.1%) so the axis floor is not misread as 0 (as in figure 4).
+    # Label the lower threshold (0.1%) so the axis floor is not misread as 0.
     ax.set_xticks(np.append(thresholds[0], ax.get_xticks()))
     ax.set_xlim(thresholds[0], thresholds[-1])
     ax.set_ylim(0, None)

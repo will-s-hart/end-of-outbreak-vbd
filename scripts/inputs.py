@@ -702,11 +702,11 @@ def get_inputs_lazio_underreporting_retro() -> dict[str, Any]:
     fig_dir = pathlib.Path(__file__).parents[1] / "figures/lazio_underreporting_retro"
     fig_dir.mkdir(parents=True, exist_ok=True)
     fig_paths = {
-        # Fig S5 (results): cases + prob + decision (both with the full-outbreak-knowledge overlay)
+        # Results: cases + prob + decision (both with the full-outbreak-knowledge overlay)
         "cases": fig_dir / "cases.svg",
         "additional_case_prob": fig_dir / "additional_case_prob.svg",
         "decision": fig_dir / "decision.svg",
-        # Fig S6 (inference diagnostics)
+        # Inference diagnostics
         "suitability": fig_dir / "suitability.svg",
         "scaling_factor": fig_dir / "scaling_factor.svg",
         "rep_no": fig_dir / "rep_no.svg",
@@ -813,7 +813,7 @@ def get_inputs_sim_underreporting_nowcast() -> dict[str, Any]:
     return {
         "serial_interval_dist_vec": serial_interval_dist_vec,
         "delay": delay,
-        # Same true-outbreak realisation as the under-reporting simulation study (figure S8):
+        # Same true-outbreak realisation as the under-reporting simulation study:
         # the seed threads through simulate_outbreak before any reporting draws, so the true
         # epidemic curve is identical; only the (delayed + under) reporting differs.
         "seed": 100,

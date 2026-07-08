@@ -1,4 +1,4 @@
-"""Simulation study for the under-reporting model (figure S8).
+"""Simulation study for the under-reporting model.
 
 Simulates one true outbreak from a known declining reproduction number, thins it to a reported
 series at a fixed reporting probability, and contrasts end-of-outbreak analyses against the

@@ -1,4 +1,4 @@
-"""Plots for the under + delayed reporting nowcast verification (figure S9).
+"""Plots for the under + delayed reporting nowcast verification.
 
 Panel A: the (synthetic) onset-to-report delay distribution used to right-truncate the reported
 series. Panel B (verification): on a twin (cases) axis the true incidence up to the snapshot split
@@ -103,7 +103,7 @@ def make_plots():
 
 def _prob_series(colors):
     # (method, colour, label) for the five additional-case-probability markers. Colours match the
-    # under-reporting simulation study (figure S8) for the four shared methods; colors[3] (red) is
+    # under-reporting simulation study for the four shared methods; colors[3] (red) is
     # the extra factor-isolation series, naive at true R.
     return [
         ("true", "black", "True"),

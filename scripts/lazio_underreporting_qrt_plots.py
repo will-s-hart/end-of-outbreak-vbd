@@ -1,7 +1,7 @@
-"""Plots for the quasi-real-time under-reporting nowcast (figure 5).
+"""Plots for the quasi-real-time under-reporting nowcast.
 
-Three panels: the fitted onset-to-report delay distribution (5A), the latest-snapshot true-case
-trajectory (5B), and the real-time additional-case probability (5C) with the retrospective
+Three panels: the fitted onset-to-report delay distribution, the latest-snapshot true-case
+trajectory, and the real-time additional-case probability with the retrospective
 "full outbreak knowledge" benchmark (the full-reporting ``lazio_outbreak`` fits) overlaid as
 dashed lines. ``_make_cases_plot`` and ``_make_prob_plot`` are shared with the retrospective
 under-reporting analysis (``lazio_underreporting_retro_plots``).
@@ -113,7 +113,7 @@ def _make_prob_plot(
         )
     # A neutral proxy entry names the dashed style without doubling the legend.
     ax.plot([], [], color="tab:gray", linestyle="dashed", label=benchmark_label)
-    # Decision markers follow the main Lazio (figure 4) colours: C3 (blood), C4 (45-day rule).
+    # Decision markers follow the main Lazio outbreak colours: C3 (blood), C4 (45-day rule).
     marker_doys = [
         decisions["blood_resumed_anzio"]["doy"],
         decisions["45_day_rule"]["doy"],

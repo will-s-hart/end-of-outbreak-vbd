@@ -1,4 +1,4 @@
-"""Simulate the schematic outbreak and run inference (Figure 1).
+"""Simulate the schematic outbreak and run inference.
 
 Generates a renewal-process outbreak driven by a seasonal R_t and a gamma
 serial-interval distribution, then runs `fit_suitability_model` to infer R_t

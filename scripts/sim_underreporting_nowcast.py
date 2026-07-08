@@ -1,6 +1,6 @@
-"""Simulation verification of the under + delayed reporting nowcast (figure S9).
+"""Simulation verification of the under + delayed reporting nowcast.
 
-Takes the same true outbreak as the under-reporting simulation study (figure S8) and, at a single
+Takes the same true outbreak as the under-reporting simulation study and, at a single
 mid/post-peak snapshot day ``D``, thins it into a *right-truncated* reported series using a reporting
 ceiling and the (real Lazio) onset-to-report delay distribution — so recent onsets are only partly
 reported yet (nowcasting). The under-reporting model is then refit on the data known at ``D`` and its
@@ -43,7 +43,8 @@ def run_analyses():
     t_calc = snapshot_day + 1  # start-of-next-day decision (matches the QRT convention)
 
     # A single shared random number generator threads through the simulation and every fit. The
-    # true outbreak is drawn first (before any reporting draws) so it matches figure S8 exactly.
+    # true outbreak is drawn first (before any reporting draws) so it matches the under-reporting
+    # simulation study exactly.
     rng = np.random.default_rng(inputs["seed"])
     true_vec = _simulate_true_outbreak(
         rng,
