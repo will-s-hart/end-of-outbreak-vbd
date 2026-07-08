@@ -55,7 +55,7 @@ def get_inputs_schematic() -> dict[str, Any]:
         "outbreak_final_case_doy_max": 315,
         "outbreak_max_attempts": 10000,
         "current_day_offset": 15,
-        "inference_seed": 42,
+        "inference_seed": 7,
         "rep_no_factor_prior_median": seasonal_amplitude,
         "rep_no_factor_prior_percentile_2_5": 0.9 * seasonal_amplitude,
         "log_rep_no_factor_rho": 0.95,
