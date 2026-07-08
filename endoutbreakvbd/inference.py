@@ -32,6 +32,287 @@ from endoutbreakvbd.rep_no_models import (
 from endoutbreakvbd.utils import renewal_convolution_matrix, rep_no_from_grid
 
 
+def fit_autoregressive_model(
+    *,
+    incidence_vec: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
+    serial_interval_dist_vec: SerialIntervalInput,
+    prior_median: float | None = None,
+    prior_percentile_2_5: float | None = None,
+    rho: float | list[float] | None = None,
+    quasi_real_time: bool = False,
+    t_calc: int | IntArray | None = None,
+    reporting_prob: float | None = None,
+    delay_cdf: FloatArray | None = None,
+    freeze_from_final_case: bool = False,
+    parallel: bool = True,
+    compute_diagnostics: bool = True,
+    raise_on_poor_diagnostics: bool = False,
+    **kwargs: Any,
+) -> xr.Dataset:
+    """
+    Fit the autoregressive renewal model to an incidence time series, inferring a
+    time-varying reproduction number.
+
+    Parameters
+    ----------
+    incidence_vec : IncidenceSeriesInput
+        Observed incidence time series.
+    serial_interval_dist_vec : SerialIntervalInput
+        Discretised serial interval distribution (probability mass per day).
+    prior_median : float, optional
+        Median of the lognormal prior on the reproduction number. Defaults to
+        ``DEFAULTS.rep_no_prior_median``.
+    prior_percentile_2_5 : float, optional
+        2.5th percentile of the lognormal prior on the reproduction number. Defaults to
+        ``DEFAULTS.rep_no_prior_percentile_2_5``.
+    rho : float or list[float], optional
+        Autoregressive coefficient(s); a length-2 list specifies an AR(2) process.
+        Defaults to ``DEFAULTS.log_rep_no_rho``.
+    quasi_real_time : bool
+        If True, refit using only the data available up to each successive time point.
+        ``incidence_vec`` may then also be a *sequence* of series (one per calculation
+        time), paired with an explicit ``t_calc`` of matching length.
+    t_calc : int or IntArray, optional
+        Calculation time(s) (day) at which to report the additional-case probability;
+        defaults to every day of the series. Required (and matched one-to-one) when
+        ``incidence_vec`` is a sequence of series.
+    reporting_prob : float, optional
+        Case-reporting probability. If given, the under-reporting offshoot is fit with a
+        latent true-case vector instead of the full-reporting model.
+    delay_cdf : FloatArray, optional
+        Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
+        (nowcasting) to the under-reporting model.
+    freeze_from_final_case : bool
+        If True, hold the reproduction number fixed at its final-case-day posterior
+        samples after the final observed case.
+    parallel : bool
+        If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
+        with joblib. No effect on a single (non-quasi-real-time) fit.
+    compute_diagnostics : bool
+        If True, compute convergence diagnostics, attach them to the returned
+        dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
+    raise_on_poor_diagnostics : bool
+        If True, raise (instead of warning) when sampling diagnostics are poor.
+    **kwargs : Any
+        Additional keyword arguments forwarded to the sampler.
+
+    Returns
+    -------
+    xr.Dataset
+        Posterior dataset including the inferred reproduction numbers, summary
+        statistics, and the daily probability of additional cases.
+    """
+    rep_no_vec_func = build_ar_rep_no(
+        prior_median=prior_median,
+        prior_percentile_2_5=prior_percentile_2_5,
+        rho=rho,
+    )
+    return _fit_model(
+        incidence_vec=incidence_vec,
+        serial_interval_dist_vec=serial_interval_dist_vec,
+        rep_no_vec_func=rep_no_vec_func,
+        quasi_real_time=quasi_real_time,
+        t_calc=t_calc,
+        reporting_prob=reporting_prob,
+        delay_cdf=delay_cdf,
+        freeze_from_final_case=freeze_from_final_case,
+        parallel=parallel,
+        compute_diagnostics=compute_diagnostics,
+        raise_on_poor_diagnostics=raise_on_poor_diagnostics,
+        **kwargs,
+    )
+
+
+def fit_suitability_model(
+    *,
+    incidence_vec: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
+    serial_interval_dist_vec: SerialIntervalInput,
+    suitability_mean_vec: list[float] | FloatArray,
+    suitability_std: float | None = None,
+    suitability_rho: float | None = None,
+    rep_no_factor_prior_median: float | None = None,
+    rep_no_factor_prior_percentile_2_5: float | None = None,
+    log_rep_no_factor_rho: float | None = None,
+    quasi_real_time: bool = False,
+    t_calc: int | IntArray | None = None,
+    reporting_prob: float | None = None,
+    delay_cdf: FloatArray | None = None,
+    parallel: bool = True,
+    compute_diagnostics: bool = True,
+    raise_on_poor_diagnostics: bool = False,
+    **kwargs: Any,
+) -> xr.Dataset:
+    """
+    Fit the climate-suitability renewal model, decomposing the reproduction number into a
+    suitability profile and a reproduction-number factor.
+
+    Parameters
+    ----------
+    incidence_vec : IncidenceSeriesInput
+        Observed incidence time series.
+    serial_interval_dist_vec : SerialIntervalInput
+        Discretised serial interval distribution (probability mass per day).
+    suitability_mean_vec : list[float] or FloatArray
+        Prior mean suitability at each time. For the under-reporting offshoot it must extend
+        ``serial_interval`` days beyond the incidence so R_t can be projected forward.
+    suitability_std : float, optional
+        Stationary standard deviation of the suitability deviations. Defaults to
+        ``DEFAULTS.suitability_std``.
+    suitability_rho : float, optional
+        Autoregressive coefficient for the suitability deviations. Defaults to
+        ``DEFAULTS.suitability_rho``.
+    rep_no_factor_prior_median : float, optional
+        Median of the lognormal prior on the reproduction-number factor. Defaults to
+        ``DEFAULTS.rep_no_factor_prior_median``.
+    rep_no_factor_prior_percentile_2_5 : float, optional
+        2.5th percentile of the lognormal prior on the reproduction-number factor.
+        Defaults to ``DEFAULTS.rep_no_factor_prior_percentile_2_5``.
+    log_rep_no_factor_rho : float, optional
+        Autoregressive coefficient for the log reproduction-number factor. Defaults to
+        ``DEFAULTS.log_rep_no_factor_rho``.
+    quasi_real_time : bool
+        If True, refit using only the data available up to each successive time point.
+        ``incidence_vec`` may then also be a *sequence* of series (one per calculation
+        time), paired with an explicit ``t_calc`` of matching length.
+    t_calc : int or IntArray, optional
+        Calculation time(s) (day) at which to report the additional-case probability;
+        defaults to every day of the series. Required (and matched one-to-one) when
+        ``incidence_vec`` is a sequence of series.
+    reporting_prob : float, optional
+        Case-reporting probability. If given, the under-reporting offshoot is fit with a
+        latent true-case vector instead of the full-reporting model.
+    delay_cdf : FloatArray, optional
+        Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
+        (nowcasting) to the under-reporting model.
+    parallel : bool
+        If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
+        with joblib. No effect on a single (non-quasi-real-time) fit.
+    compute_diagnostics : bool
+        If True, compute convergence diagnostics, attach them to the returned
+        dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
+    raise_on_poor_diagnostics : bool
+        If True, raise (instead of warning) when sampling diagnostics are poor.
+    **kwargs : Any
+        Additional keyword arguments forwarded to the sampler.
+
+    Returns
+    -------
+    xr.Dataset
+        Posterior dataset including the inferred reproduction numbers, suitability,
+        reproduction-number factor, summary statistics, and the daily probability of
+        additional cases.
+    """
+    rep_no_vec_func = build_suitability_rep_no(
+        suitability_mean_vec=suitability_mean_vec,
+        suitability_std=suitability_std,
+        suitability_rho=suitability_rho,
+        rep_no_factor_prior_median=rep_no_factor_prior_median,
+        rep_no_factor_prior_percentile_2_5=rep_no_factor_prior_percentile_2_5,
+        log_rep_no_factor_rho=log_rep_no_factor_rho,
+    )
+    ds_posterior = _fit_model(
+        incidence_vec=incidence_vec,
+        serial_interval_dist_vec=serial_interval_dist_vec,
+        rep_no_vec_func=rep_no_vec_func,
+        quasi_real_time=quasi_real_time,
+        t_calc=t_calc,
+        reporting_prob=reporting_prob,
+        delay_cdf=delay_cdf,
+        parallel=parallel,
+        compute_diagnostics=compute_diagnostics,
+        raise_on_poor_diagnostics=raise_on_poor_diagnostics,
+        **kwargs,
+    )
+    # Extract further summary stats
+    ds_posterior = ds_posterior.assign(
+        {
+            f"{var}_{stat}": _posterior_summary(ds_posterior[var], stat)
+            for var in ("suitability", "rep_no_factor")
+            for stat in ("mean", "lower", "upper")
+        }
+    )
+    return ds_posterior
+
+
+def fit_known_rep_no_model(
+    *,
+    incidence_vec: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
+    serial_interval_dist_vec: SerialIntervalInput,
+    rep_no_func: Callable[[IntArray], FloatArray],
+    quasi_real_time: bool = False,
+    t_calc: int | IntArray | None = None,
+    reporting_prob: float | None = None,
+    delay_cdf: FloatArray | None = None,
+    parallel: bool = True,
+    compute_diagnostics: bool = True,
+    raise_on_poor_diagnostics: bool = False,
+    **kwargs: Any,
+) -> xr.Dataset:
+    """
+    Fit the renewal model with the reproduction number fixed to a known function of time.
+
+    The reproduction number is held at ``rep_no_func`` (constant across draws) rather than
+    inferred, so only the remaining random variables are estimated. Combined with a
+    ``reporting_prob`` this isolates the under-reporting (latent-case) inference from
+    reproduction-number estimation.
+
+    Parameters
+    ----------
+    incidence_vec : IncidenceSeriesInput
+        Observed incidence time series.
+    serial_interval_dist_vec : SerialIntervalInput
+        Discretised serial interval distribution (probability mass per day).
+    rep_no_func : Callable[[IntArray], FloatArray]
+        Function returning the known reproduction number at each of a vector of times
+        (days). Evaluated internally over the full inference horizon.
+    quasi_real_time : bool
+        If True, refit using only the data available up to each successive time point.
+        ``incidence_vec`` may then also be a *sequence* of series (one per calculation
+        time), paired with an explicit ``t_calc`` of matching length.
+    t_calc : int or IntArray, optional
+        Calculation time(s) (day) at which to report the additional-case probability;
+        defaults to every day of the series. Required (and matched one-to-one) when
+        ``incidence_vec`` is a sequence of series.
+    reporting_prob : float, optional
+        Case-reporting probability. If given, the under-reporting offshoot is fit with a
+        latent true-case vector instead of the full-reporting model.
+    delay_cdf : FloatArray, optional
+        Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
+        (nowcasting) to the under-reporting model.
+    parallel : bool
+        If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
+        with joblib. No effect on a single (non-quasi-real-time) fit.
+    compute_diagnostics : bool
+        If True, compute convergence diagnostics, attach them to the returned dataset's
+        ``attrs["diagnostics"]``, and warn on poor sampling. Reproduction-number diagnostics
+        are degenerate here (it is fixed), but any latent variables are still checked.
+    raise_on_poor_diagnostics : bool
+        If True, raise (instead of warning) when sampling diagnostics are poor.
+    **kwargs : Any
+        Additional keyword arguments forwarded to the sampler.
+
+    Returns
+    -------
+    xr.Dataset
+        Posterior dataset including the fixed reproduction number, summary statistics, and
+        the daily probability of additional cases.
+    """
+    rep_no_vec_func = build_known_rep_no(rep_no_func=rep_no_func)
+    return _fit_model(
+        incidence_vec=incidence_vec,
+        serial_interval_dist_vec=serial_interval_dist_vec,
+        rep_no_vec_func=rep_no_vec_func,
+        quasi_real_time=quasi_real_time,
+        t_calc=t_calc,
+        reporting_prob=reporting_prob,
+        delay_cdf=delay_cdf,
+        parallel=parallel,
+        compute_diagnostics=compute_diagnostics,
+        raise_on_poor_diagnostics=raise_on_poor_diagnostics,
+        **kwargs,
+    )
+
+
 def _compute_check_diagnostics(
     posterior: xr.Dataset,
     sample_stats: xr.Dataset | None,
@@ -79,9 +360,22 @@ def _compute_check_diagnostics(
     return diagnostics
 
 
+def _is_incidence_sequence(incidence_vec: Any) -> bool:
+    # Distinguish a *sequence of incidence series* (one series per calculation time) from a
+    # *single* incidence series. A single series is a 1-D array or a flat list of counts; a
+    # sequence is a list/tuple whose elements are themselves array-like, or a 2-D array. Keying
+    # off the container type alone would misread a single series passed as a plain list (e.g.
+    # ``[1, 2, 3]``) as several one-element series.
+    if isinstance(incidence_vec, np.ndarray):
+        return incidence_vec.ndim >= 2
+    if isinstance(incidence_vec, (list, tuple)):
+        return len(incidence_vec) > 0 and all(np.ndim(v) >= 1 for v in incidence_vec)
+    return False
+
+
 def _fit_model(
     *,
-    incidence_vec: IncidenceSeriesInput,
+    incidence_vec: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
     serial_interval_dist_vec: SerialIntervalInput,
     rep_no_vec_func: Callable[[int], Any],
     quasi_real_time: bool,
@@ -129,6 +423,8 @@ def _fit_model(
             **kwargs_sample,
         )
 
+    if _is_incidence_sequence(incidence_vec):
+        raise ValueError("a sequence of incidence series requires quasi_real_time=True")
     incidence_vec = np.asarray(incidence_vec)
     serial_interval_dist_vec = np.asarray(serial_interval_dist_vec)
     t_data_to = len(incidence_vec)
@@ -498,7 +794,7 @@ def _fit_model_qrt(
     # The per-snapshot fits are independent, so with `parallel` they are run across processes via
     # joblib (mirroring calc_additional_case_prob_simulation); each fit then samples chains
     # sequentially (cores=1) so joblib, not pm.sample, owns the parallelism.
-    sequence_mode = isinstance(incidence_vec, (list, tuple))
+    sequence_mode = _is_incidence_sequence(incidence_vec)
     extra_kwargs: dict[str, Any] = {"progressbar": False}
     if reporting_prob is None:
         extra_kwargs["quiet"] = True
@@ -658,275 +954,3 @@ def _fit_model_qrt_step(
         ]
     ]
     return idx, cast(xr.Dataset, ds_subset)
-
-
-def fit_autoregressive_model(
-    *,
-    incidence_vec: IncidenceSeriesInput,
-    serial_interval_dist_vec: SerialIntervalInput,
-    prior_median: float | None = None,
-    prior_percentile_2_5: float | None = None,
-    rho: float | list[float] | None = None,
-    quasi_real_time: bool = False,
-    t_calc: int | IntArray | None = None,
-    reporting_prob: float | None = None,
-    delay_cdf: FloatArray | None = None,
-    freeze_from_final_case: bool = False,
-    parallel: bool = True,
-    compute_diagnostics: bool = True,
-    raise_on_poor_diagnostics: bool = False,
-    **kwargs: Any,
-) -> xr.Dataset:
-    """
-    Fit the autoregressive renewal model to an incidence time series, inferring a
-    time-varying reproduction number.
-
-    Parameters
-    ----------
-    incidence_vec : IncidenceSeriesInput
-        Observed incidence time series.
-    serial_interval_dist_vec : SerialIntervalInput
-        Discretised serial interval distribution (probability mass per day).
-    prior_median : float, optional
-        Median of the lognormal prior on the reproduction number. Defaults to
-        ``DEFAULTS.rep_no_prior_median``.
-    prior_percentile_2_5 : float, optional
-        2.5th percentile of the lognormal prior on the reproduction number. Defaults to
-        ``DEFAULTS.rep_no_prior_percentile_2_5``.
-    rho : float or list[float], optional
-        Autoregressive coefficient(s); a length-2 list specifies an AR(2) process.
-        Defaults to ``DEFAULTS.log_rep_no_rho``.
-    quasi_real_time : bool
-        If True, refit using only the data available up to each successive time point.
-    t_calc : int or IntArray, optional
-        Calculation time(s) (day) at which to report the additional-case probability;
-        defaults to every day of the series.
-    reporting_prob : float, optional
-        Case-reporting probability. If given, the under-reporting offshoot is fit with a
-        latent true-case vector instead of the full-reporting model.
-    delay_cdf : FloatArray, optional
-        Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
-        (nowcasting) to the under-reporting model.
-    freeze_from_final_case : bool
-        If True, hold the reproduction number fixed at its final-case-day posterior
-        samples after the final observed case.
-    parallel : bool
-        If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
-        with joblib. No effect on a single (non-quasi-real-time) fit.
-    compute_diagnostics : bool
-        If True, compute convergence diagnostics, attach them to the returned
-        dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
-    raise_on_poor_diagnostics : bool
-        If True, raise (instead of warning) when sampling diagnostics are poor.
-    **kwargs : Any
-        Additional keyword arguments forwarded to the sampler.
-
-    Returns
-    -------
-    xr.Dataset
-        Posterior dataset including the inferred reproduction numbers, summary
-        statistics, and the daily probability of additional cases.
-    """
-    rep_no_vec_func = build_ar_rep_no(
-        prior_median=prior_median,
-        prior_percentile_2_5=prior_percentile_2_5,
-        rho=rho,
-    )
-    return _fit_model(
-        incidence_vec=incidence_vec,
-        serial_interval_dist_vec=serial_interval_dist_vec,
-        rep_no_vec_func=rep_no_vec_func,
-        quasi_real_time=quasi_real_time,
-        t_calc=t_calc,
-        reporting_prob=reporting_prob,
-        delay_cdf=delay_cdf,
-        freeze_from_final_case=freeze_from_final_case,
-        parallel=parallel,
-        compute_diagnostics=compute_diagnostics,
-        raise_on_poor_diagnostics=raise_on_poor_diagnostics,
-        **kwargs,
-    )
-
-
-def fit_suitability_model(
-    *,
-    incidence_vec: IncidenceSeriesInput,
-    serial_interval_dist_vec: SerialIntervalInput,
-    suitability_mean_vec: list[float] | FloatArray,
-    suitability_std: float | None = None,
-    suitability_rho: float | None = None,
-    rep_no_factor_prior_median: float | None = None,
-    rep_no_factor_prior_percentile_2_5: float | None = None,
-    log_rep_no_factor_rho: float | None = None,
-    quasi_real_time: bool = False,
-    t_calc: int | IntArray | None = None,
-    reporting_prob: float | None = None,
-    delay_cdf: FloatArray | None = None,
-    parallel: bool = True,
-    compute_diagnostics: bool = True,
-    raise_on_poor_diagnostics: bool = False,
-    **kwargs: Any,
-) -> xr.Dataset:
-    """
-    Fit the climate-suitability renewal model, decomposing the reproduction number into a
-    suitability profile and a reproduction-number factor.
-
-    Parameters
-    ----------
-    incidence_vec : IncidenceSeriesInput
-        Observed incidence time series.
-    serial_interval_dist_vec : SerialIntervalInput
-        Discretised serial interval distribution (probability mass per day).
-    suitability_mean_vec : list[float] or FloatArray
-        Prior mean suitability at each time. For the under-reporting offshoot it must extend
-        ``serial_interval`` days beyond the incidence so R_t can be projected forward.
-    suitability_std : float, optional
-        Stationary standard deviation of the suitability deviations. Defaults to
-        ``DEFAULTS.suitability_std``.
-    suitability_rho : float, optional
-        Autoregressive coefficient for the suitability deviations. Defaults to
-        ``DEFAULTS.suitability_rho``.
-    rep_no_factor_prior_median : float, optional
-        Median of the lognormal prior on the reproduction-number factor. Defaults to
-        ``DEFAULTS.rep_no_factor_prior_median``.
-    rep_no_factor_prior_percentile_2_5 : float, optional
-        2.5th percentile of the lognormal prior on the reproduction-number factor.
-        Defaults to ``DEFAULTS.rep_no_factor_prior_percentile_2_5``.
-    log_rep_no_factor_rho : float, optional
-        Autoregressive coefficient for the log reproduction-number factor. Defaults to
-        ``DEFAULTS.log_rep_no_factor_rho``.
-    quasi_real_time : bool
-        If True, refit using only the data available up to each successive time point.
-    t_calc : int or IntArray, optional
-        Calculation time(s) (day) at which to report the additional-case probability;
-        defaults to every day of the series.
-    reporting_prob : float, optional
-        Case-reporting probability. If given, the under-reporting offshoot is fit with a
-        latent true-case vector instead of the full-reporting model.
-    delay_cdf : FloatArray, optional
-        Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
-        (nowcasting) to the under-reporting model.
-    parallel : bool
-        If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
-        with joblib. No effect on a single (non-quasi-real-time) fit.
-    compute_diagnostics : bool
-        If True, compute convergence diagnostics, attach them to the returned
-        dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
-    raise_on_poor_diagnostics : bool
-        If True, raise (instead of warning) when sampling diagnostics are poor.
-    **kwargs : Any
-        Additional keyword arguments forwarded to the sampler.
-
-    Returns
-    -------
-    xr.Dataset
-        Posterior dataset including the inferred reproduction numbers, suitability,
-        reproduction-number factor, summary statistics, and the daily probability of
-        additional cases.
-    """
-    rep_no_vec_func = build_suitability_rep_no(
-        suitability_mean_vec=suitability_mean_vec,
-        suitability_std=suitability_std,
-        suitability_rho=suitability_rho,
-        rep_no_factor_prior_median=rep_no_factor_prior_median,
-        rep_no_factor_prior_percentile_2_5=rep_no_factor_prior_percentile_2_5,
-        log_rep_no_factor_rho=log_rep_no_factor_rho,
-    )
-    ds_posterior = _fit_model(
-        incidence_vec=incidence_vec,
-        serial_interval_dist_vec=serial_interval_dist_vec,
-        rep_no_vec_func=rep_no_vec_func,
-        quasi_real_time=quasi_real_time,
-        t_calc=t_calc,
-        reporting_prob=reporting_prob,
-        delay_cdf=delay_cdf,
-        parallel=parallel,
-        compute_diagnostics=compute_diagnostics,
-        raise_on_poor_diagnostics=raise_on_poor_diagnostics,
-        **kwargs,
-    )
-    # Extract further summary stats
-    ds_posterior = ds_posterior.assign(
-        {
-            f"{var}_{stat}": _posterior_summary(ds_posterior[var], stat)
-            for var in ("suitability", "rep_no_factor")
-            for stat in ("mean", "lower", "upper")
-        }
-    )
-    return ds_posterior
-
-
-def fit_known_rep_no_model(
-    *,
-    incidence_vec: IncidenceSeriesInput,
-    serial_interval_dist_vec: SerialIntervalInput,
-    rep_no_func: Callable[[IntArray], FloatArray],
-    quasi_real_time: bool = False,
-    t_calc: int | IntArray | None = None,
-    reporting_prob: float | None = None,
-    delay_cdf: FloatArray | None = None,
-    parallel: bool = True,
-    compute_diagnostics: bool = True,
-    raise_on_poor_diagnostics: bool = False,
-    **kwargs: Any,
-) -> xr.Dataset:
-    """
-    Fit the renewal model with the reproduction number fixed to a known function of time.
-
-    The reproduction number is held at ``rep_no_func`` (constant across draws) rather than
-    inferred, so only the remaining random variables are estimated. Combined with a
-    ``reporting_prob`` this isolates the under-reporting (latent-case) inference from
-    reproduction-number estimation.
-
-    Parameters
-    ----------
-    incidence_vec : IncidenceSeriesInput
-        Observed incidence time series.
-    serial_interval_dist_vec : SerialIntervalInput
-        Discretised serial interval distribution (probability mass per day).
-    rep_no_func : Callable[[IntArray], FloatArray]
-        Function returning the known reproduction number at each of a vector of times
-        (days). Evaluated internally over the full inference horizon.
-    quasi_real_time : bool
-        If True, refit using only the data available up to each successive time point.
-    t_calc : int or IntArray, optional
-        Calculation time(s) (day) at which to report the additional-case probability;
-        defaults to every day of the series.
-    reporting_prob : float, optional
-        Case-reporting probability. If given, the under-reporting offshoot is fit with a
-        latent true-case vector instead of the full-reporting model.
-    delay_cdf : FloatArray, optional
-        Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
-        (nowcasting) to the under-reporting model.
-    parallel : bool
-        If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
-        with joblib. No effect on a single (non-quasi-real-time) fit.
-    compute_diagnostics : bool
-        If True, compute convergence diagnostics, attach them to the returned dataset's
-        ``attrs["diagnostics"]``, and warn on poor sampling. Reproduction-number diagnostics
-        are degenerate here (it is fixed), but any latent variables are still checked.
-    raise_on_poor_diagnostics : bool
-        If True, raise (instead of warning) when sampling diagnostics are poor.
-    **kwargs : Any
-        Additional keyword arguments forwarded to the sampler.
-
-    Returns
-    -------
-    xr.Dataset
-        Posterior dataset including the fixed reproduction number, summary statistics, and
-        the daily probability of additional cases.
-    """
-    rep_no_vec_func = build_known_rep_no(rep_no_func=rep_no_func)
-    return _fit_model(
-        incidence_vec=incidence_vec,
-        serial_interval_dist_vec=serial_interval_dist_vec,
-        rep_no_vec_func=rep_no_vec_func,
-        quasi_real_time=quasi_real_time,
-        t_calc=t_calc,
-        reporting_prob=reporting_prob,
-        delay_cdf=delay_cdf,
-        parallel=parallel,
-        compute_diagnostics=compute_diagnostics,
-        raise_on_poor_diagnostics=raise_on_poor_diagnostics,
-        **kwargs,
-    )

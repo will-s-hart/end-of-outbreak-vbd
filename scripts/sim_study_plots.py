@@ -65,7 +65,7 @@ def _make_example_outbreak_prob_plot(*, incidence_vec, data_path, save_path=None
     fig, ax = plt.subplots()
     if nontrivial_outbreak:
         plot_data_on_twin_ax(
-            ax, t_vec=np.arange(len(incidence_vec)), incidence_vec=incidence_vec
+            ax, t_vec=np.arange(len(incidence_vec)), bar_heights=incidence_vec
         )
     for doy_start, color in zip(
         doy_start_vals,
@@ -135,7 +135,7 @@ def _make_many_outbreak_example_plot(
 ):
     df = pd.read_csv(data_path)
     fig, ax = plt.subplots()
-    plot_data_on_twin_ax(ax, t_vec=df["day_of_year"], incidence_vec=df["cases"])
+    plot_data_on_twin_ax(ax, t_vec=df["day_of_year"], bar_heights=df["cases"])
     ax.plot(df["day_of_year"], df["additional_case_prob"], color="black")
     for perc_risk_threshold, cmap_name in zip(
         perc_risk_threshold_vals,

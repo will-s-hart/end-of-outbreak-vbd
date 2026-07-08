@@ -14,10 +14,10 @@ retrospective grid length).
 import argparse
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
 from endoutbreakvbd.utils import (
+    dates_to_day_index,
     get_colors,
     month_start_xticks,
     plot_data_on_twin_ax,
@@ -54,7 +54,7 @@ def _make_delay_plot(inputs):
 
 def _make_cases_plot(inputs, colors):
     df = pd.read_csv(inputs["results_paths"]["trajectory"], parse_dates=["date"])
-    doy = _doy(df["date"])
+    doy = dates_to_day_index(df["date"])
     fig, ax = plt.subplots()
     ax.bar(doy, df["reported"], color="tab:gray", alpha=0.5, label="Reported")
     ax.plot(
@@ -91,19 +91,21 @@ def _make_prob_plot(
 
     fig, ax = plt.subplots()
     # Observed reported cases (by onset) as a twin-axis underlay, matching the main Lazio panels.
-    plot_data_on_twin_ax(ax, _doy(df_traj["date"]), df_traj["reported"].to_numpy())
+    plot_data_on_twin_ax(
+        ax, dates_to_day_index(df_traj["date"]), df_traj["reported"].to_numpy()
+    )
     doys = []
     for df, color, label, full_key in [
         (df_suit, colors[0], "Suitability-based", "suitability"),
         (df_ar, colors[1], "Autoregressive", "autoregressive"),
     ]:
-        doy = _doy(df["date"])
+        doy = dates_to_day_index(df["date"])
         doys.append(doy)
         ax.plot(doy, df["additional_case_prob"], color=color, label=label)
         # Dashed overlay: the retrospective full-reporting fit, i.e. the probability if the whole
         # outbreak (all future onsets, full reporting) were known.
         df_full = pd.read_csv(inputs["full_reporting_paths"][full_key])
-        full_doy = _doy(
+        full_doy = dates_to_day_index(
             full_start + pd.to_timedelta(df_full["day_of_outbreak"], unit="D")
         )
         ax.plot(
@@ -139,13 +141,6 @@ def _make_prob_plot(
     ax.legend(loc="upper right")
     fig.savefig(inputs["fig_paths"]["additional_case_prob"])
     return fig, ax
-
-
-def _doy(dates) -> np.ndarray:
-    # Continuous day index anchored at the start of 2017 (equals day-of-year within 2017). Using
-    # dayofyear directly would wrap a window that crosses into 2018 (e.g. QRT decision dates past
-    # 31 Dec) back to 1, collapsing the x-axis.
-    return (pd.DatetimeIndex(dates) - pd.Timestamp("2017-01-01")).days.to_numpy() + 1
 
 
 if __name__ == "__main__":

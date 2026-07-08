@@ -119,73 +119,6 @@ def calc_additional_case_prob_analytical(
     )
 
 
-def _calc_additional_case_prob_analytical_scalar(
-    *,
-    incidence_vec: IntArray,
-    rep_no_func: RepNoFunc,
-    serial_interval_dist_vec: FloatArray,
-    t_calc: int,
-    reduce: bool = True,
-) -> float | FloatArray:
-    # Analytical probability of additional cases on/after a single t_calc value. The
-    # incidence may carry trailing sample dimensions (e.g. posterior draws of the true
-    # cases), in which case time is the leading axis and the sample dimensions are aligned
-    # with any sample dimensions of rep_no_func's output. If ``reduce`` these are averaged
-    # over (a single probability); otherwise the per-sample probabilities are returned.
-    sample_axes = tuple(range(1, incidence_vec.ndim))
-    sample_shape = incidence_vec.shape[1:]
-    nonzero_time_idx = np.nonzero(np.any(incidence_vec != 0, axis=sample_axes))[0]
-    if nonzero_time_idx.size == 0:
-        return 0.0
-    if t_calc == 0:
-        return 1.0
-    t_final_case = int(np.max(nonzero_time_idx))
-    serial_interval_max = len(serial_interval_dist_vec)
-    t_max = t_final_case + serial_interval_max
-    if t_calc > t_max:
-        return 0.0
-
-    incidence_vec_theor = incidence_vec
-    if incidence_vec_theor.shape[0] < t_calc:
-        incidence_vec_theor = np.concatenate(
-            [
-                incidence_vec_theor,
-                np.zeros((t_calc - incidence_vec_theor.shape[0], *sample_shape)),
-            ]
-        )
-    incidence_vec_theor = np.concatenate(
-        [
-            incidence_vec_theor[:t_calc],
-            np.zeros((t_max - t_calc, *sample_shape)),
-        ]
-    )
-    serial_interval_dist_vec = np.concatenate(
-        [serial_interval_dist_vec, np.zeros(t_final_case)]
-    )
-
-    rep_no_vec_future = rep_no_func(np.arange(t_calc, t_max + 1))
-    if np.isscalar(rep_no_vec_future):
-        rep_no_vec_future = np.full(t_max - t_calc + 1, rep_no_vec_future, dtype=float)
-    foi_vec_future = np.zeros((t_max - t_calc + 1, *sample_shape))
-    for t in range(t_calc, t_max + 1):
-        serial_interval_col = serial_interval_dist_vec[:t].reshape(
-            (t, *(1,) * len(sample_shape))
-        )
-        foi_vec_future[t - t_calc] = (
-            incidence_vec_theor[:t][::-1] * serial_interval_col
-        ).sum(axis=0)
-    # Contract over the leading time axis; the einsum aligns incidence and rep_no sample
-    # dimensions when both are present (so draw s of the cases pairs with draw s of the
-    # reproduction number). The per-sample additional-case probability is then averaged
-    # over the remaining sample dimensions (reduce) or returned as-is (broadcast).
-    per_sample_prob = 1 - np.exp(
-        -np.einsum("t...,t...->...", foi_vec_future, rep_no_vec_future)
-    )
-    if reduce:
-        return float(np.mean(per_sample_prob))
-    return np.asarray(per_sample_prob, dtype=float)
-
-
 @overload
 def calc_additional_case_prob_simulation(
     *,
@@ -311,46 +244,6 @@ def calc_additional_case_prob_simulation(
     return additional_case_prob
 
 
-def _additional_cases_one_sim(
-    args: tuple[
-        IntArray,
-        RepNoFunc,
-        FloatArray,
-        int,
-        np.random.Generator,
-        int,
-        int,
-    ],
-) -> tuple[int, int, bool]:
-    # Run one forward simulation; report whether any additional cases occur on/after t_calc
-    (
-        incidence_init,
-        rep_no_func,
-        serial_interval_dist_vec,
-        t_calc,
-        rng,
-        t_idx,
-        s_idx,
-    ) = args
-    if len(incidence_init) != t_calc:
-        raise ValueError(
-            f"t_calc ({t_calc}) does not match length of incidence_vec "
-            f"({len(incidence_init)})"
-        )
-    if t_calc == 0:
-        return t_idx, s_idx, True
-    incidence_vec_sim = run_renewal_model(
-        rep_no_func=rep_no_func,
-        serial_interval_dist_vec=serial_interval_dist_vec,
-        rng=rng,
-        t_stop=t_calc + len(serial_interval_dist_vec),
-        incidence_init=incidence_init,
-        _break_on_case=True,
-    )
-    additional_cases = bool(np.any(incidence_vec_sim[t_calc:] > 0))
-    return t_idx, s_idx, additional_cases
-
-
 def calc_decision_delay(
     *,
     prob_vec: ArrayLike,
@@ -398,3 +291,110 @@ def calc_decision_delay(
     ever_below = below.any(axis=1)
     first_below = below.argmax(axis=1)
     return np.where(ever_below, days_after[first_below] - time_final_case, np.nan)
+
+
+def _calc_additional_case_prob_analytical_scalar(
+    *,
+    incidence_vec: IntArray,
+    rep_no_func: RepNoFunc,
+    serial_interval_dist_vec: FloatArray,
+    t_calc: int,
+    reduce: bool = True,
+) -> float | FloatArray:
+    # Analytical probability of additional cases on/after a single t_calc value. The
+    # incidence may carry trailing sample dimensions (e.g. posterior draws of the true
+    # cases), in which case time is the leading axis and the sample dimensions are aligned
+    # with any sample dimensions of rep_no_func's output. If ``reduce`` these are averaged
+    # over (a single probability); otherwise the per-sample probabilities are returned.
+    sample_axes = tuple(range(1, incidence_vec.ndim))
+    sample_shape = incidence_vec.shape[1:]
+    nonzero_time_idx = np.nonzero(np.any(incidence_vec != 0, axis=sample_axes))[0]
+    if nonzero_time_idx.size == 0:
+        return 0.0
+    if t_calc == 0:
+        return 1.0
+    t_final_case = int(np.max(nonzero_time_idx))
+    serial_interval_max = len(serial_interval_dist_vec)
+    t_max = t_final_case + serial_interval_max
+    if t_calc > t_max:
+        return 0.0
+
+    incidence_vec_theor = incidence_vec
+    if incidence_vec_theor.shape[0] < t_calc:
+        incidence_vec_theor = np.concatenate(
+            [
+                incidence_vec_theor,
+                np.zeros((t_calc - incidence_vec_theor.shape[0], *sample_shape)),
+            ]
+        )
+    incidence_vec_theor = np.concatenate(
+        [
+            incidence_vec_theor[:t_calc],
+            np.zeros((t_max - t_calc, *sample_shape)),
+        ]
+    )
+    serial_interval_dist_vec = np.concatenate(
+        [serial_interval_dist_vec, np.zeros(t_final_case)]
+    )
+
+    rep_no_vec_future = rep_no_func(np.arange(t_calc, t_max + 1))
+    if np.isscalar(rep_no_vec_future):
+        rep_no_vec_future = np.full(t_max - t_calc + 1, rep_no_vec_future, dtype=float)
+    foi_vec_future = np.zeros((t_max - t_calc + 1, *sample_shape))
+    for t in range(t_calc, t_max + 1):
+        serial_interval_col = serial_interval_dist_vec[:t].reshape(
+            (t, *(1,) * len(sample_shape))
+        )
+        foi_vec_future[t - t_calc] = (
+            incidence_vec_theor[:t][::-1] * serial_interval_col
+        ).sum(axis=0)
+    # Contract over the leading time axis; the einsum aligns incidence and rep_no sample
+    # dimensions when both are present (so draw s of the cases pairs with draw s of the
+    # reproduction number). The per-sample additional-case probability is then averaged
+    # over the remaining sample dimensions (reduce) or returned as-is (broadcast).
+    per_sample_prob = 1 - np.exp(
+        -np.einsum("t...,t...->...", foi_vec_future, rep_no_vec_future)
+    )
+    if reduce:
+        return float(np.mean(per_sample_prob))
+    return np.asarray(per_sample_prob, dtype=float)
+
+
+def _additional_cases_one_sim(
+    args: tuple[
+        IntArray,
+        RepNoFunc,
+        FloatArray,
+        int,
+        np.random.Generator,
+        int,
+        int,
+    ],
+) -> tuple[int, int, bool]:
+    # Run one forward simulation; report whether any additional cases occur on/after t_calc
+    (
+        incidence_init,
+        rep_no_func,
+        serial_interval_dist_vec,
+        t_calc,
+        rng,
+        t_idx,
+        s_idx,
+    ) = args
+    if len(incidence_init) != t_calc:
+        raise ValueError(
+            f"t_calc ({t_calc}) does not match length of incidence_vec "
+            f"({len(incidence_init)})"
+        )
+    if t_calc == 0:
+        return t_idx, s_idx, True
+    incidence_vec_sim = run_renewal_model(
+        rep_no_func=rep_no_func,
+        serial_interval_dist_vec=serial_interval_dist_vec,
+        rng=rng,
+        t_stop=t_calc + len(serial_interval_dist_vec),
+        incidence_init=incidence_init,
+        _break_on_case=True,
+    )
+    additional_cases = bool(np.any(incidence_vec_sim[t_calc:] > 0))
+    return t_idx, s_idx, additional_cases

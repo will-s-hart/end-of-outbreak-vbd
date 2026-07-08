@@ -14,7 +14,7 @@ import pandas as pd
 
 from endoutbreakvbd._types import IntArray, RepNoOutput
 from endoutbreakvbd.inference import fit_suitability_model
-from endoutbreakvbd.model import run_renewal_model
+from endoutbreakvbd.model import simulate_outbreak
 from endoutbreakvbd.utils import rep_no_from_grid
 from scripts.inputs import get_inputs_schematic
 from scripts.schematic_plots import make_plots
@@ -28,8 +28,7 @@ def run_analyses():
     final_case_doy = doy_start + int(np.nonzero(incidence_vec)[0][-1])
     current_day_doy = final_case_doy + inputs["current_day_offset"]
     print(
-        f"Outbreak: attempt={sim['attempt']}, "
-        f"size={int(incidence_vec.sum())}, "
+        f"Outbreak: size={int(incidence_vec.sum())}, "
         f"final_case_doy={final_case_doy}, "
         f"current_day_doy={current_day_doy}"
     )
@@ -74,7 +73,6 @@ def run_analyses():
 
 def _simulate_outbreak(inputs):
     outbreak_rep_no_vec = inputs["outbreak_rep_no_vec"]
-    serial_interval_dist_vec = inputs["serial_interval_dist_vec"]
     doy_start = inputs["outbreak_doy_start"]
 
     def rep_no_func(t: int | IntArray) -> RepNoOutput:
@@ -85,37 +83,26 @@ def _simulate_outbreak(inputs):
             doy_start=doy_start,
         )
 
-    rng = np.random.default_rng(inputs["outbreak_seed"])
-    for attempt in range(inputs["outbreak_max_attempts"]):
-        incidence_vec = run_renewal_model(
-            rep_no_func=rep_no_func,
-            t_stop=inputs["outbreak_t_stop"],
-            serial_interval_dist_vec=serial_interval_dist_vec,
-            rng=rng,
-            incidence_init=1,
-        )
-        size = int(incidence_vec.sum())
-        if size < inputs["outbreak_size_min"] or size > inputs["outbreak_size_max"]:
-            continue
+    def final_case_in_window(incidence_vec: IntArray) -> bool:
         final_case_doy = doy_start + int(np.nonzero(incidence_vec)[0][-1])
-        if not (
+        return (
             inputs["outbreak_final_case_doy_min"]
             <= final_case_doy
             <= inputs["outbreak_final_case_doy_max"]
-        ):
-            continue
-        return {
-            "doy_start": doy_start,
-            "incidence_vec": incidence_vec,
-            "attempt": attempt,
-        }
-    raise RuntimeError(
-        f"No outbreak with size in [{inputs['outbreak_size_min']}, "
-        f"{inputs['outbreak_size_max']}] and final case in "
-        f"[{inputs['outbreak_final_case_doy_min']}, "
-        f"{inputs['outbreak_final_case_doy_max']}] "
-        f"in {inputs['outbreak_max_attempts']} attempts; rethink inputs."
+        )
+
+    incidence_vec = simulate_outbreak(
+        rep_no_func=rep_no_func,
+        serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
+        rng=np.random.default_rng(inputs["outbreak_seed"]),
+        min_size=inputs["outbreak_size_min"],
+        max_size=inputs["outbreak_size_max"],
+        accept=final_case_in_window,
+        incidence_init=1,
+        t_stop=inputs["outbreak_t_stop"],
+        max_attempts=inputs["outbreak_max_attempts"],
     )
+    return {"doy_start": doy_start, "incidence_vec": incidence_vec}
 
 
 if __name__ == "__main__":

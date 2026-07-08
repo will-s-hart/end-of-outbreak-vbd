@@ -13,12 +13,13 @@ This is the multi-hour cluster analysis; use ``--stride`` for a quick local wiri
 
 import argparse
 import os
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from endoutbreakvbd.inference import _fit_model_qrt, fit_suitability_model
-from endoutbreakvbd.rep_no_models import build_ar_rep_no, build_suitability_rep_no
+from endoutbreakvbd.inference import fit_autoregressive_model, fit_suitability_model
+from endoutbreakvbd.utils import posterior_trajectory_frame
 from scripts.inputs import get_inputs_lazio_underreporting_qrt
 from scripts.lazio_underreporting_qrt_plots import make_plots
 
@@ -42,28 +43,31 @@ def run_analyses(
     rng = np.random.default_rng(2)
 
     # Real-time nowcast sweeps: the suitability reporting-ceiling sweep (single-sourced from
-    # inputs) plus the autoregressive model at the primary (60%) ceiling.
+    # inputs) plus the autoregressive model at the primary (60%) ceiling. Each fits the
+    # right-truncated sequence of snapshots through the public quasi-real-time API (a list of
+    # incidence series with an explicit calculation time per snapshot).
     sweeps = [
-        (
-            name,
-            build_suitability_rep_no(suitability_mean_vec=suitability_mean_vec),
-            prob,
-        )
-        for name, prob in inputs["suitability_sweep"]
-    ] + [("autoregressive_p60", build_ar_rep_no(), inputs["reporting_prob"])]
-    for name, rep_no_vec_func, reporting_prob in sweeps:
-        ds = _fit_model_qrt(
-            incidence_vec=inputs["incidence_vecs"],
-            serial_interval_dist_vec=serial_interval_dist_vec,
-            rep_no_vec_func=rep_no_vec_func,
-            t_calc=inputs["calc_times"],
-            reporting_prob=reporting_prob,
-            delay_cdf=delay_cdf,
-            rng=rng,
-            parallel=parallel,
-            compute_diagnostics=True,
-            raise_on_poor_diagnostics=False,
-        )
+        ("suitability", name, prob) for name, prob in inputs["suitability_sweep"]
+    ] + [("autoregressive", "autoregressive_p60", inputs["reporting_prob"])]
+    for model, name, reporting_prob in sweeps:
+        fit_kwargs: dict[str, Any] = {
+            "incidence_vec": inputs["incidence_vecs"],
+            "serial_interval_dist_vec": serial_interval_dist_vec,
+            "quasi_real_time": True,
+            "t_calc": inputs["calc_times"],
+            "reporting_prob": reporting_prob,
+            "delay_cdf": delay_cdf,
+            "rng": rng,
+            "parallel": parallel,
+            "compute_diagnostics": True,
+            "raise_on_poor_diagnostics": False,
+        }
+        if model == "suitability":
+            ds = fit_suitability_model(
+                suitability_mean_vec=suitability_mean_vec, **fit_kwargs
+            )
+        else:
+            ds = fit_autoregressive_model(**fit_kwargs)
         df_out = pd.DataFrame(
             {
                 "calc_time": inputs["calc_times"],
@@ -95,27 +99,9 @@ def _run_trajectory(inputs, rng):
     )
     onset_day = ds["time"].values
     date = inputs["outbreak_start_date"] + pd.to_timedelta(onset_day, unit="D")
-    df_out = pd.DataFrame(
-        {
-            "onset_day": onset_day,
-            "date": date,
-            "reported": incidence_vec,
-            "cases_mean": ds["cases_mean"].values,
-            "cases_lower": ds["cases_lower"].values,
-            "cases_upper": ds["cases_upper"].values,
-            "reproduction_number_mean": ds["rep_no_mean"].values,
-            "reproduction_number_lower": ds["rep_no_lower"].values,
-            "reproduction_number_upper": ds["rep_no_upper"].values,
-            "suitability_mean": ds["suitability_mean"].values,
-            "suitability_lower": ds["suitability_lower"].values,
-            "suitability_upper": ds["suitability_upper"].values,
-            "rep_no_factor_mean": ds["rep_no_factor_mean"].values,
-            "rep_no_factor_lower": ds["rep_no_factor_lower"].values,
-            "rep_no_factor_upper": ds["rep_no_factor_upper"].values,
-            "additional_case_prob": ds["additional_case_prob"].values,
-        }
-    ).set_index("onset_day")
-    df_out.to_csv(inputs["results_paths"]["trajectory"])
+    posterior_trajectory_frame(
+        ds, onset_day=onset_day, date=date, reported=incidence_vec
+    ).to_csv(inputs["results_paths"]["trajectory"])
 
 
 def _write_delay(inputs):

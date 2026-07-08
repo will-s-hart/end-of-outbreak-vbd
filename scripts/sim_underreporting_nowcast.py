@@ -30,39 +30,8 @@ import pandas as pd
 from endoutbreakvbd import calc_additional_case_prob_analytical
 from endoutbreakvbd.inference import fit_autoregressive_model, fit_known_rep_no_model
 from scripts.inputs import get_inputs_sim_underreporting_nowcast
-from scripts.sim_underreporting import simulate_outbreak, true_rep_no
+from scripts.sim_underreporting import _simulate_true_outbreak, _true_rep_no
 from scripts.sim_underreporting_nowcast_plots import make_plots
-
-
-def _simulate_reporting(true_vec, reporting_prob, delay_cdf, snapshot_day, rng):
-    """Thin the true outbreak into (reported-by-D, reported-later, never-reported) at snapshot ``D``.
-
-    Matches the model's per-day reporting probability ``reporting_prob * delay_cdf[D - onset]``: each
-    true case is *ever* reported with probability ``reporting_prob`` and, if so, reported by day ``D``
-    with probability ``delay_cdf[D - onset]``. The three categories sum to the true incidence. The
-    index case (onset day 0) is fixed and fully reported, matching the under-reporting model.
-    """
-    onset_days = np.arange(len(true_vec))
-    ever = rng.binomial(true_vec, reporting_prob)
-    never = true_vec - ever
-    available_delay = np.clip(snapshot_day - onset_days, 0, len(delay_cdf) - 1)
-    prob_by_snapshot = np.where(
-        onset_days <= snapshot_day, delay_cdf[available_delay], 0.0
-    )
-    reported = rng.binomial(ever, prob_by_snapshot)
-    not_yet = ever - reported
-    # Fixed, fully reported index case (no hidden day-0 infections in the model).
-    reported[0], not_yet[0], never[0] = true_vec[0], 0, 0
-    return reported, not_yet, never
-
-
-def _prob_at(ds, t_calc):
-    # (mean, lower, upper) additional-case probability at the decision day.
-    return (
-        float(ds["additional_case_prob"].sel(time=t_calc)),
-        float(ds["additional_case_prob_lower"].sel(time=t_calc)),
-        float(ds["additional_case_prob_upper"].sel(time=t_calc)),
-    )
 
 
 def run_analyses():
@@ -76,7 +45,7 @@ def run_analyses():
     # A single shared random number generator threads through the simulation and every fit. The
     # true outbreak is drawn first (before any reporting draws) so it matches figure S8 exactly.
     rng = np.random.default_rng(inputs["seed"])
-    true_vec = simulate_outbreak(
+    true_vec = _simulate_true_outbreak(
         rng,
         serial_interval_dist_vec,
         inputs["min_outbreak_size"],
@@ -111,7 +80,7 @@ def run_analyses():
     ds_imperfect_true_r = fit_known_rep_no_model(
         incidence_vec=reported_snapshot,
         serial_interval_dist_vec=serial_interval_dist_vec,
-        rep_no_func=true_rep_no,
+        rep_no_func=_true_rep_no,
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
         t_calc=t_calc,
@@ -131,13 +100,13 @@ def run_analyses():
     #   naive_true_r — reported-by-D treated as complete + true R (reporting/data error at true R).
     prob_true = calc_additional_case_prob_analytical(
         incidence_vec=true_vec,
-        rep_no_func=true_rep_no,
+        rep_no_func=_true_rep_no,
         serial_interval_dist_vec=serial_interval_dist_vec,
         t_calc=t_calc,
     )
     prob_naive_true_r = calc_additional_case_prob_analytical(
         incidence_vec=reported_snapshot,
-        rep_no_func=true_rep_no,
+        rep_no_func=_true_rep_no,
         serial_interval_dist_vec=serial_interval_dist_vec,
         t_calc=t_calc,
     )
@@ -174,6 +143,37 @@ def run_analyses():
     pd.Series(ds_imperfect_est_r.attrs["diagnostics"], name="value").rename_axis(
         "stat"
     ).to_csv(inputs["results_paths"]["diagnostics"])
+
+
+def _simulate_reporting(true_vec, reporting_prob, delay_cdf, snapshot_day, rng):
+    """Thin the true outbreak into (reported-by-D, reported-later, never-reported) at snapshot ``D``.
+
+    Matches the model's per-day reporting probability ``reporting_prob * delay_cdf[D - onset]``: each
+    true case is *ever* reported with probability ``reporting_prob`` and, if so, reported by day ``D``
+    with probability ``delay_cdf[D - onset]``. The three categories sum to the true incidence. The
+    index case (onset day 0) is fixed and fully reported, matching the under-reporting model.
+    """
+    onset_days = np.arange(len(true_vec))
+    ever = rng.binomial(true_vec, reporting_prob)
+    never = true_vec - ever
+    available_delay = np.clip(snapshot_day - onset_days, 0, len(delay_cdf) - 1)
+    prob_by_snapshot = np.where(
+        onset_days <= snapshot_day, delay_cdf[available_delay], 0.0
+    )
+    reported = rng.binomial(ever, prob_by_snapshot)
+    not_yet = ever - reported
+    # Fixed, fully reported index case (no hidden day-0 infections in the model).
+    reported[0], not_yet[0], never[0] = true_vec[0], 0, 0
+    return reported, not_yet, never
+
+
+def _prob_at(ds, t_calc):
+    # (mean, lower, upper) additional-case probability at the decision day.
+    return (
+        float(ds["additional_case_prob"].sel(time=t_calc)),
+        float(ds["additional_case_prob_lower"].sel(time=t_calc)),
+        float(ds["additional_case_prob_upper"].sel(time=t_calc)),
+    )
 
 
 if __name__ == "__main__":

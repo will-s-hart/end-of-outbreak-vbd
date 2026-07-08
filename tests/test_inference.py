@@ -343,6 +343,72 @@ def test_fit_model_qrt_sequence_mode_requires_t_calc():
         )
 
 
+def test_is_incidence_sequence_distinguishes_single_series_from_sequence():
+    # A single series (1-D array or a flat list of counts) is not a sequence-of-series; a
+    # list/tuple of array-likes (or a 2-D array) is.
+    assert not inf._is_incidence_sequence([1, 2, 3])
+    assert not inf._is_incidence_sequence(np.array([1, 2, 3]))
+    assert not inf._is_incidence_sequence([])
+    assert inf._is_incidence_sequence([np.array([1, 2]), np.array([1, 2, 3])])
+    assert inf._is_incidence_sequence([[1, 2], [1, 2, 3]])
+    assert inf._is_incidence_sequence(np.zeros((2, 3)))
+
+
+def test_fit_model_quasi_real_time_treats_plain_list_as_single_series(monkeypatch):
+    # A single incidence series spelled as a plain Python list must be treated as one series
+    # (per-day quasi-real-time), not misread as several one-element series.
+    _setup_minimal_pm_for_fit_model(monkeypatch)
+    monkeypatch.setattr(inf, "tqdm", lambda iterable, **kwargs: iterable)
+
+    out = inf._fit_model(
+        incidence_vec=[1, 0, 0, 0],
+        serial_interval_dist_vec=np.array([1.0]),
+        rep_no_vec_func=lambda t_stop: np.ones(t_stop),
+        quasi_real_time=True,
+        parallel=False,
+        draws=6,
+        chains=1,
+        tune=0,
+        progressbar=False,
+    )
+
+    assert out.sizes["time"] == 4
+
+
+def test_fit_model_rejects_sequence_of_series_without_quasi_real_time():
+    with pytest.raises(ValueError, match="requires quasi_real_time"):
+        inf._fit_model(
+            incidence_vec=[np.array([1, 0]), np.array([1, 0, 0])],
+            serial_interval_dist_vec=np.array([1.0]),
+            rep_no_vec_func=lambda t_stop: np.ones(t_stop),
+            quasi_real_time=False,
+        )
+
+
+def test_fit_autoregressive_model_routes_sequence_through_qrt(monkeypatch):
+    # The public entry point forwards a sequence of series + explicit t_calc into the
+    # quasi-real-time sequence path (the under-reporting nowcast route).
+    captured = {}
+
+    def fake_fit_model_qrt(**kwargs):
+        captured.update(kwargs)
+        return xr.Dataset({"rep_no_mean": ("time", [1.0])}, coords={"time": [1]})
+
+    monkeypatch.setattr(inf, "_fit_model_qrt", fake_fit_model_qrt)
+
+    series = [np.array([2, 1]), np.array([2, 1, 0, 0])]
+    inf.fit_autoregressive_model(
+        incidence_vec=series,
+        serial_interval_dist_vec=np.array([1.0]),
+        quasi_real_time=True,
+        t_calc=np.array([1, 3]),
+        compute_diagnostics=False,
+    )
+
+    assert len(captured["incidence_vec"]) == 2
+    np.testing.assert_array_equal(captured["t_calc"], np.array([1, 3]))
+
+
 def test_fit_model_qrt_spawns_distinct_child_rng_per_step(monkeypatch):
     # Each snapshot fit must receive its own spawned child RNG (not the single shared generator),
     # so results depend on spawn order rather than execution order and serial == parallel. The

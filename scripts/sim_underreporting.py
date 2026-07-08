@@ -21,42 +21,9 @@ import pandas as pd
 
 from endoutbreakvbd import calc_additional_case_prob_analytical
 from endoutbreakvbd.inference import fit_autoregressive_model, fit_known_rep_no_model
-from endoutbreakvbd.model import run_renewal_model
+from endoutbreakvbd.model import simulate_outbreak
 from scripts.inputs import get_inputs_sim_underreporting
 from scripts.sim_underreporting_plots import make_plots
-
-
-def true_rep_no(t):
-    """Known declining reproduction-number profile used to generate the synthetic truth.
-
-    A slow linear decline (crossing 1 around day 75, floored at 0.3 by day ~110) so that,
-    with the long chikungunya serial interval (mean ~12.5 days), the outbreak grows over
-    several generations before dying out.
-    """
-    t_arr = np.asarray(t, dtype=float)
-    rep_no = np.clip(2.5 - 0.02 * t_arr, 0.3, 2.5)
-    return float(rep_no) if np.ndim(t) == 0 else rep_no
-
-
-def simulate_outbreak(
-    rng, serial_interval_dist_vec, min_size, incidence_init, max_attempts=20000
-):
-    """Simulate a true outbreak to extinction, padded with zeros, of at least ``min_size``."""
-    for _ in range(max_attempts):
-        true = run_renewal_model(
-            rep_no_func=true_rep_no,
-            serial_interval_dist_vec=serial_interval_dist_vec,
-            rng=rng,
-            incidence_init=incidence_init,
-            t_stop=200,
-        )
-        if true.sum() >= min_size:
-            return np.concatenate(
-                [true, np.zeros(len(serial_interval_dist_vec) + 1, dtype=int)]
-            )
-    raise RuntimeError(
-        f"could not simulate an outbreak of size >= {min_size} in {max_attempts} attempts"
-    )
 
 
 def run_analyses():
@@ -66,7 +33,7 @@ def run_analyses():
 
     # A single shared random number generator threads through the simulation and every fit.
     rng = np.random.default_rng(inputs["seed"])
-    true_vec = simulate_outbreak(
+    true_vec = _simulate_true_outbreak(
         rng,
         serial_interval_dist_vec,
         inputs["min_outbreak_size"],
@@ -89,7 +56,7 @@ def run_analyses():
     ds_known_r = fit_known_rep_no_model(
         incidence_vec=reported_vec,
         serial_interval_dist_vec=serial_interval_dist_vec,
-        rep_no_func=true_rep_no,
+        rep_no_func=_true_rep_no,
         reporting_prob=reporting_prob,
         rng=rng,
         compute_diagnostics=False,
@@ -103,7 +70,7 @@ def run_analyses():
     )
     true_prob = calc_additional_case_prob_analytical(
         incidence_vec=true_vec,
-        rep_no_func=true_rep_no,
+        rep_no_func=_true_rep_no,
         serial_interval_dist_vec=serial_interval_dist_vec,
         t_calc=t_calc,
     )
@@ -116,7 +83,7 @@ def run_analyses():
             "cases_mean": ds["cases_mean"].values,
             "cases_lower": ds["cases_lower"].values,
             "cases_upper": ds["cases_upper"].values,
-            "rep_no_true": true_rep_no(t_calc),
+            "rep_no_true": _true_rep_no(t_calc),
             "rep_no_mean": ds["rep_no_mean"].values,
             "rep_no_lower": ds["rep_no_lower"].values,
             "rep_no_upper": ds["rep_no_upper"].values,
@@ -138,6 +105,36 @@ def run_analyses():
     df_out.to_csv(inputs["results_paths"]["sim"])
     pd.Series(ds.attrs["diagnostics"], name="value").rename_axis("stat").to_csv(
         inputs["results_paths"]["diagnostics"]
+    )
+
+
+def _true_rep_no(t):
+    """Known declining reproduction-number profile used to generate the synthetic truth.
+
+    A slow linear decline (crossing 1 around day 75, floored at 0.3 by day ~110) so that,
+    with the long chikungunya serial interval (mean ~12.5 days), the outbreak grows over
+    several generations before dying out.
+    """
+    t_arr = np.asarray(t, dtype=float)
+    rep_no = np.clip(2.5 - 0.02 * t_arr, 0.3, 2.5)
+    return float(rep_no) if np.ndim(t) == 0 else rep_no
+
+
+def _simulate_true_outbreak(
+    rng, serial_interval_dist_vec, min_size, incidence_init, max_attempts=20000
+):
+    """Simulate the study's true outbreak (declining R), padded with zeros, of at least ``min_size``."""
+    true_vec = simulate_outbreak(
+        rep_no_func=_true_rep_no,
+        serial_interval_dist_vec=serial_interval_dist_vec,
+        rng=rng,
+        min_size=min_size,
+        incidence_init=incidence_init,
+        t_stop=200,
+        max_attempts=max_attempts,
+    )
+    return np.concatenate(
+        [true_vec, np.zeros(len(serial_interval_dist_vec) + 1, dtype=int)]
     )
 
 

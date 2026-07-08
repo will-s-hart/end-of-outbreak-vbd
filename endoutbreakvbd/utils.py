@@ -8,6 +8,7 @@ import scipy.integrate
 import scipy.optimize
 import scipy.stats
 import seaborn as sns
+import xarray as xr
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 
@@ -309,6 +310,59 @@ def lognormal_params_from_median_percentile_2_5(
     return {"mu": mu, "sigma": sigma}
 
 
+def posterior_trajectory_frame(
+    ds: xr.Dataset,
+    *,
+    onset_day: ArrayLike,
+    date: ArrayLike,
+    reported: ArrayLike,
+) -> pd.DataFrame:
+    """
+    Assemble a trajectory table from a suitability-model posterior.
+
+    Collects the reported incidence alongside the posterior mean / 2.5% / 97.5% summaries of
+    the latent true cases, reproduction number, suitability, and reproduction-number factor,
+    plus the additional-case probability, into a single frame indexed by ``onset_day``.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Suitability-model posterior carrying the ``*_mean/_lower/_upper`` summaries and
+        ``additional_case_prob``.
+    onset_day : ArrayLike
+        Day-of-outbreak index for each row.
+    date : ArrayLike
+        Calendar date for each row.
+    reported : ArrayLike
+        Reported cases by onset day.
+
+    Returns
+    -------
+    pd.DataFrame
+        Trajectory table indexed by ``onset_day``.
+    """
+    return pd.DataFrame(
+        {
+            "onset_day": onset_day,
+            "date": date,
+            "reported": reported,
+            "cases_mean": ds["cases_mean"].values,
+            "cases_lower": ds["cases_lower"].values,
+            "cases_upper": ds["cases_upper"].values,
+            "reproduction_number_mean": ds["rep_no_mean"].values,
+            "reproduction_number_lower": ds["rep_no_lower"].values,
+            "reproduction_number_upper": ds["rep_no_upper"].values,
+            "suitability_mean": ds["suitability_mean"].values,
+            "suitability_lower": ds["suitability_lower"].values,
+            "suitability_upper": ds["suitability_upper"].values,
+            "rep_no_factor_mean": ds["rep_no_factor_mean"].values,
+            "rep_no_factor_lower": ds["rep_no_factor_lower"].values,
+            "rep_no_factor_upper": ds["rep_no_factor_upper"].values,
+            "additional_case_prob": ds["additional_case_prob"].values,
+        }
+    ).set_index("onset_day")
+
+
 def set_plot_config() -> None:
     """
     Apply the project's shared matplotlib and seaborn plotting configuration (figure
@@ -370,18 +424,47 @@ def month_start_xticks(ax: Axes, year: int = 2017, interval_months: int = 1) -> 
     ax.set_xticklabels(labels, rotation=0)
 
 
+def dates_to_day_index(
+    dates: pd.Series | pd.DatetimeIndex, year: int = 2017
+) -> NDArray[np.int64]:
+    """
+    Convert calendar dates to a continuous day index anchored at the start of ``year``.
+
+    Within ``year`` this equals the day of year (1 January → 1). Unlike a bare day-of-year,
+    it does not wrap when a window crosses into the next year, so it stays monotonic across
+    the year boundary and pairs with ``month_start_xticks`` for a continuous calendar x-axis.
+
+    Parameters
+    ----------
+    dates : pd.Series or pd.DatetimeIndex
+        Datetime-valued series or index to convert.
+    year : int
+        Anchor year; day 1 is 1 January of this year.
+
+    Returns
+    -------
+    NDArray[np.int64]
+        Continuous day index for each date.
+    """
+    return (pd.DatetimeIndex(dates) - pd.Timestamp(f"{year}-01-01")).days.to_numpy() + 1
+
+
 def plot_data_on_twin_ax(
     ax: Axes,
     t_vec: ArrayLike,
-    incidence_vec: ArrayLike,
-    incidence_vec_extra: ArrayLike | None = None,
-    color_extra: str = "lightgray",
+    bar_heights: ArrayLike,
+    *,
+    bar_labels: list[str | None] | None = None,
+    alpha: float = 0.5,
+    fitted: tuple[ArrayLike, ArrayLike, ArrayLike] | None = None,
+    fitted_color: str | None = None,
+    fitted_label: str | None = None,
 ) -> Axes:
     """
     Plot an incidence time series as a bar chart on a twin y-axis.
 
-    The primary axes are raised above the twin axis so that the bars sit behind
-    the primary-axis artists (curves and legend).
+    The primary axes are raised above the twin axis so the bars sit behind the primary-axis
+    artists (curves and legend).
 
     Parameters
     ----------
@@ -389,32 +472,51 @@ def plot_data_on_twin_ax(
         Primary axes to attach the twin axis to.
     t_vec : ArrayLike
         Times (days) for the incidence bars.
-    incidence_vec : ArrayLike
-        Number of cases at each time.
-    incidence_vec_extra : ArrayLike, optional
-        A second series stacked on top of ``incidence_vec`` in a lighter colour (e.g.
-        unreported cases on top of reported ones). If None, only ``incidence_vec`` is
-        drawn.
-    color_extra : str
-        Colour of the stacked ``incidence_vec_extra`` bars.
+    bar_heights : ArrayLike
+        Number of cases at each time. A single 1-D series draws one bar; a list of series
+        draws them stacked (ordered least- to most-hidden), coloured by an internal palette
+        (grey base, then orange/purple).
+    bar_labels : list[str | None], optional
+        Legend labels for the stacked bars (one per series; ``None`` to omit a label). If
+        omitted, the bars are unlabelled.
+    alpha : float
+        Bar transparency.
+    fitted : tuple[ArrayLike, ArrayLike, ArrayLike], optional
+        ``(mean, lower, upper)`` of a fitted-case series to overlay: the credible band is
+        drawn behind the bars and the mean line in front.
+    fitted_color : str, optional
+        Colour of the ``fitted`` band and mean line.
+    fitted_label : str, optional
+        Legend label for the ``fitted`` mean line.
 
     Returns
     -------
     Axes
         The created twin axis.
     """
+    layers = _as_bar_layers(bar_heights)
+    colors = _stacked_bar_colors(len(layers))
+    labels = bar_labels if bar_labels is not None else [None] * len(layers)
+
     twin_ax = ax.twinx()
-    twin_ax.bar(t_vec, incidence_vec, color="tab:gray", alpha=0.5)
-    total = np.asarray(incidence_vec, dtype=float)
-    if incidence_vec_extra is not None:
-        twin_ax.bar(
-            t_vec,
-            incidence_vec_extra,
-            bottom=incidence_vec,
-            color=color_extra,
-            alpha=0.5,
+    if fitted is not None:
+        fitted_mean, fitted_lower, fitted_upper = (
+            np.asarray(a, dtype=float) for a in fitted
         )
-        total = total + np.asarray(incidence_vec_extra, dtype=float)
+        twin_ax.fill_between(
+            t_vec, fitted_lower, fitted_upper, color=fitted_color, alpha=0.25, zorder=1
+        )
+    total = np.zeros(len(layers[0]), dtype=float)
+    for layer, color, label in zip(layers, colors, labels, strict=True):
+        twin_ax.bar(
+            t_vec, layer, bottom=total, color=color, alpha=alpha, label=label, zorder=2
+        )
+        total = total + layer
+    if fitted is not None:
+        twin_ax.plot(
+            t_vec, fitted_mean, color=fitted_color, label=fitted_label, zorder=3
+        )
+        total = np.maximum(total, fitted_upper)
     twin_ax.set_ylim(0, np.max(total))
     twin_ax.set_ylabel("Number of cases")
     twin_ax.yaxis.label.set_color("tab:gray")
@@ -462,3 +564,35 @@ def ordered_legend(ax: Axes, priorities: dict[str, float], **kwargs) -> None:
         key=lambda i: (priorities.get(labels[i], len(labels)), i),
     )
     ax.legend([handles[i] for i in order], [labels[i] for i in order], **kwargs)
+
+
+# Colours for stacked incidence bars, ordered least- to most-hidden. The base (grey) is the
+# fully-observed layer; extras are taken from the tail so the final (most-hidden) segment is
+# always purple (a 2-bar stack is grey+purple, a 3-bar stack grey+orange+purple).
+_STACKED_BAR_BASE_COLOR = "tab:gray"
+_STACKED_BAR_EXTRA_COLORS = ("tab:orange", "tab:purple")
+
+
+def _stacked_bar_colors(n_layers: int) -> list[str]:
+    n_extra = n_layers - 1
+    if n_extra > len(_STACKED_BAR_EXTRA_COLORS):
+        raise ValueError(
+            f"at most {len(_STACKED_BAR_EXTRA_COLORS) + 1} stacked bar layers are supported"
+        )
+    return [
+        _STACKED_BAR_BASE_COLOR,
+        *_STACKED_BAR_EXTRA_COLORS[len(_STACKED_BAR_EXTRA_COLORS) - n_extra :],
+    ]
+
+
+def _as_bar_layers(bar_heights: Any) -> list[NDArray[np.float64]]:
+    # A single series (1-D array or flat list of scalars) is one layer; a list/tuple whose
+    # elements are themselves array-like is several stacked layers. Typed ``Any`` as a private
+    # runtime dispatcher; the public ``plot_data_on_twin_ax`` carries the ``ArrayLike`` type.
+    if (
+        isinstance(bar_heights, (list, tuple))
+        and len(bar_heights) > 0
+        and all(np.ndim(layer) >= 1 for layer in bar_heights)
+    ):
+        return [np.asarray(layer, dtype=float) for layer in bar_heights]
+    return [np.asarray(bar_heights, dtype=float)]

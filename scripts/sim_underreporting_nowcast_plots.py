@@ -13,42 +13,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from endoutbreakvbd.utils import get_colors, set_plot_config
+from endoutbreakvbd.utils import get_colors, plot_data_on_twin_ax, set_plot_config
 from scripts.inputs import get_inputs_sim_underreporting_nowcast
-
-# Reporting-status bar colours (a gradient of "how reported": known now / coming / never), distinct
-# from the categorical method colours used for the probability markers.
-_REPORTED_COLOR = "tab:gray"
-_NOT_YET_COLOR = "tab:orange"
-_NEVER_COLOR = "tab:purple"
-
-
-def _prob_series(colors):
-    # (method, colour, label) for the five additional-case-probability markers. Colours match the
-    # under-reporting simulation study (figure S8) for the four shared methods; colors[3] (red) is
-    # the extra factor-isolation series, naive at true R.
-    return [
-        ("true", "black", "True"),
-        ("naive_true_r", colors[3], "Naive (true R)"),
-        ("naive_est_r", colors[1], "Naive (est. R)"),
-        ("imperfect_true_r", colors[2], "Under-reporting (true R)"),
-        ("imperfect_est_r", colors[0], "Under-reporting (est. R)"),
-    ]
-
-
-def _make_delay_plot(inputs):
-    # Panel A: the synthetic onset-to-report delay distribution (its CDF is the model's delay_cdf).
-    delay = inputs["delay"]
-    fig, ax = plt.subplots()
-    ax.bar(delay["support"], delay["pmf"], color="tab:gray", alpha=0.6)
-    # Crop the near-zero upper tail (the support runs well past it so the Cori residual dump is
-    # negligible); show the bulk of the distribution.
-    ax.set_xlim(0, int(np.searchsorted(delay["cdf"], 0.995)))
-    ax.set_ylim(0, None)
-    ax.set_xlabel("Onset-to-report delay (days)")
-    ax.set_ylabel("Probability")
-    fig.savefig(inputs["fig_paths"]["delay"])
-    return fig, ax
 
 
 def make_plots():
@@ -67,60 +33,23 @@ def make_plots():
 
     fig, ax = plt.subplots()
 
-    # Cases on a twin axis (styled like utils.plot_data_on_twin_ax): stacked reporting-status bars
-    # summing to the true incidence, over the inferred true-case band. The credible band is drawn
-    # behind the bars (as in figure S8A) so the true-case categories stay legible; the band and its
-    # mean line then show where the model recovers the hidden (later + never reported) cases.
-    twin_ax = ax.twinx()
-    twin_ax.fill_between(
-        day, df["cases_lower"], df["cases_upper"], color=colors[0], alpha=0.25, zorder=1
-    )
-    twin_ax.bar(
+    # Cases on a twin axis: stacked reporting-status bars (reported / reported-later / never,
+    # summing to the true incidence, coloured grey→orange→purple by the helper's palette) over the
+    # inferred true-case band. The band sits behind the bars so the categories stay legible; the
+    # band and mean line then show where the model recovers the hidden (later + never) cases.
+    twin_ax = plot_data_on_twin_ax(
+        ax,
         day,
-        reported,
-        color=_REPORTED_COLOR,
+        [reported, not_yet, never],
+        bar_labels=["Reported (by snapshot)", "Reported later", "Never reported"],
         alpha=0.7,
-        label="Reported (by snapshot)",
-        zorder=2,
-    )
-    twin_ax.bar(
-        day,
-        not_yet,
-        bottom=reported,
-        color=_NOT_YET_COLOR,
-        alpha=0.7,
-        label="Reported later",
-        zorder=2,
-    )
-    twin_ax.bar(
-        day,
-        never,
-        bottom=reported + not_yet,
-        color=_NEVER_COLOR,
-        alpha=0.7,
-        label="Never reported",
-        zorder=2,
-    )
-    twin_ax.plot(
-        day,
-        df["cases_mean"],
-        color=colors[0],
-        label="Estimated true",
-        zorder=3,
+        fitted=(df["cases_mean"], df["cases_lower"], df["cases_upper"]),
+        fitted_color=colors[0],
+        fitted_label="Estimated true",
     )
     twin_ax.set_ylim(
         0, 1.05 * max((reported + not_yet + never).max(), df["cases_upper"].max())
     )
-    twin_ax.set_ylabel("Number of cases")
-    twin_ax.yaxis.label.set_color("tab:gray")
-    twin_ax.tick_params(axis="y", colors="tab:gray")
-    twin_ax.spines["right"].set_visible(True)
-    twin_ax.spines["right"].set_color("tab:gray")
-    twin_ax.spines["left"].set_visible(False)
-    twin_ax.spines["bottom"].set_visible(False)
-    # Draw the primary axis (markers, snapshot line, legend) above the incidence bars.
-    ax.set_zorder(twin_ax.get_zorder() + 1)
-    ax.patch.set_visible(False)
 
     ax.axvline(
         snapshot_day, color="tab:gray", linestyle="dashed", alpha=0.6, label="Snapshot"
@@ -169,6 +98,34 @@ def make_plots():
     )
 
     fig.savefig(inputs["fig_paths"]["verification"])
+    return fig, ax
+
+
+def _prob_series(colors):
+    # (method, colour, label) for the five additional-case-probability markers. Colours match the
+    # under-reporting simulation study (figure S8) for the four shared methods; colors[3] (red) is
+    # the extra factor-isolation series, naive at true R.
+    return [
+        ("true", "black", "True"),
+        ("naive_true_r", colors[3], "Naive (true R)"),
+        ("naive_est_r", colors[1], "Naive (est. R)"),
+        ("imperfect_true_r", colors[2], "Under-reporting (true R)"),
+        ("imperfect_est_r", colors[0], "Under-reporting (est. R)"),
+    ]
+
+
+def _make_delay_plot(inputs):
+    # Panel A: the synthetic onset-to-report delay distribution (its CDF is the model's delay_cdf).
+    delay = inputs["delay"]
+    fig, ax = plt.subplots()
+    ax.bar(delay["support"], delay["pmf"], color="tab:gray", alpha=0.6)
+    # Crop the near-zero upper tail (the support runs well past it so the Cori residual dump is
+    # negligible); show the bulk of the distribution.
+    ax.set_xlim(0, int(np.searchsorted(delay["cdf"], 0.995)))
+    ax.set_ylim(0, None)
+    ax.set_xlabel("Onset-to-report delay (days)")
+    ax.set_ylabel("Probability")
+    fig.savefig(inputs["fig_paths"]["delay"])
     return fig, ax
 
 

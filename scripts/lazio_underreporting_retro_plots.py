@@ -17,6 +17,7 @@ import pandas as pd
 
 from endoutbreakvbd import calc_decision_delay
 from endoutbreakvbd.utils import (
+    dates_to_day_index,
     get_colors,
     month_start_xticks,
     plot_data_on_twin_ax,
@@ -24,7 +25,6 @@ from endoutbreakvbd.utils import (
 )
 from scripts.inputs import get_inputs_lazio_underreporting_retro
 from scripts.lazio_underreporting_qrt_plots import (
-    _doy,
     _make_cases_plot,
     _make_prob_plot,
 )
@@ -108,14 +108,14 @@ def _make_decision_plot(inputs, colors):
 
 def _make_estimate_plots(inputs):
     df = pd.read_csv(inputs["results_paths"]["trajectory"], parse_dates=["date"])
-    doy = _doy(df["date"])
+    doy = dates_to_day_index(df["date"])
     reported = df["reported"].to_numpy()
     suitability_prior = inputs["suitability_mean_vec"][: len(doy)]
 
     # Full-reporting (no under-reporting) posterior for comparison: the retrospective
     # lazio_outbreak suitability fit, mapped onto the same calendar axis.
     df_full = pd.read_csv(inputs["full_reporting_paths"]["suitability"])
-    full_doy = _doy(
+    full_doy = dates_to_day_index(
         inputs["full_reporting_start_date"]
         + pd.to_timedelta(df_full["day_of_outbreak"], unit="D")
     )

@@ -37,28 +37,6 @@ class Defaults:
 DEFAULTS = Defaults()
 
 
-def _ar_innovation_std(*, stationary_std: float, rho: float | list[float]) -> float:
-    # Innovation std giving the target stationary std for an AR(1) or AR(2) process
-    if not isinstance(rho, list):
-        rho = [rho]
-    if len(rho) == 1:
-        return stationary_std * np.sqrt(1 - rho[0] ** 2)
-    elif len(rho) == 2:
-        return stationary_std * np.sqrt(
-            1 - (rho[0] ** 2 * (1 + rho[1])) / (1 - rho[1]) - rho[1] ** 2
-        )
-    raise ValueError("Only AR(1) and AR(2) are supported")
-
-
-def _softclip(x: Any, *, lower: float, upper: float, tau: float = 0.001) -> Any:
-    # Smooth (softplus-based) clip of x to the interval [lower, upper]
-    return (
-        x
-        + tau * pm.math.log1pexp((lower - x) / tau)
-        - tau * pm.math.log1pexp((x - upper) / tau)
-    )
-
-
 def build_known_rep_no(
     *, rep_no_func: Callable[[IntArray], FloatArray]
 ) -> Callable[[int], Any]:
@@ -254,3 +232,25 @@ def build_suitability_rep_no(
         return rep_no_vec
 
     return rep_no_vec_func
+
+
+def _ar_innovation_std(*, stationary_std: float, rho: float | list[float]) -> float:
+    # Innovation std giving the target stationary std for an AR(1) or AR(2) process
+    if not isinstance(rho, list):
+        rho = [rho]
+    if len(rho) == 1:
+        return stationary_std * np.sqrt(1 - rho[0] ** 2)
+    elif len(rho) == 2:
+        return stationary_std * np.sqrt(
+            1 - (rho[0] ** 2 * (1 + rho[1])) / (1 - rho[1]) - rho[1] ** 2
+        )
+    raise ValueError("Only AR(1) and AR(2) are supported")
+
+
+def _softclip(x: Any, *, lower: float, upper: float, tau: float = 0.001) -> Any:
+    # Smooth (softplus-based) clip of x to the interval [lower, upper]
+    return (
+        x
+        + tau * pm.math.log1pexp((lower - x) / tau)
+        - tau * pm.math.log1pexp((x - upper) / tau)
+    )

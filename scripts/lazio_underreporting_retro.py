@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from endoutbreakvbd.inference import fit_autoregressive_model, fit_suitability_model
+from endoutbreakvbd.utils import posterior_trajectory_frame
 from scripts.inputs import get_inputs_lazio_underreporting_retro
 from scripts.lazio_underreporting_retro_plots import make_plots
 
@@ -47,7 +48,9 @@ def run_analyses(sampler_kwargs=None):
             **sampler_kwargs,
         )
         _write_prob(ds, results_paths[name], outbreak_start_date)
-        _write_diagnostics(ds, results_paths[f"{name}_diagnostics"])
+        pd.Series(ds.attrs["diagnostics"], name="value").rename_axis("stat").to_csv(
+            results_paths[f"{name}_diagnostics"]
+        )
         if name == primary_name:
             _write_trajectory(
                 ds, results_paths["trajectory"], incidence_vec, outbreak_start_date
@@ -64,7 +67,9 @@ def run_analyses(sampler_kwargs=None):
         **sampler_kwargs,
     )
     _write_prob(ds, results_paths["autoregressive_p60"], outbreak_start_date)
-    _write_diagnostics(ds, results_paths["autoregressive_p60_diagnostics"])
+    pd.Series(ds.attrs["diagnostics"], name="value").rename_axis("stat").to_csv(
+        results_paths["autoregressive_p60_diagnostics"]
+    )
 
 
 def _dates(ds, start_date):
@@ -86,32 +91,9 @@ def _write_prob(ds, save_path, start_date):
 
 def _write_trajectory(ds, save_path, incidence_vec, start_date):
     onset_day, date = _dates(ds, start_date)
-    pd.DataFrame(
-        {
-            "onset_day": onset_day,
-            "date": date,
-            "reported": incidence_vec,
-            "cases_mean": ds["cases_mean"].values,
-            "cases_lower": ds["cases_lower"].values,
-            "cases_upper": ds["cases_upper"].values,
-            "reproduction_number_mean": ds["rep_no_mean"].values,
-            "reproduction_number_lower": ds["rep_no_lower"].values,
-            "reproduction_number_upper": ds["rep_no_upper"].values,
-            "suitability_mean": ds["suitability_mean"].values,
-            "suitability_lower": ds["suitability_lower"].values,
-            "suitability_upper": ds["suitability_upper"].values,
-            "rep_no_factor_mean": ds["rep_no_factor_mean"].values,
-            "rep_no_factor_lower": ds["rep_no_factor_lower"].values,
-            "rep_no_factor_upper": ds["rep_no_factor_upper"].values,
-            "additional_case_prob": ds["additional_case_prob"].values,
-        }
-    ).set_index("onset_day").to_csv(save_path)
-
-
-def _write_diagnostics(ds, save_path):
-    pd.Series(ds.attrs["diagnostics"], name="value").rename_axis("stat").to_csv(
-        save_path
-    )
+    posterior_trajectory_frame(
+        ds, onset_day=onset_day, date=date, reported=incidence_vec
+    ).to_csv(save_path)
 
 
 if __name__ == "__main__":

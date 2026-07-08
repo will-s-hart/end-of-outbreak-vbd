@@ -18,16 +18,6 @@ _REPORTED_COLOR = "tab:gray"
 _UNREPORTED_COLOR = "tab:purple"
 
 
-def _prob_series(colors):
-    # (column suffix, colour, label) for the four additional-case-probability curves.
-    return [
-        ("true", "black", "True"),
-        ("est_r", colors[0], "Under-reporting (est. R)"),
-        ("known_r", colors[2], "Under-reporting (true R)"),
-        ("naive", colors[1], "Naive (reported only)"),
-    ]
-
-
 def make_plots():
     set_plot_config()
     inputs = get_inputs_sim_underreporting()
@@ -63,7 +53,7 @@ def make_plots():
 
     # Reproduction number: true vs inferred (under-reporting) vs naive, over reported cases.
     fig, ax = plt.subplots()
-    plot_data_on_twin_ax(ax, day, reported, unreported, color_extra=_UNREPORTED_COLOR)
+    plot_data_on_twin_ax(ax, day, [reported, unreported])
     ax.plot(day, df["rep_no_true"], color="black", linestyle="dashed", label="True")
     ax.plot(day, df["rep_no_mean"], color=colors[0], label="Under-reporting (est. R)")
     ax.fill_between(
@@ -81,7 +71,7 @@ def make_plots():
     # Additional-case probability: true vs under-reporting (est./true R) vs naive, with a
     # credible interval on the true-R under-reporting model (isolating reporting uncertainty).
     fig, ax = plt.subplots()
-    plot_data_on_twin_ax(ax, day, reported, unreported, color_extra=_UNREPORTED_COLOR)
+    plot_data_on_twin_ax(ax, day, [reported, unreported])
     for suffix, color, label in _prob_series(colors):
         ax.plot(day, df[f"additional_case_prob_{suffix}"], color=color, label=label)
     ax.fill_between(
@@ -114,6 +104,16 @@ def make_plots():
     ax.set_ylabel("Days from last reported case\nuntil risk falls below threshold")
     ax.legend(loc="upper right")
     fig.savefig(inputs["fig_paths"]["decision"])
+
+
+def _prob_series(colors):
+    # (column suffix, colour, label) for the four additional-case-probability curves.
+    return [
+        ("true", "black", "True"),
+        ("est_r", colors[0], "Under-reporting (est. R)"),
+        ("known_r", colors[2], "Under-reporting (true R)"),
+        ("naive", colors[1], "Naive (reported only)"),
+    ]
 
 
 if __name__ == "__main__":
