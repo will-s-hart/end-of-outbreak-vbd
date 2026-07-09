@@ -56,7 +56,8 @@ def fit_autoregressive_model(
     Parameters
     ----------
     incidence_vec : IncidenceSeriesInput
-        Observed incidence time series.
+        Observed incidence time series. When ``reporting_prob`` is supplied, the series
+        must start on the index-case day and its first value must be positive.
     serial_interval_dist_vec : SerialIntervalInput
         Discretised serial interval distribution (probability mass per day).
     prior_median : float, optional
@@ -149,7 +150,8 @@ def fit_suitability_model(
     Parameters
     ----------
     incidence_vec : IncidenceSeriesInput
-        Observed incidence time series.
+        Observed incidence time series. When ``reporting_prob`` is supplied, the series
+        must start on the index-case day and its first value must be positive.
     serial_interval_dist_vec : SerialIntervalInput
         Discretised serial interval distribution (probability mass per day).
     suitability_mean_vec : list[float] or FloatArray
@@ -259,7 +261,8 @@ def fit_known_rep_no_model(
     Parameters
     ----------
     incidence_vec : IncidenceSeriesInput
-        Observed incidence time series.
+        Observed incidence time series. When ``reporting_prob`` is supplied, the series
+        must start on the index-case day and its first value must be positive.
     serial_interval_dist_vec : SerialIntervalInput
         Discretised serial interval distribution (probability mass per day).
     rep_no_func : Callable[[IntArray], FloatArray]
@@ -662,15 +665,26 @@ def _reporting_prob_vec(
     # `reporting_prob * P(delay <= as_of_day - onset_day)`, so recent onset days (small available
     # delay) are truncated toward zero (right-truncation / nowcasting) while old onset days plateau
     # at `reporting_prob`.
+    reporting_prob = float(reporting_prob)
+    if not np.isfinite(reporting_prob) or not 0 < reporting_prob <= 1:
+        raise ValueError("reporting_prob must be finite and in the interval (0, 1]")
+
     t_data_to = len(incidence_vec)
     if delay_cdf is None:
-        return np.full(t_data_to, float(reporting_prob))
+        return np.full(t_data_to, reporting_prob)
     delay_cdf = np.asarray(delay_cdf, dtype=float)
+    if delay_cdf.ndim != 1 or delay_cdf.size == 0:
+        raise ValueError("delay_cdf must be a non-empty 1-D array")
+    if not np.all(np.isfinite(delay_cdf)):
+        raise ValueError("delay_cdf must contain only finite values")
+    if np.any((delay_cdf < 0) | (delay_cdf > 1)):
+        raise ValueError("delay_cdf values must be in the interval [0, 1]")
+    if np.any(np.diff(delay_cdf) < 0):
+        raise ValueError("delay_cdf must be non-decreasing")
     as_of_day = t_data_to - 1
     available_delay = as_of_day - np.arange(t_data_to)
     return (
-        float(reporting_prob)
-        * delay_cdf[np.clip(available_delay, 0, len(delay_cdf) - 1)]
+        reporting_prob * delay_cdf[np.clip(available_delay, 0, len(delay_cdf) - 1)]
     )
 
 
@@ -694,6 +708,10 @@ def _build_underreporting_model(
     # `_reproduction_number_horizon`). The discrete latent gets a Metropolis step from pm.sample
     # automatically (NUTS handles the continuous R_t block), so no step is attached by the caller.
     observed_vec = np.asarray(incidence_vec, dtype=int)
+    if observed_vec.ndim != 1 or observed_vec.size == 0:
+        raise ValueError("incidence_vec must be a non-empty 1-D array")
+    if observed_vec[0] <= 0:
+        raise ValueError("incidence_vec must start with at least one index case")
     t_data_to = len(observed_vec)
     serial_interval_dist_vec = np.asarray(serial_interval_dist_vec, dtype=float)
     n_pad = t_infer_rep_no_to - t_data_to
@@ -704,7 +722,7 @@ def _build_underreporting_model(
         _reporting_prob_vec(observed_vec, reporting_prob, delay_cdf), 1e-6, 1.0
     )
 
-    index_incidence = float(max(int(observed_vec[0]), 1))
+    index_incidence = float(observed_vec[0])
     conv_mat = renewal_convolution_matrix(serial_interval_dist_vec, t_data_to)
     observed_after_index = observed_vec[1:].astype(float)
     reporting_prob_after_index = reporting_prob_vec[1:]

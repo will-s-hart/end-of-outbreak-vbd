@@ -70,6 +70,32 @@ def test_reporting_prob_vec_truncates_recent_onsets():
     assert np.all(np.diff(vec[::-1]) >= 0)
 
 
+@pytest.mark.parametrize("reporting_prob", [0.0, -0.1, 1.1, np.nan, np.inf])
+def test_reporting_prob_vec_rejects_invalid_reporting_probability(reporting_prob):
+    with pytest.raises(ValueError, match="reporting_prob must be finite and in"):
+        inf._reporting_prob_vec(
+            np.array([1, 0]), reporting_prob, delay_cdf=None
+        )
+
+
+@pytest.mark.parametrize(
+    ("delay_cdf", "message"),
+    [
+        (np.array([]), "non-empty 1-D"),
+        (np.array([[0.0, 1.0]]), "non-empty 1-D"),
+        (np.array([0.0, np.nan]), "only finite"),
+        (np.array([-0.1, 1.0]), "interval \\[0, 1\\]"),
+        (np.array([0.0, 1.1]), "interval \\[0, 1\\]"),
+        (np.array([0.0, 0.8, 0.7]), "non-decreasing"),
+    ],
+)
+def test_reporting_prob_vec_rejects_invalid_delay_cdf(delay_cdf, message):
+    with pytest.raises(ValueError, match=message):
+        inf._reporting_prob_vec(
+            np.array([1, 0]), 0.6, delay_cdf=delay_cdf
+        )
+
+
 def test_reproduction_number_horizon_full_vs_underreporting():
     # Under-reporting projects R_t a full serial interval past *all* data (the latent final
     # case can sit anywhere); full reporting only past the last *observed* case. Same inputs,
@@ -153,27 +179,19 @@ def test_underreporting_model_p1_collapses_latent_to_zero():
     assert float(logp_fn(point_zero)) > float(logp_fn(point_nonzero))
 
 
-def test_underreporting_index_is_at_least_one():
-    # The fixed index takes the first reported case(s), floored at 1 (no hidden day-0 cases).
+def test_underreporting_model_rejects_zero_index_case():
+    # The incidence series must start on the index-case day; leading zero days are ambiguous.
     obs = np.array([0, 3, 1, 0])
     serial_interval_dist_vec = np.array([0.6, 0.4])
-    model = inf._build_underreporting_model(
-        incidence_vec=obs,
-        serial_interval_dist_vec=serial_interval_dist_vec,
-        rep_no_vec_func=build_ar_rep_no(),
-        reporting_prob=0.6,
-        delay_cdf=None,
-        t_infer_rep_no_to=len(obs) + len(serial_interval_dist_vec),
-    )
-    latent_rv = model["unobserved"]
-    cases_det = next(d for d in model.deterministics if d.name == "cases")
-    # Evaluate the deterministic with the latent held at zero -> cases[0] == 1 (index floor),
-    # even though the first reported count is zero.
-    cases_eval = cases_det.eval({latent_rv: np.zeros(len(obs) - 1, dtype="int64")})
-    assert cases_eval[0] == 1.0
-    np.testing.assert_array_equal(
-        cases_eval[: len(obs)], np.array([1.0, 3.0, 1.0, 0.0])
-    )
+    with pytest.raises(ValueError, match="must start with at least one index case"):
+        inf._build_underreporting_model(
+            incidence_vec=obs,
+            serial_interval_dist_vec=serial_interval_dist_vec,
+            rep_no_vec_func=build_ar_rep_no(),
+            reporting_prob=0.6,
+            delay_cdf=None,
+            t_infer_rep_no_to=len(obs) + len(serial_interval_dist_vec),
+        )
 
 
 def test_build_known_rep_no_registers_fixed_reproduction_number():
