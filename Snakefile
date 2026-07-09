@@ -1,3 +1,7 @@
+data_file_lazio_incidence = "data/lazio_chik_2017.csv"
+data_file_lazio_reporting_matrix = "data/lazio_chik_2017_reporting_matrix.csv"
+data_file_suitability_grid = "data/tegar_suitability_grid.csv"
+
 results_files_schematic = ["results/schematic/outbreak.csv"]
 results_files_weather_suitability_data = expand(
     "results/weather_suitability_data/{name}.csv", name=["all", "2017"]
@@ -17,7 +21,12 @@ def get_results_files_lazio_outbreak(qrt):
     return expand(
         "results/lazio_outbreak{qrt}/{name}.csv",
         qrt=qrt,
-        name=["autoregressive", "suitability"],
+        name=[
+            "autoregressive",
+            "autoregressive_diagnostics",
+            "suitability",
+            "suitability_diagnostics",
+        ],
     )
 
 
@@ -31,7 +40,9 @@ def get_results_files_inference_test(qrt):
         name=[
             "outbreak_data",
             "autoregressive",
+            "autoregressive_diagnostics",
             "suitability",
+            "suitability_diagnostics",
         ],
     )
 
@@ -51,16 +62,31 @@ results_files_lazio_frozen = ["results/lazio_frozen/autoregressive_frozen.csv"]
 results_files_lazio_epiestim = ["results/lazio_epiestim/epiestim.csv"]
 results_files_lazio_underreporting_qrt = expand(
     "results/lazio_underreporting_qrt/{name}.csv",
-    name=["suitability_p60", "autoregressive_p60", "trajectory", "delay"],
+    name=[
+        "suitability_p60",
+        "suitability_p60_diagnostics",
+        "autoregressive_p60",
+        "autoregressive_p60_diagnostics",
+        "trajectory",
+        "delay",
+    ],
 )
 results_files_lazio_underreporting_retro = expand(
     "results/lazio_underreporting_retro/{name}.csv",
-    name=["suitability_p60", "autoregressive_p60", "trajectory"],
+    name=[
+        "suitability_p60",
+        "suitability_p60_diagnostics",
+        "autoregressive_p60",
+        "autoregressive_p60_diagnostics",
+        "trajectory",
+    ],
 )
-results_files_sim_underreporting = ["results/sim_underreporting/sim.csv"]
+results_files_sim_underreporting = expand(
+    "results/sim_underreporting/{name}.csv", name=["sim", "diagnostics"]
+)
 results_files_sim_underreporting_nowcast = expand(
     "results/sim_underreporting_nowcast/{name}.csv",
-    name=["trajectory", "probs"],
+    name=["trajectory", "probs", "diagnostics"],
 )
 
 results_files = (
@@ -79,7 +105,8 @@ results_files = (
 )
 
 plot_files_weather_suitability_data = expand(
-    "figures/weather_suitability_data/{name}.svg", name=["temperature", "suitability"]
+    "figures/weather_suitability_data/{name}.svg",
+    name=["temperature", "suitability_model", "suitability"],
 )
 plot_files_sim_study = expand(
     "figures/sim_study/{name}.svg",
@@ -201,6 +228,7 @@ package_files = [
         "additional_case_prob",
         "inference",
         "model",
+        "rep_no_models",
         "utils",
     ]
 ]
@@ -280,6 +308,7 @@ rule schematic_plots:
 rule weather_suitability_data_results:
     input:
         shared_input_files,
+        data_file_suitability_grid,
         "scripts/weather_suitability_data.py",
     output:
         results_files_weather_suitability_data,
@@ -332,6 +361,7 @@ rule sim_study_plots:
 rule lazio_outbreak_results:
     input:
         shared_input_files,
+        data_file_lazio_incidence,
         results_files_weather_suitability_data,
         "scripts/lazio_outbreak.py",
     output:
@@ -433,6 +463,7 @@ rule sim_sensitivity_plots:
 rule lazio_frozen_results:
     input:
         shared_input_files,
+        data_file_lazio_incidence,
         results_files_weather_suitability_data,
         "scripts/lazio_frozen.py",
         "scripts/lazio_outbreak.py",
@@ -463,6 +494,7 @@ rule lazio_frozen_plots:
 rule lazio_epiestim_results:
     input:
         shared_input_files,
+        data_file_lazio_incidence,
         results_files_weather_suitability_data,
         "scripts/lazio_epiestim.py",
     output:
@@ -492,8 +524,9 @@ rule lazio_epiestim_plots:
 rule lazio_underreporting_qrt_results:
     input:
         shared_input_files,
+        data_file_lazio_incidence,
         results_files_weather_suitability_data,
-        "data/lazio_chik_2017_reporting_matrix.csv",
+        data_file_lazio_reporting_matrix,
         "scripts/lazio_underreporting_qrt.py",
     output:
         results_files_lazio_underreporting_qrt,
@@ -521,6 +554,7 @@ rule lazio_underreporting_qrt_plots:
 rule lazio_underreporting_retro_results:
     input:
         shared_input_files,
+        data_file_lazio_incidence,
         results_files_weather_suitability_data,
         "scripts/lazio_underreporting_retro.py",
     output:

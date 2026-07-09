@@ -99,9 +99,15 @@ def build_ar_rep_no(
     Callable[[int], Any]
         Function taking the inference horizon and returning the ``rep_no`` deterministic.
     """
-    prior_median = prior_median or DEFAULTS.rep_no_prior_median
-    prior_percentile_2_5 = prior_percentile_2_5 or DEFAULTS.rep_no_prior_percentile_2_5
-    rho = rho or DEFAULTS.log_rep_no_rho
+    prior_median = (
+        DEFAULTS.rep_no_prior_median if prior_median is None else prior_median
+    )
+    prior_percentile_2_5 = (
+        DEFAULTS.rep_no_prior_percentile_2_5
+        if prior_percentile_2_5 is None
+        else prior_percentile_2_5
+    )
+    rho = DEFAULTS.log_rep_no_rho if rho is None else rho
     lognormal_params = lognormal_params_from_median_percentile_2_5(
         median=prior_median, percentile_2_5=prior_percentile_2_5
     )
@@ -167,16 +173,27 @@ def build_suitability_rep_no(
         also registering the ``suitability`` and ``rep_no_factor`` deterministics.
     """
     suitability_mean_vec = np.asarray(suitability_mean_vec)
-    suitability_std = suitability_std or DEFAULTS.suitability_std
-    suitability_rho = suitability_rho or DEFAULTS.suitability_rho
+    suitability_std = (
+        DEFAULTS.suitability_std if suitability_std is None else suitability_std
+    )
+    suitability_rho = (
+        DEFAULTS.suitability_rho if suitability_rho is None else suitability_rho
+    )
     rep_no_factor_prior_median = (
-        rep_no_factor_prior_median or DEFAULTS.rep_no_factor_prior_median
+        DEFAULTS.rep_no_factor_prior_median
+        if rep_no_factor_prior_median is None
+        else rep_no_factor_prior_median
     )
     rep_no_factor_prior_percentile_2_5 = (
-        rep_no_factor_prior_percentile_2_5
-        or DEFAULTS.rep_no_factor_prior_percentile_2_5
+        DEFAULTS.rep_no_factor_prior_percentile_2_5
+        if rep_no_factor_prior_percentile_2_5 is None
+        else rep_no_factor_prior_percentile_2_5
     )
-    log_rep_no_factor_rho = log_rep_no_factor_rho or DEFAULTS.log_rep_no_factor_rho
+    log_rep_no_factor_rho = (
+        DEFAULTS.log_rep_no_factor_rho
+        if log_rep_no_factor_rho is None
+        else log_rep_no_factor_rho
+    )
     rep_no_factor_lognormal_params = lognormal_params_from_median_percentile_2_5(
         median=rep_no_factor_prior_median,
         percentile_2_5=rep_no_factor_prior_percentile_2_5,
