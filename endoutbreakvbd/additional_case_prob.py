@@ -202,6 +202,7 @@ def calc_additional_case_prob_simulation(
     float or FloatArray
         Estimated probability of additional case(s) for each time in ``t_calc``.
     """
+    t_calc_is_scalar = np.isscalar(t_calc)
     incidence_vec = np.asarray(incidence_vec, dtype=int)
     serial_interval_dist_vec = np.asarray(serial_interval_dist_vec)
     t_calc = np.atleast_1d(t_calc)
@@ -260,7 +261,7 @@ def calc_additional_case_prob_simulation(
     for t_idx, s_idx, val in results:
         additional_cases_sims[t_idx, s_idx] = val
     additional_case_prob = np.mean(additional_cases_sims, axis=1)
-    if np.isscalar(t_calc):
+    if t_calc_is_scalar:
         return float(additional_case_prob.item())
     return additional_case_prob
 

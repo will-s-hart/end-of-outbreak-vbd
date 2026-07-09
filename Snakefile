@@ -1,3 +1,6 @@
+data_file_lazio_incidence = "data/lazio_chik_2017.csv"
+data_file_suitability_grid = "data/tegar_suitability_grid.csv"
+
 results_files_schematic = ["results/schematic/outbreak.csv"]
 results_files_weather_suitability_data = expand(
     "results/weather_suitability_data/{name}.csv", name=["all", "2017"]
@@ -17,7 +20,12 @@ def get_results_files_lazio_outbreak(qrt):
     return expand(
         "results/lazio_outbreak{qrt}/{name}.csv",
         qrt=qrt,
-        name=["autoregressive", "suitability"],
+        name=[
+            "autoregressive",
+            "autoregressive_diagnostics",
+            "suitability",
+            "suitability_diagnostics",
+        ],
     )
 
 
@@ -31,7 +39,9 @@ def get_results_files_inference_test(qrt):
         name=[
             "outbreak_data",
             "autoregressive",
+            "autoregressive_diagnostics",
             "suitability",
+            "suitability_diagnostics",
         ],
     )
 
@@ -62,7 +72,8 @@ results_files = (
 )
 
 plot_files_weather_suitability_data = expand(
-    "figures/weather_suitability_data/{name}.svg", name=["temperature", "suitability"]
+    "figures/weather_suitability_data/{name}.svg",
+    name=["temperature", "suitability_model", "suitability"],
 )
 plot_files_sim_study = expand(
     "figures/sim_study/{name}.svg",
@@ -236,6 +247,7 @@ rule schematic_plots:
 rule weather_suitability_data_results:
     input:
         shared_input_files,
+        data_file_suitability_grid,
         "scripts/weather_suitability_data.py",
     output:
         results_files_weather_suitability_data,
@@ -288,6 +300,7 @@ rule sim_study_plots:
 rule lazio_outbreak_results:
     input:
         shared_input_files,
+        data_file_lazio_incidence,
         results_files_weather_suitability_data,
         "scripts/lazio_outbreak.py",
     output:
@@ -389,6 +402,7 @@ rule sim_sensitivity_plots:
 rule lazio_frozen_results:
     input:
         shared_input_files,
+        data_file_lazio_incidence,
         results_files_weather_suitability_data,
         "scripts/lazio_frozen.py",
         "scripts/lazio_outbreak.py",
@@ -419,6 +433,7 @@ rule lazio_frozen_plots:
 rule lazio_epiestim_results:
     input:
         shared_input_files,
+        data_file_lazio_incidence,
         results_files_weather_suitability_data,
         "scripts/lazio_epiestim.py",
     output:

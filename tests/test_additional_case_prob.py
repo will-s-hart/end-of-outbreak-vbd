@@ -95,6 +95,20 @@ def test_calc_additional_case_prob_simulation_parallel_false_deterministic_zero_
     np.testing.assert_allclose(prob, np.array([0.0, 0.0]))
 
 
+def test_calc_additional_case_prob_simulation_scalar_returns_float(rng):
+    prob = acp.calc_additional_case_prob_simulation(
+        incidence_vec=[1],
+        rep_no_func=lambda t: 0.0,
+        serial_interval_dist_vec=[1.0],
+        t_calc=1,
+        n_sims=5,
+        rng=rng,
+        parallel=False,
+    )
+    assert isinstance(prob, float)
+    assert prob == 0.0
+
+
 def test_additional_cases_one_sim_uses_run_renewal_model(monkeypatch):
     called = {}
 

@@ -419,6 +419,25 @@ def test_fit_autoregressive_model_respects_overrides(monkeypatch):
     assert out["quasi_real_time"] is False
 
 
+def test_fit_autoregressive_model_respects_zero_rho(monkeypatch):
+    captured = {}
+
+    def fake_ar_innovation_std(*, stationary_std, rho):
+        captured["rho"] = rho
+        return stationary_std
+
+    monkeypatch.setattr(inf, "_ar_innovation_std", fake_ar_innovation_std)
+    monkeypatch.setattr(inf, "_fit_model", lambda **kwargs: kwargs)
+
+    inf.fit_autoregressive_model(
+        incidence_vec=np.array([1, 0]),
+        serial_interval_dist_vec=np.array([1.0]),
+        rho=0,
+    )
+
+    assert captured["rho"] == 0
+
+
 def test_fit_suitability_model_uses_defaults(monkeypatch):
     captured = {}
 
@@ -481,6 +500,52 @@ def test_fit_suitability_model_respects_overrides(monkeypatch):
     assert captured["median"] == 2.0
     assert captured["percentile_2_5"] == 0.9
     assert captured["fit_model_kwargs"]["quasi_real_time"] is False
+
+
+def test_fit_suitability_model_respects_zero_process_parameters(monkeypatch):
+    ar_calls = []
+
+    def fake_ar(name, **kwargs):
+        ar_calls.append((name, kwargs))
+        return np.zeros(2)
+
+    monkeypatch.setattr(inf.pm, "AR", fake_ar)
+    monkeypatch.setattr(
+        inf.pm, "Deterministic", lambda name, value, dims=None: np.asarray(value)
+    )
+    monkeypatch.setattr(inf, "_softclip", lambda x, **kwargs: np.asarray(x))
+
+    class _FakeMath:
+        @staticmethod
+        def exp(x):
+            return np.exp(x)
+
+    class _FakeNormal:
+        @staticmethod
+        def dist(mu, sigma):
+            return 0.0
+
+    monkeypatch.setattr(inf.pm, "math", _FakeMath)
+    monkeypatch.setattr(inf.pm, "Normal", _FakeNormal)
+
+    def fake_fit_model(**kwargs):
+        kwargs["rep_no_vec_func"](2)
+        return _fake_suitability_posterior(2)
+
+    monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
+
+    inf.fit_suitability_model(
+        incidence_vec=np.array([1, 0]),
+        serial_interval_dist_vec=np.array([1.0]),
+        suitability_mean_vec=np.array([0.2, 0.3]),
+        suitability_std=0,
+        suitability_rho=0,
+        log_rep_no_factor_rho=0,
+    )
+
+    assert ar_calls[0][1]["rho"] == 0
+    assert ar_calls[1][1]["rho"] == 0
+    assert ar_calls[1][1]["sigma"] == 0
 
 
 def test_fit_suitability_model_rep_no_func_uses_softclip(monkeypatch):
