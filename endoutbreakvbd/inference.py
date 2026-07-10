@@ -673,14 +673,17 @@ def _reporting_prob_vec(
     if delay_cdf is None:
         return np.full(t_data_to, reporting_prob)
     delay_cdf = np.asarray(delay_cdf, dtype=float)
-    if delay_cdf.ndim != 1 or delay_cdf.size == 0:
-        raise ValueError("delay_cdf must be a non-empty 1-D array")
-    if not np.all(np.isfinite(delay_cdf)):
-        raise ValueError("delay_cdf must contain only finite values")
-    if np.any((delay_cdf < 0) | (delay_cdf > 1)):
-        raise ValueError("delay_cdf values must be in the interval [0, 1]")
-    if np.any(np.diff(delay_cdf) < 0):
-        raise ValueError("delay_cdf must be non-decreasing")
+    if (
+        delay_cdf.ndim != 1
+        or delay_cdf.size == 0
+        or not np.all(np.isfinite(delay_cdf))
+        or np.any((delay_cdf < 0) | (delay_cdf > 1))
+        or np.any(np.diff(delay_cdf) < 0)
+    ):
+        raise ValueError(
+            "delay_cdf must be a non-empty, finite, non-decreasing 1-D array "
+            "with values in [0, 1]"
+        )
     as_of_day = t_data_to - 1
     available_delay = as_of_day - np.arange(t_data_to)
     return (
@@ -708,10 +711,11 @@ def _build_underreporting_model(
     # `_reproduction_number_horizon`). The discrete latent gets a Metropolis step from pm.sample
     # automatically (NUTS handles the continuous R_t block), so no step is attached by the caller.
     observed_vec = np.asarray(incidence_vec, dtype=int)
-    if observed_vec.ndim != 1 or observed_vec.size == 0:
-        raise ValueError("incidence_vec must be a non-empty 1-D array")
-    if observed_vec[0] <= 0:
-        raise ValueError("incidence_vec must start with at least one index case")
+    if observed_vec.ndim != 1 or observed_vec.size == 0 or observed_vec[0] <= 0:
+        raise ValueError(
+            "incidence_vec must be a non-empty 1-D array starting with at least "
+            "one index case"
+        )
     t_data_to = len(observed_vec)
     serial_interval_dist_vec = np.asarray(serial_interval_dist_vec, dtype=float)
     n_pad = t_infer_rep_no_to - t_data_to

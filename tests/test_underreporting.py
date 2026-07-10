@@ -79,18 +79,18 @@ def test_reporting_prob_vec_rejects_invalid_reporting_probability(reporting_prob
 
 
 @pytest.mark.parametrize(
-    ("delay_cdf", "message"),
+    "delay_cdf",
     [
-        (np.array([]), "non-empty 1-D"),
-        (np.array([[0.0, 1.0]]), "non-empty 1-D"),
-        (np.array([0.0, np.nan]), "only finite"),
-        (np.array([-0.1, 1.0]), "interval \\[0, 1\\]"),
-        (np.array([0.0, 1.1]), "interval \\[0, 1\\]"),
-        (np.array([0.0, 0.8, 0.7]), "non-decreasing"),
+        np.array([]),
+        np.array([[0.0, 1.0]]),
+        np.array([0.0, np.nan]),
+        np.array([-0.1, 1.0]),
+        np.array([0.0, 1.1]),
+        np.array([0.0, 0.8, 0.7]),
     ],
 )
-def test_reporting_prob_vec_rejects_invalid_delay_cdf(delay_cdf, message):
-    with pytest.raises(ValueError, match=message):
+def test_reporting_prob_vec_rejects_invalid_delay_cdf(delay_cdf):
+    with pytest.raises(ValueError, match="delay_cdf must be a non-empty"):
         inf._reporting_prob_vec(
             np.array([1, 0]), 0.6, delay_cdf=delay_cdf
         )
@@ -183,7 +183,7 @@ def test_underreporting_model_rejects_zero_index_case():
     # The incidence series must start on the index-case day; leading zero days are ambiguous.
     obs = np.array([0, 3, 1, 0])
     serial_interval_dist_vec = np.array([0.6, 0.4])
-    with pytest.raises(ValueError, match="must start with at least one index case"):
+    with pytest.raises(ValueError, match="starting with at least one index case"):
         inf._build_underreporting_model(
             incidence_vec=obs,
             serial_interval_dist_vec=serial_interval_dist_vec,
