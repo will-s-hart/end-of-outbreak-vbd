@@ -41,7 +41,10 @@ def run_analyses():
     )
     reported_vec = rng.binomial(true_vec, reporting_prob)
     reported_vec[0] = true_vec[0]  # fixed, fully reported index case
-    t_calc = np.arange(len(true_vec))
+    # The fits report every day plus one projected day past the data (the current-day risk), so
+    # the output spans 0..len(reported_vec); the true/reported series (which end at the outbreak)
+    # are padded with a trailing 0 for that projected day.
+    t_calc = np.arange(len(true_vec) + 1)
 
     # Under-reporting model with the reproduction number inferred (autoregressive).
     ds = fit_autoregressive_model(
@@ -78,8 +81,8 @@ def run_analyses():
     df_out = pd.DataFrame(
         {
             "day_of_outbreak": t_calc,
-            "true": true_vec,
-            "reported": reported_vec,
+            "true": np.append(true_vec, 0),
+            "reported": np.append(reported_vec, 0),
             "cases_mean": ds["cases_mean"].values,
             "cases_lower": ds["cases_lower"].values,
             "cases_upper": ds["cases_upper"].values,

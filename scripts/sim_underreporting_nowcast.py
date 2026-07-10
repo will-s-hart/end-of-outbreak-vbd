@@ -65,14 +65,14 @@ def run_analyses():
     onset_day = np.arange(snapshot_day + 1)
 
     # Under-reporting offshoot with R inferred: supplies both the inferred true-case band (over onset
-    # days 0..D) and the decision-day probability. t_calc spans 0..D+1 so the model's isel(time=...)
-    # keeps the case trajectory (0..D) as well as the probability at D+1.
+    # days 0..D) and the decision-day probability. The fit reports every day plus one projected day
+    # (0..D+1), so the case trajectory (0..D) and the probability at the decision day D+1 both come
+    # from a single fit.
     ds_imperfect_est_r = fit_autoregressive_model(
         incidence_vec=reported_snapshot,
         serial_interval_dist_vec=serial_interval_dist_vec,
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
-        t_calc=np.arange(snapshot_day + 2),
         rng=rng,
         compute_diagnostics=True,
         raise_on_poor_diagnostics=False,
@@ -84,7 +84,6 @@ def run_analyses():
         rep_no_func=_true_rep_no,
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
-        t_calc=t_calc,
         rng=rng,
         compute_diagnostics=False,
     )
@@ -92,7 +91,6 @@ def run_analyses():
     ds_naive_est_r = fit_autoregressive_model(
         incidence_vec=reported_snapshot,
         serial_interval_dist_vec=serial_interval_dist_vec,
-        t_calc=t_calc,
         rng=rng,
         compute_diagnostics=False,
     )
