@@ -236,7 +236,9 @@ def fit_discretised_gamma(
     return {
         "support": np.arange(max_val + 1),
         "pmf_fitted": pmf_fitted,
-        "cdf": np.cumsum(pmf_fitted),
+        # Clamp at 1: cumsum of the normalised pmf can overshoot by a float ULP, which the
+        # under-reporting reporting-probability validation (delay CDF in [0, 1]) would reject.
+        "cdf": np.minimum(np.cumsum(pmf_fitted), 1.0),
         "pmf_empirical": np.bincount(samples, minlength=max_val + 1) / samples.size,
         "shape": float(shape),
         "scale": float(scale),
