@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
+import endoutbreakvbd._inference_qrt as qrt
 import endoutbreakvbd.inference as inf
 import endoutbreakvbd.rep_no_models as rnm
 
@@ -230,7 +231,7 @@ def test_fit_model_sets_random_seed_uses_step_func_and_thins(monkeypatch):
 
 def test_fit_model_quasi_real_time_concatenates_one_time_slice_per_day(monkeypatch):
     _setup_minimal_pm_for_fit_model(monkeypatch)
-    monkeypatch.setattr(inf, "tqdm", lambda iterable, **kwargs: iterable)
+    monkeypatch.setattr(qrt, "tqdm", lambda iterable, **kwargs: iterable)
 
     out = inf._fit_model(
         incidence_vec=np.array([1, 0, 0, 0]),
@@ -244,8 +245,10 @@ def test_fit_model_quasi_real_time_concatenates_one_time_slice_per_day(monkeypat
         progressbar=False,
     )
 
-    assert out.sizes["time"] == 4
-    np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.array([0, 1, 2, 3]))
+    # Single-series QRT reports every day plus one projected day past the data (the current-day
+    # risk), like a single fit on the whole series: length-4 input -> time 0..4.
+    assert out.sizes["time"] == 5
+    np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.arange(5))
 
 
 def test_fit_model_quasi_real_time_raises_for_single_time_point():
@@ -260,7 +263,7 @@ def test_fit_model_quasi_real_time_raises_for_single_time_point():
 
 def test_fit_model_quasi_real_time_excludes_current_day_incidence(monkeypatch):
     _setup_pm_rep_no_depends_on_observed_sum(monkeypatch)
-    monkeypatch.setattr(inf, "tqdm", lambda iterable, **kwargs: iterable)
+    monkeypatch.setattr(qrt, "tqdm", lambda iterable, **kwargs: iterable)
 
     incidence_base = np.array([1, 1, 0, 0, 0, 0])
     incidence_changed = np.array([1, 1, 0, 2, 0, 0])  # changed at day 3 only
@@ -291,58 +294,6 @@ def test_fit_model_quasi_real_time_excludes_current_day_incidence(monkeypatch):
     )
 
 
-def test_fit_model_qrt_sequence_mode_forwards_per_snapshot(monkeypatch):
-    # The sequence-of-series entry (under-reporting nowcast) refits at each snapshot with the
-    # matching right-truncated series, calculation time, reporting_prob and delay_cdf, then
-    # concatenates the per-snapshot time slices.
-    calls = []
-
-    def fake_fit_model(**kwargs):
-        calls.append(kwargs)
-        t = int(kwargs["t_calc"])
-        return xr.Dataset(
-            {
-                "rep_no_mean": ("time", [float(t)]),
-                "additional_case_prob": ("time", [0.1 * t]),
-            },
-            coords={"time": [t]},
-        )
-
-    monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
-    monkeypatch.setattr(inf, "tqdm", lambda iterable, **kwargs: iterable)
-
-    series = [np.array([2, 1]), np.array([2, 1, 0, 0])]
-    delay_cdf = np.array([0.5, 1.0])
-    out = inf._fit_model_qrt(
-        incidence_vec=series,
-        serial_interval_dist_vec=np.array([1.0]),
-        rep_no_vec_func=lambda t_stop: np.ones(t_stop),
-        t_calc=np.array([1, 3]),
-        reporting_prob=0.6,
-        delay_cdf=delay_cdf,
-        parallel=False,
-    )
-
-    assert [int(c["t_calc"]) for c in calls] == [1, 3]
-    assert all(c["reporting_prob"] == 0.6 for c in calls)
-    assert all(np.array_equal(c["delay_cdf"], delay_cdf) for c in calls)
-    np.testing.assert_array_equal(calls[0]["incidence_vec"], series[0])
-    # progressbar suppressed, but the full-reporting-only `quiet` flag is not injected here.
-    assert calls[0]["progressbar"] is False
-    assert "quiet" not in calls[0]
-    np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.array([1, 3]))
-    np.testing.assert_allclose(out["additional_case_prob"].to_numpy(), [0.1, 0.3])
-
-
-def test_fit_model_qrt_sequence_mode_requires_t_calc():
-    with pytest.raises(ValueError, match="t_calc .* is required"):
-        inf._fit_model_qrt(
-            incidence_vec=[np.array([1, 0]), np.array([1, 0, 0])],
-            serial_interval_dist_vec=np.array([1.0]),
-            rep_no_vec_func=lambda t_stop: np.ones(t_stop),
-        )
-
-
 def test_is_incidence_sequence_distinguishes_single_series_from_sequence():
     # A single series (1-D array or a flat list of counts) is not a sequence-of-series; a
     # list/tuple of array-likes (or a 2-D array) is.
@@ -358,7 +309,7 @@ def test_fit_model_quasi_real_time_treats_plain_list_as_single_series(monkeypatc
     # A single incidence series spelled as a plain Python list must be treated as one series
     # (per-day quasi-real-time), not misread as several one-element series.
     _setup_minimal_pm_for_fit_model(monkeypatch)
-    monkeypatch.setattr(inf, "tqdm", lambda iterable, **kwargs: iterable)
+    monkeypatch.setattr(qrt, "tqdm", lambda iterable, **kwargs: iterable)
 
     out = inf._fit_model(
         incidence_vec=[1, 0, 0, 0],
@@ -372,7 +323,7 @@ def test_fit_model_quasi_real_time_treats_plain_list_as_single_series(monkeypatc
         progressbar=False,
     )
 
-    assert out.sizes["time"] == 4
+    assert out.sizes["time"] == 5
 
 
 def test_fit_model_rejects_sequence_of_series_without_quasi_real_time():
@@ -385,112 +336,7 @@ def test_fit_model_rejects_sequence_of_series_without_quasi_real_time():
         )
 
 
-def test_fit_autoregressive_model_routes_sequence_through_qrt(monkeypatch):
-    # The public entry point forwards a sequence of series + explicit t_calc into the
-    # quasi-real-time sequence path (the under-reporting nowcast route).
-    captured = {}
-
-    def fake_fit_model_qrt(**kwargs):
-        captured.update(kwargs)
-        return xr.Dataset({"rep_no_mean": ("time", [1.0])}, coords={"time": [1]})
-
-    monkeypatch.setattr(inf, "_fit_model_qrt", fake_fit_model_qrt)
-
-    series = [np.array([2, 1]), np.array([2, 1, 0, 0])]
-    inf.fit_autoregressive_model(
-        incidence_vec=series,
-        serial_interval_dist_vec=np.array([1.0]),
-        quasi_real_time=True,
-        t_calc=np.array([1, 3]),
-        compute_diagnostics=False,
-    )
-
-    assert len(captured["incidence_vec"]) == 2
-    np.testing.assert_array_equal(captured["t_calc"], np.array([1, 3]))
-
-
-def test_fit_model_qrt_spawns_distinct_child_rng_per_step(monkeypatch):
-    # Each snapshot fit must receive its own spawned child RNG (not the single shared generator),
-    # so results depend on spawn order rather than execution order and serial == parallel. The
-    # per-snapshot slices are also reassembled in calc-time order.
-    seen_rngs = []
-
-    def fake_fit_model(**kwargs):
-        seen_rngs.append(kwargs["rng"])
-        t = int(kwargs["t_calc"])
-        return xr.Dataset({"rep_no_mean": ("time", [float(t)])}, coords={"time": [t]})
-
-    monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
-    monkeypatch.setattr(inf, "tqdm", lambda iterable, **kwargs: iterable)
-
-    parent_rng = np.random.default_rng(0)
-    out = inf._fit_model_qrt(
-        incidence_vec=[np.array([1, 1]), np.array([1, 1, 0]), np.array([1, 1, 0, 0])],
-        serial_interval_dist_vec=np.array([1.0]),
-        rep_no_vec_func=lambda t_stop: np.ones(t_stop),
-        t_calc=np.array([1, 2, 3]),
-        reporting_prob=0.6,
-        rng=parent_rng,
-        parallel=False,
-    )
-
-    assert len(seen_rngs) == 3
-    assert all(isinstance(r, np.random.Generator) for r in seen_rngs)
-    assert len({id(r) for r in seen_rngs}) == 3
-    assert all(r is not parent_rng for r in seen_rngs)
-    np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.array([1, 2, 3]))
-
-
-def test_fit_model_qrt_serial_matches_parallel():
-    # A small real under-reporting nowcast fit must give identical results whether the snapshots
-    # are fitted serially or across joblib worker processes: the spawned child RNGs make the
-    # output independent of execution order, and cores=1 keeps each fit single-process.
-    serial_interval_dist_vec = np.array([0.4, 0.4, 0.2])
-    rep_no_vec_func = rnm.build_known_rep_no(
-        rep_no_func=lambda t: np.full(np.shape(t), 0.7, dtype=float)
-    )
-    series = [np.array([1, 2, 1, 0, 0]), np.array([1, 2, 1, 1, 0, 0, 0])]
-    t_calc = np.array([4, 6])
-
-    def fit(parallel):
-        return inf._fit_model_qrt(
-            incidence_vec=series,
-            serial_interval_dist_vec=serial_interval_dist_vec,
-            rep_no_vec_func=rep_no_vec_func,
-            t_calc=t_calc,
-            reporting_prob=0.8,
-            rng=np.random.default_rng(3),
-            parallel=parallel,
-            draws=50,
-            tune=50,
-            chains=2,
-            cores=1,
-        )
-
-    ds_serial = fit(parallel=False)
-    ds_parallel = fit(parallel=True)
-
-    np.testing.assert_allclose(
-        ds_serial["additional_case_prob"].to_numpy(),
-        ds_parallel["additional_case_prob"].to_numpy(),
-    )
-    np.testing.assert_allclose(
-        ds_serial["rep_no_mean"].to_numpy(), ds_parallel["rep_no_mean"].to_numpy()
-    )
-
-
-def test_fit_model_single_series_qrt_rejects_explicit_t_calc():
-    with pytest.raises(ValueError, match="determined automatically"):
-        inf._fit_model(
-            incidence_vec=np.array([1, 0, 0]),
-            serial_interval_dist_vec=np.array([1.0]),
-            rep_no_vec_func=lambda t_stop: np.ones(t_stop),
-            quasi_real_time=True,
-            t_calc=2,
-        )
-
-
-def test_fit_model_scalar_t_calc_slices_output(monkeypatch):
+def test_fit_model_reports_one_day_past_the_data(monkeypatch):
     _setup_minimal_pm_for_fit_model(monkeypatch)
 
     out = inf._fit_model(
@@ -498,15 +344,15 @@ def test_fit_model_scalar_t_calc_slices_output(monkeypatch):
         serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=False,
-        t_calc=2,
         draws=6,
         chains=1,
         tune=0,
         progressbar=False,
     )
 
-    # A scalar t_calc returns a single-time slice at that calculation time.
-    np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.array([2]))
+    # A non-quasi-real-time fit reports every observed day plus one projected day past the data
+    # (the current-day risk), so a length-4 series yields time 0..4.
+    np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.arange(5))
     assert out["additional_case_prob"].dims == ("time",)
 
 

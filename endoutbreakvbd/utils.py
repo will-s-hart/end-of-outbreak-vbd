@@ -183,46 +183,6 @@ def discretise_cori(
     return p_vec
 
 
-def renewal_convolution_matrix(
-    serial_interval_dist_vec: ArrayLike, n_days: int
-) -> FloatArray:
-    """
-    Renewal-equation force of infection expressed as a (constant) matrix operator.
-
-    Returns the ``n_days`` by ``n_days`` lower-triangular matrix ``conv_mat`` for which
-    ``conv_mat @ incidence_vec`` is the renewal force of infection
-    ``foi[s] = sum_{r < s} incidence_vec[r] * serial_interval[s - 1 - r]`` — the same quantity
-    ``model.run_renewal_model`` accumulates one day at a time, but vectorised for a fixed
-    incidence series (as needed by the inference models). Current-day incidence never
-    contributes to its own force of infection, so ``conv_mat`` is strictly lower-triangular
-    (row 0 is zero).
-
-    Parameters
-    ----------
-    serial_interval_dist_vec : ArrayLike
-        Discretised serial interval distribution (probability mass per day). Zero-extended
-        internally when shorter than ``n_days - 1``.
-    n_days : int
-        Number of days (the size of the square matrix).
-
-    Returns
-    -------
-    FloatArray
-        The ``n_days`` by ``n_days`` lower-triangular convolution matrix.
-    """
-    serial_interval_dist_vec = np.asarray(serial_interval_dist_vec, dtype=float)
-    serial_interval_ext = np.concatenate(
-        [
-            serial_interval_dist_vec,
-            np.zeros(max(n_days - 1 - len(serial_interval_dist_vec), 0)),
-        ]
-    )
-    conv_mat = np.zeros((n_days, n_days))
-    for s in range(1, n_days):
-        conv_mat[s, :s] = serial_interval_ext[:s][::-1]
-    return conv_mat
-
-
 def lognormal_params_from_median_percentile_2_5(
     *, median: float, percentile_2_5: float
 ) -> dict[str, float]:
@@ -433,6 +393,14 @@ def plot_data_on_twin_ax(
         The created twin axis.
     """
     layers = _as_bar_layers(bar_heights)
+    # The day axis may run one projected day past the incidence bars (a fit reports the
+    # current-day risk one day beyond its data); pad the bars with a trailing zero so a longer
+    # `t_vec` still aligns (no bar is drawn for the projected day).
+    n_t = len(np.asarray(t_vec))
+    layers = [
+        np.append(layer, np.zeros(n_t - len(layer))) if len(layer) < n_t else layer
+        for layer in layers
+    ]
     colors = _stacked_bar_colors(len(layers))
     labels = bar_labels if bar_labels is not None else [None] * len(layers)
 

@@ -34,7 +34,9 @@ def run_analyses():
     )
 
     n_inf = incidence_vec.size
-    doy_for_inf = doy_start + np.arange(n_inf)
+    # The fit infers R_t one day past the data (the projected current-day risk), so the
+    # suitability prior mean must cover that extra day too.
+    doy_for_inf = doy_start + np.arange(n_inf + 1)
     suitability_mean_vec = (
         inputs["seasonal_full"][doy_for_inf - 1] / inputs["seasonal_amplitude"]
     )
@@ -57,11 +59,15 @@ def run_analyses():
         f"{float(ds_posterior['additional_case_prob'].values[t_calc]):.4f}"
     )
 
+    # The fit reports one projected day past the data (the current-day risk), so the posterior
+    # columns are one longer than the simulated series. Extend the day axes to match and pad the
+    # projected day's case count with 0 (not NaN, which the plot's np.nonzero would read as a case).
+    n_out = ds_posterior.sizes["time"]
     df_out = pd.DataFrame(
         {
-            "day_of_outbreak": np.arange(n_inf),
-            "day_of_year": doy_for_inf,
-            "cases": incidence_vec,
+            "day_of_outbreak": np.arange(n_out),
+            "day_of_year": doy_start + np.arange(n_out),
+            "cases": np.append(incidence_vec, np.zeros(n_out - n_inf, dtype=int)),
             "reproduction_number_mean": ds_posterior["rep_no_mean"].values,
             "reproduction_number_lower": ds_posterior["rep_no_lower"].values,
             "reproduction_number_upper": ds_posterior["rep_no_upper"].values,

@@ -89,8 +89,10 @@ def test_get_inputs_lazio_outbreak_consistency(monkeypatch):
 
     out = inputs.get_inputs_lazio_outbreak(quasi_real_time=False)
 
-    assert len(out["doy_vec"]) == len(out["incidence_vec"])
-    assert len(out["suitability_mean_vec"]) == len(out["incidence_vec"])
+    # The fit reports one projected day past the data, so the day axis and suitability prior run
+    # one day longer than the incidence.
+    assert len(out["doy_vec"]) == len(out["incidence_vec"]) + 1
+    assert len(out["suitability_mean_vec"]) == len(out["incidence_vec"]) + 1
 
     decision_keys = {"blood_resumed_rome", "blood_resumed_anzio", "45_day_rule"}
     assert set(out["existing_decisions"].keys()) == decision_keys
@@ -105,7 +107,7 @@ def test_get_inputs_lazio_frozen_structure(monkeypatch):
 
     out = inputs.get_inputs_lazio_frozen()
 
-    assert len(out["doy_vec"]) == len(out["incidence_vec"])
+    assert len(out["doy_vec"]) == len(out["incidence_vec"]) + 1
     assert set(out["existing_decisions"].keys()) == {
         "blood_resumed_rome",
         "blood_resumed_anzio",
@@ -128,9 +130,10 @@ def test_get_inputs_lazio_underreporting_retro_structure(monkeypatch):
     out = inputs.get_inputs_lazio_underreporting_retro()
 
     serial_interval_max = len(out["serial_interval_dist_vec"])
-    # The additional-case probability is reported for every (padded) day; the incidence is padded
-    # with a serial interval (+1) of zero-report days.
-    assert len(out["calc_times"]) == len(out["incidence_vec"])
+    # The additional-case probability is reported for every (padded) day plus one projected day
+    # past the data (the current-day risk); the incidence is padded with a serial interval (+1) of
+    # zero-report days.
+    assert len(out["calc_times"]) == len(out["incidence_vec"]) + 1
     assert out["incidence_vec"][-1] == 0
     # Suitability prior extends a further serial interval beyond the padded data (the under-
     # reporting projection horizon).
@@ -152,7 +155,7 @@ def test_get_inputs_lazio_epiestim_structure(monkeypatch):
 
     out = inputs.get_inputs_lazio_epiestim()
 
-    assert len(out["doy_vec"]) == len(out["incidence_vec"])
+    assert len(out["doy_vec"]) == len(out["incidence_vec"]) + 1
     assert set(out["existing_decisions"].keys()) == {
         "blood_resumed_rome",
         "blood_resumed_anzio",

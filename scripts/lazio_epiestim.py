@@ -75,19 +75,23 @@ def run_analyses():
     def rep_no_func(t: int | IntArray) -> RepNoOutput:
         return rep_no_from_grid(t, rep_no_grid=rep_no_sample_mat, periodic=False)
 
+    # Report one projected day past the data (the current-day risk), matching the model fits.
+    # EpiEstim gives no R_t estimate there, so pad it with NaN; the additional-case probability is
+    # still defined (0 for that day — no possible future sources).
+    n_out = len(incidence_vec) + 1
     prob_vec = calc_additional_case_prob_analytical(
         incidence_vec=incidence_vec,
         rep_no_func=rep_no_func,
         serial_interval_dist_vec=serial_interval_dist_vec,
-        t_calc=np.arange(len(incidence_vec)),
+        t_calc=np.arange(n_out),
     )
 
     df_out = pd.DataFrame(
         {
-            "day_of_outbreak": np.arange(len(incidence_vec)),
-            "reproduction_number_mean": rep_no_mean_vec,
-            "reproduction_number_lower": rep_no_lower_vec,
-            "reproduction_number_upper": rep_no_upper_vec,
+            "day_of_outbreak": np.arange(n_out),
+            "reproduction_number_mean": np.append(rep_no_mean_vec, np.nan),
+            "reproduction_number_lower": np.append(rep_no_lower_vec, np.nan),
+            "reproduction_number_upper": np.append(rep_no_upper_vec, np.nan),
             "additional_case_prob": prob_vec,
         }
     ).set_index("day_of_outbreak")

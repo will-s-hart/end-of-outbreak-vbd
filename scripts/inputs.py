@@ -397,7 +397,10 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
         df_data["cases"].to_numpy(),
         np.zeros(len(serial_interval_dist_vec) + 1, dtype=int),
     )
-    doy_vec = (np.arange(doy_start, doy_start + len(incidence_vec)) - 1) % 365 + 1
+    # Every fit (quasi-real-time or not) reports one projected day past the data (the current-day
+    # risk), so the day axis and suitability prior extend one day beyond the incidence.
+    n_out = len(incidence_vec) + 1
+    doy_vec = (np.arange(doy_start, doy_start + n_out) - 1) % 365 + 1
 
     df_suitability = _get_2017_suitability_data()
     suitability_mean_vec = (
@@ -542,9 +545,10 @@ def get_inputs_lazio_underreporting_retro() -> dict[str, Any]:
     ]
     suitability_mean_vec = suitability_by_doy.loc[doy_vec].to_numpy()
 
-    # The additional-case probability is reported for every day of the series; the decision-delay
-    # panels index it by day-of-outbreak (`calc_times`), dated from the outbreak start.
-    calc_times = np.arange(n_days)
+    # The additional-case probability is reported for every day of the series plus one projected
+    # day past the data (the current-day risk); the decision-delay panels index it by day-of-
+    # outbreak (`calc_times`), dated from the outbreak start.
+    calc_times = np.arange(n_days + 1)
     decision_dates = outbreak_start_date + pd.to_timedelta(calc_times, unit="D")
 
     time_final_case = int(inputs_lazio["time_final_case"])
