@@ -91,8 +91,13 @@ def _write_prob(ds, save_path, start_date):
 
 def _write_trajectory(ds, save_path, incidence_vec, start_date):
     onset_day, date = _dates(ds, start_date)
+    # The fit reports one projected day past the data (the current-day risk), so the posterior
+    # trajectory is one longer than the observed series; that projected day has no reported cases
+    # (0, matching the model's zero-padded latent cases there — not NaN, which would break the
+    # incidence-bar axis scaling).
+    reported = np.append(incidence_vec, 0)
     posterior_trajectory_frame(
-        ds, onset_day=onset_day, date=date, reported=incidence_vec
+        ds, onset_day=onset_day, date=date, reported=reported
     ).to_csv(save_path)
 
 

@@ -1,21 +1,17 @@
-import atexit
-import os
-import shutil
 import warnings
 from collections.abc import Callable, Sequence
-from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import arviz_base as azb
 import numpy as np
 import pymc as pm
-import pytensor
-import pytensor.tensor as pt
 import xarray as xr
 from arviz_stats import ess, rhat
-from joblib import Parallel, delayed, parallel_config
-from tqdm import tqdm
 
+from endoutbreakvbd._inference_models import (
+    _build_full_reporting_model,
+    _build_underreporting_model,
+)
 from endoutbreakvbd._types import (
     FloatArray,
     IncidenceSeriesInput,
@@ -29,7 +25,7 @@ from endoutbreakvbd.rep_no_models import (
     build_known_rep_no,
     build_suitability_rep_no,
 )
-from endoutbreakvbd.utils import renewal_convolution_matrix, rep_no_from_grid
+from endoutbreakvbd.utils import rep_no_from_grid
 
 
 def fit_autoregressive_model(
@@ -40,7 +36,6 @@ def fit_autoregressive_model(
     prior_percentile_2_5: float | None = None,
     rho: float | list[float] | None = None,
     quasi_real_time: bool = False,
-    t_calc: int | IntArray | None = None,
     reporting_prob: float | None = None,
     delay_cdf: FloatArray | None = None,
     freeze_from_final_case: bool = False,
@@ -71,12 +66,8 @@ def fit_autoregressive_model(
         Defaults to ``DEFAULTS.log_rep_no_rho``.
     quasi_real_time : bool
         If True, refit using only the data available up to each successive time point.
-        ``incidence_vec`` may then also be a *sequence* of series (one per calculation
-        time), paired with an explicit ``t_calc`` of matching length.
-    t_calc : int or IntArray, optional
-        Calculation time(s) (day) at which to report the additional-case probability;
-        defaults to every day of the series. Required (and matched one-to-one) when
-        ``incidence_vec`` is a sequence of series.
+        ``incidence_vec`` may then also be a *sequence* of series (one per successive
+        calculation time).
     reporting_prob : float, optional
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
         latent true-case vector instead of the full-reporting model.
@@ -113,7 +104,6 @@ def fit_autoregressive_model(
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
-        t_calc=t_calc,
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
         freeze_from_final_case=freeze_from_final_case,
@@ -135,7 +125,6 @@ def fit_suitability_model(
     rep_no_factor_prior_percentile_2_5: float | None = None,
     log_rep_no_factor_rho: float | None = None,
     quasi_real_time: bool = False,
-    t_calc: int | IntArray | None = None,
     reporting_prob: float | None = None,
     delay_cdf: FloatArray | None = None,
     parallel: bool = True,
@@ -174,12 +163,8 @@ def fit_suitability_model(
         ``DEFAULTS.log_rep_no_factor_rho``.
     quasi_real_time : bool
         If True, refit using only the data available up to each successive time point.
-        ``incidence_vec`` may then also be a *sequence* of series (one per calculation
-        time), paired with an explicit ``t_calc`` of matching length.
-    t_calc : int or IntArray, optional
-        Calculation time(s) (day) at which to report the additional-case probability;
-        defaults to every day of the series. Required (and matched one-to-one) when
-        ``incidence_vec`` is a sequence of series.
+        ``incidence_vec`` may then also be a *sequence* of series (one per successive
+        calculation time).
     reporting_prob : float, optional
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
         latent true-case vector instead of the full-reporting model.
@@ -217,7 +202,6 @@ def fit_suitability_model(
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
-        t_calc=t_calc,
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
         parallel=parallel,
@@ -242,7 +226,6 @@ def fit_known_rep_no_model(
     serial_interval_dist_vec: SerialIntervalInput,
     rep_no_func: Callable[[IntArray], FloatArray],
     quasi_real_time: bool = False,
-    t_calc: int | IntArray | None = None,
     reporting_prob: float | None = None,
     delay_cdf: FloatArray | None = None,
     parallel: bool = True,
@@ -270,12 +253,8 @@ def fit_known_rep_no_model(
         (days). Evaluated internally over the full inference horizon.
     quasi_real_time : bool
         If True, refit using only the data available up to each successive time point.
-        ``incidence_vec`` may then also be a *sequence* of series (one per calculation
-        time), paired with an explicit ``t_calc`` of matching length.
-    t_calc : int or IntArray, optional
-        Calculation time(s) (day) at which to report the additional-case probability;
-        defaults to every day of the series. Required (and matched one-to-one) when
-        ``incidence_vec`` is a sequence of series.
+        ``incidence_vec`` may then also be a *sequence* of series (one per successive
+        calculation time).
     reporting_prob : float, optional
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
         latent true-case vector instead of the full-reporting model.
@@ -306,7 +285,6 @@ def fit_known_rep_no_model(
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
-        t_calc=t_calc,
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
         parallel=parallel,
@@ -382,7 +360,6 @@ def _fit_model(
     serial_interval_dist_vec: SerialIntervalInput,
     rep_no_vec_func: Callable[[int], Any],
     quasi_real_time: bool,
-    t_calc: int | IntArray | None = None,
     step_func: Callable[[], Any] | None = None,
     thin: int = 1,
     rng: np.random.Generator | int | None = None,
@@ -394,17 +371,14 @@ def _fit_model(
     raise_on_poor_diagnostics: bool = False,
     **kwargs_sample: Any,
 ) -> xr.Dataset:
-    # Core model fit. Reproduction numbers are inferred over a horizon derived from the
-    # calculation times `t_calc` (the days at which the additional-case probability is
-    # reported); the returned dataset is sliced to those times. A scalar `reporting_prob`
-    # (optionally with a `delay_cdf` for right-truncation) dispatches to the under-reporting
-    # offshoot; otherwise the full-reporting renewal model is fit.
-    #
-    # Two distinct day indices are in play and are deliberately independent: the reporting
-    # "as-of" day (how much delayed reporting has accrued) is fixed by the last day of
-    # `incidence_vec`, whereas `t_calc` is the day from which the additional-case probability is
-    # projected. The under-reporting nowcast caller pairs an end-of-day-`d` snapshot with
-    # `t_calc = d + 1` (a start-of-next-day decision); nothing here requires the two to coincide.
+    # Core model fit. The additional-case probability is always reported over every day of the
+    # incidence series plus one projected day past the last datapoint (`0 .. t_data_to`), the
+    # final entry being the "probability of further cases given everything observed" — the
+    # decision-relevant current-day risk. Reproduction numbers are inferred over a horizon that
+    # covers this projection (see `_reproduction_number_horizon`) and the returned dataset is
+    # sliced to those days. A scalar `reporting_prob` (optionally with a `delay_cdf` for
+    # right-truncation) dispatches to the under-reporting offshoot; otherwise the full-reporting
+    # renewal model is fit.
     underreporting_fit = reporting_prob is not None
     if underreporting_fit and step_func is not None:
         raise ValueError(
@@ -416,11 +390,14 @@ def _fit_model(
             raise NotImplementedError(
                 "freeze_from_final_case is not supported with quasi_real_time=True"
             )
+        # Deferred import: `_inference_qrt` imports `_fit_model` (it refits one snapshot per
+        # calculation time), so a top-level import here would cycle.
+        from endoutbreakvbd._inference_qrt import _fit_model_qrt
+
         return _fit_model_qrt(
             incidence_vec=incidence_vec,
             serial_interval_dist_vec=serial_interval_dist_vec,
             rep_no_vec_func=rep_no_vec_func,
-            t_calc=t_calc,
             reporting_prob=reporting_prob,
             delay_cdf=delay_cdf,
             step_func=step_func,
@@ -437,9 +414,8 @@ def _fit_model(
     incidence_vec = np.asarray(incidence_vec)
     serial_interval_dist_vec = np.asarray(serial_interval_dist_vec)
     t_data_to = len(incidence_vec)
-    t_calc = np.atleast_1d(
-        np.arange(t_data_to) if t_calc is None else np.asarray(t_calc)
-    ).astype(int)
+    # Report over every observed day plus one projected day past the data (the current-day risk).
+    t_calc = np.arange(t_data_to + 1)
     t_infer_rep_no_to = _reproduction_number_horizon(
         incidence_vec=incidence_vec,
         serial_interval_max=len(serial_interval_dist_vec),
@@ -451,9 +427,11 @@ def _fit_model(
     # nutpie NUTS (with low_rank mass-matrix adaptation) is used only on the full-reporting
     # path. The under-reporting offshoot carries a discrete latent, which nutpie cannot sample,
     # so it falls back to PyMC's native compound NUTS + Metropolis (assigned automatically by
-    # pm.sample); low_rank adaptation is a nutpie feature and is unavailable there.
+    # pm.sample); low_rank adaptation is a nutpie feature and is unavailable there. The
+    # Metropolis-sampled latent true-case block mixes far more slowly than the NUTS reproduction
+    # number, so the under-reporting path draws more (its ESS bottleneck is the latent block).
     if underreporting_fit:
-        kwargs_sample = {"draws": 2000, "tune": 2000, "chains": 4, **kwargs_sample}
+        kwargs_sample = {"draws": 4000, "tune": 2000, "chains": 4, **kwargs_sample}
     else:
         kwargs_sample = {
             "nuts_sampler": "nutpie",
@@ -618,363 +596,3 @@ def _reproduction_number_horizon(
     else:
         base = _final_case_time(incidence_vec) + serial_interval_max + 1
     return max(t_data_to, base, int(np.max(t_calc)) + 1)
-
-
-def _build_full_reporting_model(
-    *,
-    incidence_vec: IntArray,
-    serial_interval_dist_vec: FloatArray,
-    rep_no_vec_func: Callable[[int], Any],
-    t_infer_rep_no_to: int,
-) -> pm.Model:
-    # Build the full-reporting renewal model (renewal force of infection as a precomputed
-    # convolution, observed incidence via a Poisson likelihood). R_t is inferred to
-    # `t_infer_rep_no_to` (see `_reproduction_number_horizon`).
-    t_data_to = len(incidence_vec)
-
-    incidence_vec_local = np.zeros(t_data_to)
-    incidence_vec_local[1:] = incidence_vec[1:]
-
-    foi_vec = (
-        renewal_convolution_matrix(serial_interval_dist_vec, t_data_to) @ incidence_vec
-    )
-
-    nonzero_foi_idx = foi_vec > 0
-    if np.any(incidence_vec_local[~nonzero_foi_idx]):
-        raise ValueError(
-            "Local incidence cannot be greater than zero when force of infection is 0."
-        )
-
-    model = pm.Model(coords={"time": np.arange(t_infer_rep_no_to)})
-    with model:
-        rep_no_vec = rep_no_vec_func(t_infer_rep_no_to)
-        expected_incidence_local = rep_no_vec[:t_data_to] * foi_vec
-        pm.Poisson(
-            "likelihood",
-            mu=expected_incidence_local[nonzero_foi_idx],
-            observed=incidence_vec_local[nonzero_foi_idx],
-        )
-    return model
-
-
-def _reporting_prob_vec(
-    incidence_vec: IntArray, reporting_prob: float, delay_cdf: FloatArray | None
-) -> FloatArray:
-    # Per-day effective reporting probability over onset days 0..(t_data_to - 1), as seen from an
-    # "as-of" day equal to the last day of this incidence snapshot (t_data_to - 1) — i.e. the
-    # snapshot encodes reporting known by the end of that day. The as-of day is set purely by the
-    # length of `incidence_vec` and is independent of `t_calc` (the day the additional-case
-    # probability is later projected). Without a delay CDF the probability is a constant
-    # `reporting_prob` (pure under-reporting). With one it is
-    # `reporting_prob * P(delay <= as_of_day - onset_day)`, so recent onset days (small available
-    # delay) are truncated toward zero (right-truncation / nowcasting) while old onset days plateau
-    # at `reporting_prob`.
-    reporting_prob = float(reporting_prob)
-    if not np.isfinite(reporting_prob) or not 0 < reporting_prob <= 1:
-        raise ValueError("reporting_prob must be finite and in the interval (0, 1]")
-
-    t_data_to = len(incidence_vec)
-    if delay_cdf is None:
-        return np.full(t_data_to, reporting_prob)
-    delay_cdf = np.asarray(delay_cdf, dtype=float)
-    if (
-        delay_cdf.ndim != 1
-        or delay_cdf.size == 0
-        or not np.all(np.isfinite(delay_cdf))
-        or np.any((delay_cdf < 0) | (delay_cdf > 1))
-        or np.any(np.diff(delay_cdf) < 0)
-    ):
-        raise ValueError(
-            "delay_cdf must be a non-empty, finite, non-decreasing 1-D array "
-            "with values in [0, 1]"
-        )
-    as_of_day = t_data_to - 1
-    available_delay = as_of_day - np.arange(t_data_to)
-    return reporting_prob * delay_cdf[np.clip(available_delay, 0, len(delay_cdf) - 1)]
-
-
-def _build_underreporting_model(
-    *,
-    incidence_vec: IntArray,
-    serial_interval_dist_vec: FloatArray,
-    rep_no_vec_func: Callable[[int], Any],
-    reporting_prob: float,
-    delay_cdf: FloatArray | None,
-    t_infer_rep_no_to: int,
-) -> pm.Model:
-    # Build the fixed-index Poisson-thinning under-reporting model. With per-day reporting
-    # probability pi_t, the true cases N_t by symptom-onset date follow the renewal process and
-    # are thinned into reported and unreported counts:
-    #     c_t ~ Poisson(pi_t * mu_t),  N_t ~ Poisson(mu_t),  mu_t = R_t * FOI_t(N).
-    # The latent unreported cases U = N - c carry the self-referential renewal density via a
-    # single pm.CustomDist ("unobserved"); the reported cases are a clean top-level pm.Poisson
-    # ("obs"). The first reported case(s) are the fixed index (no hidden day-0 infections), so
-    # only t >= 1 carries latent cases. R_t is inferred to `t_infer_rep_no_to` (see
-    # `_reproduction_number_horizon`). The discrete latent gets a Metropolis step from pm.sample
-    # automatically (NUTS handles the continuous R_t block), so no step is attached by the caller.
-    observed_vec = np.asarray(incidence_vec, dtype=int)
-    if observed_vec.ndim != 1 or observed_vec.size == 0 or observed_vec[0] <= 0:
-        raise ValueError(
-            "incidence_vec must be a non-empty 1-D array starting with at least "
-            "one index case"
-        )
-    t_data_to = len(observed_vec)
-    serial_interval_dist_vec = np.asarray(serial_interval_dist_vec, dtype=float)
-    n_pad = t_infer_rep_no_to - t_data_to
-
-    # Floor the per-day reporting probability above zero so (1 - pi) / pi stays finite and pi * mu
-    # is non-degenerate in the likelihoods below.
-    reporting_prob_vec = np.clip(
-        _reporting_prob_vec(observed_vec, reporting_prob, delay_cdf), 1e-6, 1.0
-    )
-
-    index_incidence = float(observed_vec[0])
-    conv_mat = renewal_convolution_matrix(serial_interval_dist_vec, t_data_to)
-    observed_after_index = observed_vec[1:].astype(float)
-    reporting_prob_after_index = reporting_prob_vec[1:]
-    index_col = pt.as_tensor_variable([index_incidence])
-
-    model = pm.Model(
-        coords={
-            "time": np.arange(t_infer_rep_no_to),
-            "gen_time": np.arange(1, t_data_to),
-        }
-    )
-    with model:
-        rep_no_vec = rep_no_vec_func(t_infer_rep_no_to)
-        rep_no_data = rep_no_vec[:t_data_to]
-
-        def _logp(value: Any, rep_no_data: Any) -> Any:
-            cases = pt.concatenate([index_col, observed_after_index + value])
-            mu = rep_no_data * pt.dot(conv_mat, cases)
-            # +1e-12 keeps the Poisson mu > 0 where FOI is 0 (day 0 / no sources) or pi == 1.
-            return pm.logp(
-                pm.Poisson.dist(mu=(1 - reporting_prob_after_index) * mu[1:] + 1e-12),
-                value,
-            )
-
-        def _dist(rep_no_data: Any, size: Any) -> Any:
-            # Initial values / prior-predictive only (the density is overridden by _logp), so this
-            # does not change the target posterior. Moment-match the latent unreported cases to the
-            # reported count, U ~ Poisson(reported * (1 - pi) / pi); the floor only keeps mu > 0 for
-            # the draw (`size` is unused — the latent length is fixed via `shape`).
-            return pm.Poisson.dist(
-                mu=np.maximum(
-                    observed_after_index
-                    * (1 - reporting_prob_after_index)
-                    / reporting_prob_after_index,
-                    1e-3,
-                ),
-                shape=t_data_to - 1,
-            )
-
-        latent_rv = pm.CustomDist(
-            "unobserved",
-            rep_no_data,
-            logp=_logp,
-            dist=_dist,
-            dtype="int64",
-            dims=("gen_time",),
-        )
-        cases_data = pt.concatenate([index_col, observed_after_index + latent_rv])
-        pm.Deterministic(
-            "cases",
-            pt.concatenate([cases_data, pt.zeros((n_pad,))]) if n_pad else cases_data,
-            dims=("time",),
-        )
-        mu_vec = rep_no_data * pt.dot(conv_mat, cases_data)
-        pm.Poisson(
-            "obs",
-            mu=reporting_prob_after_index * mu_vec[1:] + 1e-12,
-            observed=observed_vec[1:],
-        )
-    return model
-
-
-def _fit_model_qrt(
-    *,
-    incidence_vec: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
-    serial_interval_dist_vec: SerialIntervalInput,
-    rep_no_vec_func: Callable[[int], Any],
-    t_calc: int | IntArray | None = None,
-    reporting_prob: float | None = None,
-    delay_cdf: FloatArray | None = None,
-    step_func: Callable[[], Any] | None = None,
-    thin: int = 1,
-    rng: np.random.Generator | int | None = None,
-    parallel: bool = True,
-    compute_diagnostics: bool = False,
-    raise_on_poor_diagnostics: bool = False,
-    **kwargs_sample: Any,
-) -> xr.Dataset:
-    # Quasi-real-time loop: refit using only the data available at each calculation time and
-    # keep that time's slice. Two input shapes:
-    #   - a single incidence series -> for calc time t, fit the data up to day t-1
-    #     (`incidence_vec[:t]`) and report the probability at day t (full reporting);
-    #   - a sequence of series (one per calculation time) -> the right-truncated data known at
-    #     each snapshot (the under-reporting nowcast). Each series' reporting as-of day is its own
-    #     last day (see `_reporting_prob_vec`); the matching `t_calc` is supplied separately and
-    #     need not equal it (the nowcast passes `t_calc = as_of_day + 1`).
-    # The per-snapshot fits are independent, so with `parallel` they are run across processes via
-    # joblib (mirroring calc_additional_case_prob_simulation); each fit then samples chains
-    # sequentially (cores=1) so joblib, not pm.sample, owns the parallelism.
-    sequence_mode = _is_incidence_sequence(incidence_vec)
-    extra_kwargs: dict[str, Any] = {"progressbar": False}
-    if reporting_prob is None:
-        extra_kwargs["quiet"] = True
-
-    if sequence_mode:
-        if t_calc is None:
-            raise ValueError(
-                "t_calc (the calculation times) is required for sequence-of-series input"
-            )
-        incidence_list = [np.asarray(v) for v in incidence_vec]
-        calc_times = np.atleast_1d(np.asarray(t_calc)).astype(int)
-        if len(incidence_list) != len(calc_times):
-            raise ValueError(
-                "incidence_vec sequence and t_calc must have the same length"
-            )
-        steps: list[tuple[IntArray, int | IntArray]] = [
-            (incidence_list[i], int(calc_times[i])) for i in range(len(calc_times))
-        ]
-    else:
-        if t_calc is not None:
-            raise ValueError(
-                "t_calc is determined automatically for single-series quasi-real-time "
-                "inference; pass a sequence of series for explicit calculation times"
-            )
-        incidence_vec = np.asarray(incidence_vec)
-        if len(incidence_vec) < 2:
-            raise ValueError(
-                "quasi_real_time inference requires at least 2 time points"
-            )
-        steps = [
-            (
-                incidence_vec[:t],
-                np.array([0, 1]) if t == 1 else t,
-            )
-            for t in range(1, len(incidence_vec))
-        ]
-
-    # One child RNG per fit so results depend on spawn order, not execution order (mirrors
-    # calc_additional_case_prob_simulation); serial and parallel then agree exactly. A bare int
-    # or None seed is replicated to preserve the previous shared-seed behaviour.
-    if isinstance(rng, np.random.Generator):
-        child_rngs: list[np.random.Generator | int | None] = list(rng.spawn(len(steps)))
-    else:
-        child_rngs = [rng] * len(steps)
-
-    fit_kwargs_shared: dict[str, Any] = {
-        "serial_interval_dist_vec": serial_interval_dist_vec,
-        "rep_no_vec_func": rep_no_vec_func,
-        "quasi_real_time": False,
-        "reporting_prob": reporting_prob,
-        "delay_cdf": delay_cdf,
-        "step_func": step_func,
-        "thin": thin,
-        **extra_kwargs,
-        **kwargs_sample,
-    }
-    if parallel:
-        # Chains sequential within a fit; joblib owns the cross-fit parallelism.
-        fit_kwargs_shared = {"cores": 1, **fit_kwargs_shared}
-    tasks = [
-        (
-            idx,
-            {
-                **fit_kwargs_shared,
-                "incidence_vec": incidence_vec_step,
-                "t_calc": t_calc_step,
-                "rng": child_rng,
-            },
-        )
-        for idx, ((incidence_vec_step, t_calc_step), child_rng) in enumerate(
-            zip(steps, child_rngs, strict=True)
-        )
-    ]
-
-    desc = "Inferring R_t using data up to each time"
-    if parallel:
-        # inner_max_num_threads pins the numeric threadpools in each worker so a single-core fit
-        # doesn't spawn its own pool on top of joblib's process parallelism (loky is required for
-        # inner_max_num_threads to take effect).
-        with parallel_config(backend="loky", inner_max_num_threads=1):
-            results = list(
-                tqdm(
-                    Parallel(
-                        n_jobs=-1,
-                        return_as="generator",
-                        batch_size="auto",
-                    )(delayed(_fit_model_qrt_step)(task, True) for task in tasks),
-                    total=len(tasks),
-                    desc=desc,
-                )
-            )
-    else:
-        results = list(
-            tqdm(
-                (_fit_model_qrt_step(task, False) for task in tasks),
-                total=len(tasks),
-                desc=desc,
-            )
-        )
-
-    ds_posterior_list: list[xr.Dataset | None] = [None] * len(tasks)
-    for idx, ds_subset in results:
-        ds_posterior_list[idx] = ds_subset
-    ds_posterior = xr.concat(ds_posterior_list, dim="time")
-    if compute_diagnostics:
-        ds_posterior.attrs["diagnostics"] = _compute_check_diagnostics(
-            ds_posterior, None, raise_on_problems=raise_on_poor_diagnostics
-        )
-    return ds_posterior
-
-
-# Guards the one-time per-worker environment setup below.
-_WORKER_ENV_READY = False
-
-
-def _prepare_qrt_worker() -> None:
-    # Isolate this worker's PyTensor compile dir: the compile FileLock is taken on
-    # `config.compiledir/.lock` (read dynamically per compilation), so sharing one dir across
-    # workers would serialise the C-compilation phase and defeat the parallelism. Pin the numeric
-    # threadpools too, belt-and-braces alongside joblib's inner_max_num_threads.
-    global _WORKER_ENV_READY
-    if _WORKER_ENV_READY:
-        return
-    for var in (
-        "OMP_NUM_THREADS",
-        "OPENBLAS_NUM_THREADS",
-        "MKL_NUM_THREADS",
-        "RAYON_NUM_THREADS",
-    ):
-        os.environ.setdefault(var, "1")
-    worker_compiledir = (
-        Path(pytensor.config.base_compiledir) / f"qrt_worker_{os.getpid()}"
-    )
-    worker_compiledir.mkdir(parents=True, exist_ok=True)
-    pytensor.config.compiledir = worker_compiledir
-    # Remove the per-worker compile dir when the worker process exits so they don't accumulate
-    # under base_compiledir across runs.
-    atexit.register(shutil.rmtree, worker_compiledir, ignore_errors=True)
-    _WORKER_ENV_READY = True
-
-
-def _fit_model_qrt_step(
-    task: tuple[int, dict[str, Any]], isolate: bool
-) -> tuple[int, xr.Dataset]:
-    # Fit a single quasi-real-time snapshot and keep only its time-indexed variables (the
-    # chain/draw dims survive for the aggregate diagnostics). `isolate` is True when running in a
-    # joblib worker process, where the PyTensor compile dir must be made per-process.
-    idx, fit_kwargs = task
-    if isolate:
-        _prepare_qrt_worker()
-    ds_posterior_curr = _fit_model(**fit_kwargs)
-    ds_subset = ds_posterior_curr[
-        [
-            var
-            for var in ds_posterior_curr.data_vars
-            if "time" in ds_posterior_curr[var].dims
-        ]
-    ]
-    return idx, cast(xr.Dataset, ds_subset)
