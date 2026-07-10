@@ -405,6 +405,11 @@ def _fit_model(
     # `incidence_vec`, whereas `t_calc` is the day from which the additional-case probability is
     # projected. The under-reporting nowcast caller pairs an end-of-day-`d` snapshot with
     # `t_calc = d + 1` (a start-of-next-day decision); nothing here requires the two to coincide.
+    if reporting_prob is not None and step_func is not None:
+        raise ValueError(
+            "step_func is not supported with reporting_prob; under-reporting fits "
+            "use PyMC's automatically assigned compound sampler"
+        )
     if quasi_real_time:
         if freeze_from_final_case:
             raise NotImplementedError(
@@ -484,9 +489,8 @@ def _fit_model(
         )
 
     with model:
-        # The offshoot's discrete latent gets a Metropolis step (and the continuous R_t block
-        # NUTS) assigned automatically by pm.sample, so only the full-reporting step_func is
-        # attached explicitly here.
+        # Under-reporting fits use PyMC's automatically assigned compound sampler and reject
+        # step_func above, so an explicit step here is necessarily for full reporting.
         if step_func is not None:
             kwargs_sample = {"step": step_func(), **kwargs_sample}
         trace = pm.sample(**kwargs_sample)
