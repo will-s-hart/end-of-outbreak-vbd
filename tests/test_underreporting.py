@@ -275,3 +275,18 @@ def test_fit_model_dispatches_to_underreporting_offshoot(monkeypatch):
     )
     np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.arange(len(obs)))
     assert out["additional_case_prob"].dims == ("time",)
+
+
+@pytest.mark.parametrize("quasi_real_time", [False, True])
+def test_fit_model_rejects_step_func_with_underreporting(quasi_real_time):
+    with pytest.raises(
+        ValueError, match="step_func is not supported with reporting_prob"
+    ):
+        inf._fit_model(
+            incidence_vec=np.array([1, 0]),
+            serial_interval_dist_vec=np.array([1.0]),
+            rep_no_vec_func=lambda t: np.ones(t),
+            quasi_real_time=quasi_real_time,
+            reporting_prob=0.6,
+            step_func=lambda: object(),
+        )
