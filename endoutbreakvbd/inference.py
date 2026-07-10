@@ -405,7 +405,8 @@ def _fit_model(
     # `incidence_vec`, whereas `t_calc` is the day from which the additional-case probability is
     # projected. The under-reporting nowcast caller pairs an end-of-day-`d` snapshot with
     # `t_calc = d + 1` (a start-of-next-day decision); nothing here requires the two to coincide.
-    if reporting_prob is not None and step_func is not None:
+    underreporting_fit = reporting_prob is not None
+    if underreporting_fit and step_func is not None:
         raise ValueError(
             "step_func is not supported with reporting_prob; under-reporting fits "
             "use PyMC's automatically assigned compound sampler"
@@ -439,7 +440,6 @@ def _fit_model(
     t_calc = np.atleast_1d(
         np.arange(t_data_to) if t_calc is None else np.asarray(t_calc)
     ).astype(int)
-    underreporting_fit = reporting_prob is not None
     t_infer_rep_no_to = _reproduction_number_horizon(
         incidence_vec=incidence_vec,
         serial_interval_max=len(serial_interval_dist_vec),
@@ -690,9 +690,7 @@ def _reporting_prob_vec(
         )
     as_of_day = t_data_to - 1
     available_delay = as_of_day - np.arange(t_data_to)
-    return (
-        reporting_prob * delay_cdf[np.clip(available_delay, 0, len(delay_cdf) - 1)]
-    )
+    return reporting_prob * delay_cdf[np.clip(available_delay, 0, len(delay_cdf) - 1)]
 
 
 def _build_underreporting_model(

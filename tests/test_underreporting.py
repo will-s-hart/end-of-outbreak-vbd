@@ -73,9 +73,7 @@ def test_reporting_prob_vec_truncates_recent_onsets():
 @pytest.mark.parametrize("reporting_prob", [0.0, -0.1, 1.1, np.nan, np.inf])
 def test_reporting_prob_vec_rejects_invalid_reporting_probability(reporting_prob):
     with pytest.raises(ValueError, match="reporting_prob must be finite and in"):
-        inf._reporting_prob_vec(
-            np.array([1, 0]), reporting_prob, delay_cdf=None
-        )
+        inf._reporting_prob_vec(np.array([1, 0]), reporting_prob, delay_cdf=None)
 
 
 @pytest.mark.parametrize(
@@ -91,9 +89,7 @@ def test_reporting_prob_vec_rejects_invalid_reporting_probability(reporting_prob
 )
 def test_reporting_prob_vec_rejects_invalid_delay_cdf(delay_cdf):
     with pytest.raises(ValueError, match="delay_cdf must be a non-empty"):
-        inf._reporting_prob_vec(
-            np.array([1, 0]), 0.6, delay_cdf=delay_cdf
-        )
+        inf._reporting_prob_vec(np.array([1, 0]), 0.6, delay_cdf=delay_cdf)
 
 
 def test_reproduction_number_horizon_full_vs_underreporting():
