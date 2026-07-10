@@ -8,8 +8,8 @@ from endoutbreakvbd.utils import ordered_legend, set_plot_config
 from scripts.inputs import get_inputs_inference_test
 from scripts.lazio_outbreak_plots import (
     _make_decision_plot,
-    _make_rep_no_plot,
     _make_prob_plot,
+    _make_rep_no_plot,
     _make_scaling_factor_plot,
     _make_suitability_plot,
 )
@@ -88,6 +88,7 @@ def make_plots(quasi_real_time=False):
         ax.plot(doy_vec, actual_vec, color="black", label="True")
         ordered_legend(ax, {"True": 0, "Seasonal prior": 1}, loc=legend_loc)
         fig.savefig(save_path)
+    perc_risk_thresholds = inputs["perc_risk_threshold_grid"]
     fig, ax = _make_decision_plot(
         incidence_vec=incidence_vec,
         model_names=["Suitability-based", "Autoregressive"],
@@ -96,15 +97,16 @@ def make_plots(quasi_real_time=False):
             inputs["results_paths"]["suitability"],
             inputs["results_paths"]["autoregressive"],
         ],
+        perc_risk_thresholds=perc_risk_thresholds,
     )
-    perc_risk_thresholds = ax.get_lines()[0].get_xdata()
     time_final_case = np.nonzero(incidence_vec)[0][-1]
     prob_days = np.arange(time_final_case + 1, len(incidence_vec))
     prob_vals = df_data["additional_case_prob"].to_numpy()[prob_days]
     decision_delays = calc_decision_delay(
         prob_vec=prob_vals,
+        days=prob_days,
         perc_risk_threshold=perc_risk_thresholds,
-        delay_of_first_prob=1,
+        time_final_case=time_final_case,
     )
     ax.plot(perc_risk_thresholds, decision_delays, color="black", label="True")
     ordered_legend(ax, {"True": 0, "Seasonal prior": 1})

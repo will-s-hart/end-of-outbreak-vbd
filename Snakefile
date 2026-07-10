@@ -59,7 +59,16 @@ results_files_sim_sensitivity = expand(
 )
 results_files_lazio_frozen = ["results/lazio_frozen/autoregressive_frozen.csv"]
 results_files_lazio_epiestim = ["results/lazio_epiestim/epiestim.csv"]
-
+results_files_lazio_underreporting_retro = expand(
+    "results/lazio_underreporting_retro/{name}.csv",
+    name=[
+        "suitability_p60",
+        "suitability_p60_diagnostics",
+        "autoregressive_p60",
+        "autoregressive_p60_diagnostics",
+        "trajectory",
+    ],
+)
 results_files = (
     results_files_schematic
     + results_files_weather_suitability_data
@@ -69,6 +78,7 @@ results_files = (
     + results_files_sim_sensitivity
     + results_files_lazio_frozen
     + results_files_lazio_epiestim
+    + results_files_lazio_underreporting_retro
 )
 
 plot_files_weather_suitability_data = expand(
@@ -140,11 +150,21 @@ plot_files_lazio_epiestim = expand(
     "figures/lazio_epiestim/{name}.svg",
     name=["rep_no", "additional_case_prob", "decision"],
 )
-
+plot_files_lazio_underreporting_retro = expand(
+    "figures/lazio_underreporting_retro/{name}.svg",
+    name=[
+        "cases",
+        "additional_case_prob",
+        "decision",
+        "suitability",
+        "scaling_factor",
+        "rep_no",
+    ],
+)
 schematic_figure_file = "figures/figure_1.svg"
 paper_figure_files_compiled = expand(
     "figures/figure_{number}.svg",
-    number=["2", "3", "4", "S1", "S2", "S3", "S4", "S5"],
+    number=["2", "3", "4", "5", "S1", "S2", "S3", "S4", "S5", "S6"],
 )
 paper_figure_files = [schematic_figure_file] + paper_figure_files_compiled
 paper_figure_files_png = [x.replace(".svg", ".png") for x in paper_figure_files]
@@ -158,6 +178,7 @@ plot_files = (
     + plot_files_sim_sensitivity
     + plot_files_lazio_frozen
     + plot_files_lazio_epiestim
+    + plot_files_lazio_underreporting_retro
 )
 
 package_files = [
@@ -168,6 +189,7 @@ package_files = [
         "additional_case_prob",
         "inference",
         "model",
+        "rep_no_models",
         "utils",
     ]
 ]
@@ -457,4 +479,33 @@ rule lazio_epiestim_plots:
     shell:
         """
         pixi run python scripts/lazio_epiestim_plots.py
+        """
+
+
+rule lazio_underreporting_retro_results:
+    input:
+        shared_input_files,
+        data_file_lazio_incidence,
+        results_files_weather_suitability_data,
+        "scripts/lazio_underreporting_retro.py",
+    output:
+        results_files_lazio_underreporting_retro,
+    shell:
+        """
+        pixi run python scripts/lazio_underreporting_retro.py -r
+        """
+
+
+rule lazio_underreporting_retro_plots:
+    input:
+        shared_input_files,
+        results_files_weather_suitability_data,
+        results_files_lazio_underreporting_retro,
+        get_results_files_lazio_outbreak(qrt=""),
+        "scripts/lazio_underreporting_retro_plots.py",
+    output:
+        plot_files_lazio_underreporting_retro,
+    shell:
+        """
+        pixi run python scripts/lazio_underreporting_retro_plots.py
         """

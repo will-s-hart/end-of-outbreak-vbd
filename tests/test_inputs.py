@@ -122,6 +122,31 @@ def test_get_inputs_lazio_frozen_structure(monkeypatch):
     }
 
 
+def test_get_inputs_lazio_underreporting_retro_structure(monkeypatch):
+    monkeypatch.setattr(inputs.pathlib.Path, "mkdir", lambda *args, **kwargs: None)
+
+    out = inputs.get_inputs_lazio_underreporting_retro()
+
+    serial_interval_max = len(out["serial_interval_dist_vec"])
+    # The additional-case probability is reported for every (padded) day; the incidence is padded
+    # with a serial interval (+1) of zero-report days.
+    assert len(out["calc_times"]) == len(out["incidence_vec"])
+    assert out["incidence_vec"][-1] == 0
+    # Suitability prior extends a further serial interval beyond the padded data (the under-
+    # reporting projection horizon).
+    assert (
+        len(out["suitability_mean_vec"])
+        == len(out["incidence_vec"]) + serial_interval_max
+    )
+    assert out["reporting_prob"] == 0.6
+    assert out["suitability_sweep"] == (("suitability_p60", 0.6),)
+    assert {"suitability_p60", "autoregressive_p60", "trajectory"}.issubset(
+        out["results_paths"]
+    )
+    assert {"suitability", "autoregressive"}.issubset(out["full_reporting_paths"])
+    assert "perc_risk_threshold_grid" in out
+
+
 def test_get_inputs_lazio_epiestim_structure(monkeypatch):
     monkeypatch.setattr(inputs.pathlib.Path, "mkdir", lambda *args, **kwargs: None)
 

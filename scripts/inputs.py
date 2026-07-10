@@ -7,12 +7,15 @@ import pandas as pd
 import scipy.stats
 from numpy.typing import NDArray
 
-from endoutbreakvbd.inference import DEFAULTS
+from endoutbreakvbd.rep_no_models import DEFAULTS
 from endoutbreakvbd.utils import (
     discretise_cori,
     rep_no_from_grid,
     rescale_rep_no_grid_in_time,
 )
+
+# Shared risk-threshold grid for the decision-delay-vs-threshold plots.
+PERC_RISK_THRESHOLD_GRID = np.linspace(0.1, 10, 101)
 
 
 def get_inputs_schematic() -> dict[str, Any]:
@@ -378,6 +381,7 @@ def get_inputs_inference_test(quasi_real_time: bool = False) -> dict[str, Any]:
         "suitability_mean_grid": suitability_mean_grid,
         "suitability_model_params": suitability_model_params,
         "doy_start": doy_start,
+        "perc_risk_threshold_grid": PERC_RISK_THRESHOLD_GRID,
         "results_paths": results_paths,
         "fig_paths": fig_paths,
     }
@@ -458,6 +462,7 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
         "incidence_vec": incidence_vec,
         "suitability_mean_vec": suitability_mean_vec,
         "existing_decisions": existing_decisions,
+        "perc_risk_threshold_grid": PERC_RISK_THRESHOLD_GRID,
         "results_paths": results_paths,
         "fig_paths": fig_paths,
     }
@@ -505,6 +510,102 @@ def get_inputs_lazio_epiestim() -> dict[str, Any]:
         "decision": fig_dir / "decision.svg",
     }
     return inputs
+
+
+def get_inputs_lazio_underreporting_retro() -> dict[str, Any]:
+    inputs_lazio = get_inputs_lazio_outbreak(quasi_real_time=False)
+    serial_interval_dist_vec = inputs_lazio["serial_interval_dist_vec"]
+    serial_interval_max = len(serial_interval_dist_vec)
+
+    # Retrospective under-reporting fit over the full reported outbreak with a constant per-day
+    # reporting probability and *no* delay/right-truncation. The incidence is padded with a serial
+    # interval (+1) of zero-report days, exactly like the main Lazio analysis, so the additional-
+    # case probability is reported over the post-outbreak tail (declining to ~0, spanning the
+    # relaxation-decision dates). The under-reporting model then projects R_t a further serial
+    # interval beyond the padded data, so `suitability_mean_vec` is extended to match.
+    df_data = _get_lazio_outbreak_data()
+    outbreak_start_date = df_data.index[0]
+    doy_start = int(df_data["doy"].to_numpy()[0])
+    real_cases = df_data["cases"].to_numpy()
+    final_case_idx = int(np.nonzero(real_cases)[0][-1])
+    # Pad with zero-report days out to ~10 days past the 45-day relaxation rule (final case + 45),
+    # so the post-outbreak probability decline and both decision markers are visible; never
+    # shorter than the serial-interval projection convention used by the main Lazio analysis.
+    n_pad = max(serial_interval_max + 1, final_case_idx + 55 - (len(real_cases) - 1))
+    incidence_vec = np.append(real_cases, np.zeros(n_pad, dtype=int)).astype(int)
+    n_days = len(incidence_vec)
+
+    n_suitability = n_days + serial_interval_max
+    doy_vec = (np.arange(doy_start, doy_start + n_suitability) - 1) % 365 + 1
+    suitability_by_doy = _get_2017_suitability_data().set_index("doy")[
+        "suitability_smoothed_lagged"
+    ]
+    suitability_mean_vec = suitability_by_doy.loc[doy_vec].to_numpy()
+
+    # The additional-case probability is reported for every day of the series; the decision-delay
+    # panels index it by day-of-outbreak (`calc_times`), dated from the outbreak start.
+    calc_times = np.arange(n_days)
+    decision_dates = outbreak_start_date + pd.to_timedelta(calc_times, unit="D")
+
+    time_final_case = int(inputs_lazio["time_final_case"])
+    existing_decisions = inputs_lazio["existing_decisions"]
+
+    # Single (60%) reporting ceiling — constant reporting probability, no delay. Kept as a
+    # single-entry sequence for the suitability analysis loop.
+    reporting_prob = 0.6
+    suitability_sweep = (
+        (f"suitability_p{int(round(reporting_prob * 100))}", reporting_prob),
+    )
+    sweep_names = [name for name, _ in suitability_sweep] + ["autoregressive_p60"]
+
+    results_dir = (
+        pathlib.Path(__file__).parents[1] / "results/lazio_underreporting_retro"
+    )
+    results_dir.mkdir(parents=True, exist_ok=True)
+    results_paths = {
+        **{name: results_dir / f"{name}.csv" for name in sweep_names},
+        **{
+            f"{name}_diagnostics": results_dir / f"{name}_diagnostics.csv"
+            for name in sweep_names
+        },
+        "trajectory": results_dir / "trajectory.csv",
+    }
+
+    fig_dir = pathlib.Path(__file__).parents[1] / "figures/lazio_underreporting_retro"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    fig_paths = {
+        # Results: cases + prob + decision (both with the full-outbreak-knowledge overlay)
+        "cases": fig_dir / "cases.svg",
+        "additional_case_prob": fig_dir / "additional_case_prob.svg",
+        "decision": fig_dir / "decision.svg",
+        # Inference diagnostics
+        "suitability": fig_dir / "suitability.svg",
+        "scaling_factor": fig_dir / "scaling_factor.svg",
+        "rep_no": fig_dir / "rep_no.svg",
+    }
+
+    return {
+        "serial_interval_dist_vec": serial_interval_dist_vec,
+        "outbreak_start_date": outbreak_start_date,
+        "incidence_vec": incidence_vec,
+        "suitability_mean_vec": suitability_mean_vec,
+        "calc_times": calc_times,
+        "decision_dates": decision_dates,
+        "reporting_prob": reporting_prob,
+        "suitability_sweep": suitability_sweep,
+        "existing_decisions": existing_decisions,
+        "time_final_case": time_final_case,
+        "perc_risk_threshold_grid": PERC_RISK_THRESHOLD_GRID,
+        # Existing full-reporting retrospective fits, overlaid (dashed) on the prob panel as the
+        # "full outbreak knowledge" benchmark.
+        "full_reporting_paths": {
+            "suitability": inputs_lazio["results_paths"]["suitability"],
+            "autoregressive": inputs_lazio["results_paths"]["autoregressive"],
+        },
+        "full_reporting_start_date": inputs_lazio["start_date"],
+        "results_paths": results_paths,
+        "fig_paths": fig_paths,
+    }
 
 
 def _get_lazio_outbreak_data() -> pd.DataFrame:

@@ -51,6 +51,7 @@ def make_plots(quasi_real_time=False):
             inputs["results_paths"]["suitability"],
             inputs["results_paths"]["autoregressive"],
         ],
+        perc_risk_thresholds=inputs["perc_risk_threshold_grid"],
         save_path=inputs["fig_paths"]["decision"],
     )
     _make_suitability_plot(
@@ -166,11 +167,16 @@ def _make_prob_plot(
 
 
 def _make_decision_plot(
-    *, incidence_vec, model_names, existing_decisions, data_paths, save_path=None
+    *,
+    incidence_vec,
+    model_names,
+    existing_decisions,
+    data_paths,
+    perc_risk_thresholds,
+    save_path=None,
 ):
     colors = get_colors()[: (len(model_names) + 2)]
     fig, ax = plt.subplots()
-    perc_risk_thresholds = np.linspace(0.1, 10, 101)
     time_final_case = np.nonzero(incidence_vec)[0][-1]
     prob_days = np.arange(time_final_case + 1, len(incidence_vec))
     for model_name, color, data_path in zip(
@@ -180,8 +186,9 @@ def _make_decision_plot(
         prob_vals = df["additional_case_prob"].to_numpy()[prob_days]
         decision_delays = calc_decision_delay(
             prob_vec=prob_vals,
+            days=prob_days,
             perc_risk_threshold=perc_risk_thresholds,
-            delay_of_first_prob=1,
+            time_final_case=time_final_case,
         )
         ax.plot(perc_risk_thresholds, decision_delays, color=color, label=model_name)
     if existing_decisions:

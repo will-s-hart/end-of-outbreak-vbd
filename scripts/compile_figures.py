@@ -162,6 +162,16 @@ def compile_paper_figures():
         ],
         panel_sz=wide_panel_sz,
     )
+    # Figure 5 (retrospective under-reporting): latent true cases, additional-case probability,
+    # and decision delay, with full-reporting benchmarks on the latter two panels.
+    compile_figure(
+        save_path=figure_dir / "figure_5.svg",
+        panel_paths=[
+            figure_dir / "lazio_underreporting_retro" / f"{x}.svg"
+            for x in ["cases", "additional_case_prob", "decision"]
+        ],
+        panel_sz=wide_panel_sz,
+    )
     # Figure S1
     compile_figure(
         save_path=figure_dir / "figure_S1.svg",
@@ -200,7 +210,7 @@ def compile_paper_figures():
         ],
         panel_sz=wide_panel_sz,
     )
-    # Figure S4
+    # Figure S4 (full-reporting quasi-real-time analysis)
     compile_figure(
         save_path=figure_dir / "figure_S4.svg",
         panel_paths=[
@@ -215,9 +225,19 @@ def compile_paper_figures():
         ],
         panel_sz=wide_panel_sz,
     )
-    # Figure S5
+    # Figure S5 (retrospective under-reporting — inference diagnostics): suitability / R_t-factor /
+    # R_t posteriors, each overlaid with the full-reporting (no under-reporting) estimate.
     compile_figure(
         save_path=figure_dir / "figure_S5.svg",
+        panel_paths=[
+            figure_dir / "lazio_underreporting_retro" / f"{x}.svg"
+            for x in ["suitability", "scaling_factor", "rep_no"]
+        ],
+        panel_sz=wide_panel_sz,
+    )
+    # Figure S6 (inference test)
+    compile_figure(
+        save_path=figure_dir / "figure_S6.svg",
         panel_paths=[
             figure_dir / "inference_test" / f"{x}.svg"
             for x in [

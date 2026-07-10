@@ -1,4 +1,4 @@
-"""Conceptual schematic figure (Figure 1) for the paper.
+"""Conceptual schematic figure for the paper.
 
 Reads the outbreak CSV produced by `scripts/schematic.py` and draws the
 2x2 schematic panel layout with arrow chrome.

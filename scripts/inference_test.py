@@ -7,10 +7,10 @@ from endoutbreakvbd import calc_additional_case_prob_analytical
 from endoutbreakvbd._types import IntArray, RepNoOutput
 from endoutbreakvbd.model import run_renewal_model
 from endoutbreakvbd.utils import rep_no_from_grid
-from scripts.inputs import get_inputs_inference_test
 
 # from endoutbreakvbd.utils import lognormal_params_from_median_percentile_2_5
 from scripts.inference_test_plots import make_plots
+from scripts.inputs import get_inputs_inference_test
 from scripts.lazio_outbreak import _run_analyses_for_model
 
 
