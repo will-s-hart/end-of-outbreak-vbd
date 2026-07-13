@@ -23,8 +23,10 @@ def test_fit_model_qrt_sequence_mode_forwards_per_snapshot(monkeypatch):
             {
                 "rep_no_mean": ("time", [float(t)]),
                 "additional_case_prob": ("time", [0.1 * t]),
+                "cases": ("data_time", np.arange(t, dtype=float)),
+                "cases_mean": ("data_time", np.arange(t, dtype=float)),
             },
-            coords={"time": [t]},
+            coords={"time": [t], "data_time": np.arange(t)},
         )
 
     monkeypatch.setattr(qrt, "_fit_model", fake_fit_model)
@@ -51,6 +53,9 @@ def test_fit_model_qrt_sequence_mode_forwards_per_snapshot(monkeypatch):
     # Each snapshot keeps its projected decision day = len(series); concatenated in order.
     np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.array([2, 4]))
     np.testing.assert_allclose(out["additional_case_prob"].to_numpy(), [0.2, 0.4])
+    assert "data_time" not in out.dims
+    assert "cases" not in out
+    assert "cases_mean" not in out
 
 
 def test_fit_autoregressive_model_routes_sequence_through_qrt(monkeypatch):

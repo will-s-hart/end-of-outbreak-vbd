@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import scipy.stats
+from matplotlib.patches import Rectangle
 
 from endoutbreakvbd.utils import (
     dates_to_day_index,
@@ -128,6 +129,20 @@ def test_plot_data_on_twin_ax_creates_configured_axis():
         assert twin_ax.spines["right"].get_visible()
         assert not twin_ax.spines["left"].get_visible()
         assert not twin_ax.spines["bottom"].get_visible()
+    finally:
+        plt.close(fig)
+
+
+def test_plot_data_on_twin_ax_ignores_missing_projected_bar_for_scaling():
+    fig, ax = plt.subplots()
+    try:
+        twin_ax = plot_data_on_twin_ax(
+            ax, np.array([1, 2, 3]), np.array([0.0, 2.0, np.nan])
+        )
+        assert twin_ax.get_ylim()[1] == pytest.approx(2)
+        projected_bar = twin_ax.patches[-1]
+        assert isinstance(projected_bar, Rectangle)
+        assert np.isnan(projected_bar.get_height())
     finally:
         plt.close(fig)
 

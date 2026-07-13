@@ -25,9 +25,12 @@ def run_analyses(quasi_real_time=False):
         rng=rng,
         save_path=inputs["results_paths"]["outbreak_data"],
     )
+    # The generated table includes the projected decision day so its truth/prior columns align
+    # with inference output. Incidence on that day is deliberately NaN and is not fitted.
+    incidence_vec = data_df["cases"].dropna().to_numpy(dtype=int)
     _run_analyses_for_model(
         model="autoregressive",
-        incidence_vec=data_df["cases"].to_numpy(),
+        incidence_vec=incidence_vec,
         serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
         fit_model_kwargs={"rng": rng, "quasi_real_time": quasi_real_time},
         save_path=inputs["results_paths"]["autoregressive"],
@@ -35,7 +38,7 @@ def run_analyses(quasi_real_time=False):
     )
     _run_analyses_for_model(
         model="suitability",
-        incidence_vec=data_df["cases"].to_numpy(),
+        incidence_vec=incidence_vec,
         serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
         fit_model_kwargs={
             "suitability_mean_vec": data_df["suitability_mean"].to_numpy(),
@@ -105,21 +108,24 @@ def _generate_outbreak_data(
             outbreak_found = True
             print(f"Outbreak found after {attempts} attempts")
 
-    t_end = len(incidence_vec)
+    t_data_to = len(incidence_vec)
+    t_out = t_data_to + 1
     prob_vec = calc_additional_case_prob_analytical(
         incidence_vec=incidence_vec,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_func=rep_no_func,
-        t_calc=np.arange(t_end),
+        t_calc=np.arange(t_out),
     )
     data_df = pd.DataFrame(
         {
-            "day_of_year": np.arange(doy_start, doy_start + t_end),
-            "cases": incidence_vec[:t_end],
-            "reproduction_number": rep_no_vec[:t_end],
-            "suitability": suitability_vec[:t_end],
-            "suitability_mean": suitability_mean_vec[:t_end],
-            "rep_no_factor": rep_no_factor_vec[:t_end],
+            "day_of_year": np.arange(doy_start, doy_start + t_out),
+            # Day `t_data_to` is projected rather than observed; NaN prevents it from being
+            # mistaken for a zero-incidence observation when this table is reused for fitting.
+            "cases": np.append(incidence_vec, np.nan),
+            "reproduction_number": rep_no_vec[:t_out],
+            "suitability": suitability_vec[:t_out],
+            "suitability_mean": suitability_mean_vec[:t_out],
+            "rep_no_factor": rep_no_factor_vec[:t_out],
             "additional_case_prob": prob_vec,
         }
     )

@@ -52,6 +52,8 @@ def _fit_model_qrt(
     #   - a sequence of series -> the right-truncated data known at each snapshot (the
     #     under-reporting nowcast). Each series' reporting as-of day is its own last day (see
     #     `_reporting_prob_vec`) and its decision day is one later.
+    # Latent-case histories use a per-snapshot `data_time` axis and are omitted from the aggregate;
+    # only variables describing the retained decision days are concatenated on `time`.
     # The per-snapshot fits are independent, so with `parallel` they are run across processes via
     # joblib (mirroring calc_additional_case_prob_simulation); each fit then samples chains
     # sequentially (cores=1) so joblib, not pm.sample, owns the parallelism.
@@ -186,8 +188,10 @@ def _fit_model_qrt_step(
 ) -> tuple[int, xr.Dataset]:
     # Fit a single quasi-real-time snapshot and keep only its time-indexed variables (the
     # chain/draw dims survive for the aggregate diagnostics), sliced to this snapshot's
-    # decision-day position(s) `keep` (see `_fit_model_qrt`). `isolate` is True when running in a
-    # joblib worker process, where the PyTensor compile dir must be made per-process.
+    # decision-day position(s) `keep` (see `_fit_model_qrt`). Per-snapshot latent-case histories
+    # use `data_time` and are intentionally omitted: their lengths differ by snapshot and they do
+    # not describe the projected decision day. `isolate` is True when running in a joblib worker
+    # process, where the PyTensor compile dir must be made per-process.
     idx, keep, fit_kwargs = task
     if isolate:
         _prepare_qrt_worker()

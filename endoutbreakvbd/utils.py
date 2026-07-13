@@ -319,7 +319,7 @@ def plot_data_on_twin_ax(
     bar_heights : ArrayLike
         Number of cases at each time. A single 1-D series draws one bar; a list of series
         draws them stacked (ordered least- to most-hidden), coloured by an internal palette
-        (grey base, then orange/purple).
+        (grey base, then orange/purple). NaN marks an unobserved time and draws no bar.
     bar_labels : list[str | None], optional
         Legend labels for the stacked bars (one per series; ``None`` to omit a label). If
         omitted, the bars are unlabelled.
@@ -363,12 +363,13 @@ def plot_data_on_twin_ax(
         twin_ax.bar(
             t_vec, layer, bottom=total, color=color, alpha=alpha, label=label, zorder=2
         )
-        total = total + layer
+        # Preserve NaN as a missing bar while excluding it from stacked totals and axis scaling.
+        total = total + np.where(np.isnan(layer), 0.0, layer)
     if fitted is not None:
         twin_ax.plot(
             t_vec, fitted_mean, color=fitted_color, label=fitted_label, zorder=3
         )
-        total = np.maximum(total, fitted_upper)
+        total = np.fmax(total, fitted_upper)
     twin_ax.set_ylim(0, np.max(total))
     twin_ax.set_ylabel("Number of cases")
     twin_ax.yaxis.label.set_color("tab:gray")
