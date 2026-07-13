@@ -4,9 +4,9 @@ under-reporting and right-truncation (nowcasting).
 At each historical snapshot date the model is refit using only the cases-by-onset known at
 that date (the forward-filled reporting matrix), with a per-day reporting probability that
 combines a reporting ceiling and the estimated onset-to-report delay. The additional-case
-probability is reported at each snapshot for the suitability model (reporting ceilings 60/80/
-100%) and the autoregressive model (60%). A single full-output fit at the latest snapshot
-supplies the inferred true-case and reproduction-number trajectories.
+probability is reported at each snapshot for the suitability and autoregressive models at
+the primary 60% reporting ceiling. A single full-output fit at the latest snapshot supplies
+the inferred true-case and reproduction-number trajectories.
 
 This is the multi-hour cluster analysis; use ``--stride`` for a quick local wiring check.
 """
@@ -45,7 +45,8 @@ def run_analyses(
     # Real-time nowcast sweeps: the suitability reporting-ceiling sweep (single-sourced from
     # inputs) plus the autoregressive model at the primary (60%) ceiling. Each fits the
     # right-truncated sequence of snapshots through the public quasi-real-time API (a list of
-    # incidence series with an explicit calculation time per snapshot).
+    # incidence series starting on outbreak day 0, with each projected calculation time inferred
+    # from that snapshot's length).
     sweeps = [
         ("suitability", name, prob) for name, prob in inputs["suitability_sweep"]
     ] + [("autoregressive", "autoregressive_p60", inputs["reporting_prob"])]

@@ -36,6 +36,7 @@ def test_fit_discretised_gamma_recovers_known_parameters():
     assert len(fit["support"]) == len(fit["cdf"]) == len(fit["pmf_fitted"])
     assert fit["support"][0] == 0 and fit["support"][-1] == int(samples.max())
     assert np.all(np.diff(fit["cdf"]) >= 0)
+    assert np.all((fit["cdf"] >= 0.0) & (fit["cdf"] <= 1.0))
     assert fit["cdf"][-1] == pytest.approx(1.0)
     assert fit["pmf_fitted"].sum() == pytest.approx(1.0)
     assert fit["pmf_empirical"].sum() == pytest.approx(1.0)

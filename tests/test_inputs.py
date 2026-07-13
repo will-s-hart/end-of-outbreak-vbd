@@ -159,6 +159,7 @@ def test_fit_reporting_delay_matches_expected_estimates():
     # CDF is a non-decreasing distribution over the delay support, plateauing at 1.
     assert len(delay["support"]) == len(delay["cdf"])
     assert np.all(np.diff(delay["cdf"]) >= 0)
+    assert np.all(delay["cdf"] <= 1.0)
     assert delay["cdf"][-1] == pytest.approx(1.0)
     assert delay["pmf_empirical"].sum() == pytest.approx(1.0)
     assert delay["pmf_fitted"].sum() == pytest.approx(1.0)
