@@ -53,7 +53,7 @@ def _make_delay_plot(inputs):
 
 
 def _make_cases_plot(inputs, colors):
-    df = pd.read_csv(inputs["results_paths"]["trajectory"], parse_dates=["date"])
+    df = _read_case_trajectory(inputs)
     doy = dates_to_day_index(df["date"])
     fig, ax = plt.subplots()
     ax.bar(doy, df["reported"], color="tab:gray", alpha=0.5, label="Reported")
@@ -87,7 +87,7 @@ def _make_prob_plot(
     df_ar = pd.read_csv(
         inputs["results_paths"]["autoregressive_p60"], parse_dates=["date"]
     )
-    df_traj = pd.read_csv(inputs["results_paths"]["trajectory"], parse_dates=["date"])
+    df_traj = _read_case_trajectory(inputs)
     decisions = inputs["existing_decisions"]
     full_start = inputs["full_reporting_start_date"]
 
@@ -150,6 +150,14 @@ def _make_prob_plot(
     ax.legend(loc="upper left", bbox_to_anchor=(0, 0.89))
     fig.savefig(inputs["fig_paths"]["additional_case_prob"])
     return fig, ax
+
+
+def _read_case_trajectory(inputs):
+    """Read the case trajectory from the QRT or retrospective result layout."""
+    result_key = (
+        "trajectory" if "trajectory" in inputs["results_paths"] else "suitability_p60"
+    )
+    return pd.read_csv(inputs["results_paths"][result_key], parse_dates=["date"])
 
 
 if __name__ == "__main__":

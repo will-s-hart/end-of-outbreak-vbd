@@ -78,7 +78,6 @@ results_files_lazio_underreporting_retro = expand(
         "suitability_p60_diagnostics",
         "autoregressive_p60",
         "autoregressive_p60_diagnostics",
-        "trajectory",
     ],
 )
 results_files_sim_underreporting = expand(
@@ -186,6 +185,7 @@ plot_files_lazio_underreporting_retro = expand(
         "suitability",
         "scaling_factor",
         "rep_no",
+        "rep_no_ar",
     ],
 )
 plot_files_sim_underreporting = expand(

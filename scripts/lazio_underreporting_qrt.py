@@ -19,7 +19,6 @@ import numpy as np
 import pandas as pd
 
 from endoutbreakvbd.inference import fit_autoregressive_model, fit_suitability_model
-from endoutbreakvbd.utils import posterior_trajectory_frame
 from scripts.inputs import get_inputs_lazio_underreporting_qrt
 from scripts.lazio_underreporting_qrt_plots import make_plots
 
@@ -102,9 +101,33 @@ def _run_trajectory(inputs, rng):
     # The fit reports one projected day past the data (the current-day risk), so the trajectory is
     # one longer than the snapshot; that projected day has no reported cases (0).
     reported = np.append(incidence_vec, 0)
-    posterior_trajectory_frame(
+    _posterior_trajectory_frame(
         ds, onset_day=onset_day, date=date, reported=reported
     ).to_csv(inputs["results_paths"]["trajectory"])
+
+
+def _posterior_trajectory_frame(ds, *, onset_day, date, reported):
+    """Assemble the QRT suitability trajectory used by the case panel."""
+    return pd.DataFrame(
+        {
+            "onset_day": onset_day,
+            "date": date,
+            "reported": reported,
+            "cases_mean": ds["cases_mean"].values,
+            "cases_lower": ds["cases_lower"].values,
+            "cases_upper": ds["cases_upper"].values,
+            "reproduction_number_mean": ds["rep_no_mean"].values,
+            "reproduction_number_lower": ds["rep_no_lower"].values,
+            "reproduction_number_upper": ds["rep_no_upper"].values,
+            "suitability_mean": ds["suitability_mean"].values,
+            "suitability_lower": ds["suitability_lower"].values,
+            "suitability_upper": ds["suitability_upper"].values,
+            "rep_no_factor_mean": ds["rep_no_factor_mean"].values,
+            "rep_no_factor_lower": ds["rep_no_factor_lower"].values,
+            "rep_no_factor_upper": ds["rep_no_factor_upper"].values,
+            "additional_case_prob": ds["additional_case_prob"].values,
+        }
+    ).set_index("onset_day")
 
 
 def _write_delay(inputs):

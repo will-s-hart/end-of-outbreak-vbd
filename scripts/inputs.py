@@ -682,25 +682,20 @@ def get_inputs_lazio_underreporting_retro() -> dict[str, Any]:
     time_final_case = int(inputs_lazio["time_final_case"])
     existing_decisions = inputs_lazio["existing_decisions"]
 
-    # Single (60%) reporting ceiling — constant reporting probability, no delay. Kept as a
-    # single-entry sweep for parity with the QRT inputs and the analysis loop.
+    # Constant 60% reporting probability, no delay/right-truncation, shared by both fits.
     reporting_prob = 0.6
-    suitability_sweep = (
-        (f"suitability_p{int(round(reporting_prob * 100))}", reporting_prob),
-    )
-    sweep_names = [name for name, _ in suitability_sweep] + ["autoregressive_p60"]
+    model_names = ["suitability_p60", "autoregressive_p60"]
 
     results_dir = (
         pathlib.Path(__file__).parents[1] / "results/lazio_underreporting_retro"
     )
     results_dir.mkdir(parents=True, exist_ok=True)
     results_paths = {
-        **{name: results_dir / f"{name}.csv" for name in sweep_names},
+        **{name: results_dir / f"{name}.csv" for name in model_names},
         **{
             f"{name}_diagnostics": results_dir / f"{name}_diagnostics.csv"
-            for name in sweep_names
+            for name in model_names
         },
-        "trajectory": results_dir / "trajectory.csv",
     }
 
     fig_dir = pathlib.Path(__file__).parents[1] / "figures/lazio_underreporting_retro"
@@ -710,10 +705,12 @@ def get_inputs_lazio_underreporting_retro() -> dict[str, Any]:
         "cases": fig_dir / "cases.svg",
         "additional_case_prob": fig_dir / "additional_case_prob.svg",
         "decision": fig_dir / "decision.svg",
-        # Inference diagnostics
+        # Inference diagnostics (suitability-fit suitability / R_t-factor / R_t, plus the
+        # autoregressive-fit R_t as a fourth comparison panel)
         "suitability": fig_dir / "suitability.svg",
         "scaling_factor": fig_dir / "scaling_factor.svg",
         "rep_no": fig_dir / "rep_no.svg",
+        "rep_no_ar": fig_dir / "rep_no_ar.svg",
     }
 
     return {
@@ -724,7 +721,6 @@ def get_inputs_lazio_underreporting_retro() -> dict[str, Any]:
         "calc_times": calc_times,
         "decision_dates": decision_dates,
         "reporting_prob": reporting_prob,
-        "suitability_sweep": suitability_sweep,
         "existing_decisions": existing_decisions,
         "time_final_case": time_final_case,
         "perc_risk_threshold_grid": PERC_RISK_THRESHOLD_GRID,
