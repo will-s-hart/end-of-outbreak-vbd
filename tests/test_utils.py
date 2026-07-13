@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import pytest
 import scipy.stats
-import xarray as xr
 
 from endoutbreakvbd.utils import (
     dates_to_day_index,
@@ -15,7 +14,6 @@ from endoutbreakvbd.utils import (
     lognormal_params_from_median_percentile_2_5,
     month_start_xticks,
     plot_data_on_twin_ax,
-    posterior_trajectory_frame,
     rep_no_from_grid,
     set_plot_config,
 )
@@ -168,61 +166,6 @@ def test_dates_to_day_index_matches_day_of_year_and_does_not_wrap():
     # 2017 is not a leap year: 31 Dec is day 365, and the following day continues to 366
     # rather than wrapping back to 1 (which a bare day-of-year would).
     np.testing.assert_array_equal(dates_to_day_index(dates), np.array([1, 365, 366]))
-
-
-def test_posterior_trajectory_frame_assembles_expected_columns():
-    summary_names = [
-        "cases_mean",
-        "cases_lower",
-        "cases_upper",
-        "rep_no_mean",
-        "rep_no_lower",
-        "rep_no_upper",
-        "suitability_mean",
-        "suitability_lower",
-        "suitability_upper",
-        "rep_no_factor_mean",
-        "rep_no_factor_lower",
-        "rep_no_factor_upper",
-        "additional_case_prob",
-    ]
-    n = 3
-    ds = xr.Dataset(
-        {
-            name: ("time", np.arange(n, dtype=float) + i)
-            for i, name in enumerate(summary_names)
-        },
-        coords={"time": np.arange(n)},
-    )
-    onset_day = np.arange(n)
-    date = pd.to_datetime(["2017-09-01", "2017-09-02", "2017-09-03"])
-    reported = np.array([5, 3, 1])
-    frame = posterior_trajectory_frame(
-        ds, onset_day=onset_day, date=date, reported=reported
-    )
-    assert frame.index.name == "onset_day"
-    assert list(frame.columns) == [
-        "date",
-        "reported",
-        "cases_mean",
-        "cases_lower",
-        "cases_upper",
-        "reproduction_number_mean",
-        "reproduction_number_lower",
-        "reproduction_number_upper",
-        "suitability_mean",
-        "suitability_lower",
-        "suitability_upper",
-        "rep_no_factor_mean",
-        "rep_no_factor_lower",
-        "rep_no_factor_upper",
-        "additional_case_prob",
-    ]
-    np.testing.assert_array_equal(frame["reported"].to_numpy(), reported)
-    # ds "rep_no_*" is renamed to the "reproduction_number_*" output columns.
-    np.testing.assert_array_equal(
-        frame["reproduction_number_mean"].to_numpy(), ds["rep_no_mean"].values
-    )
 
 
 def test_get_colors_returns_non_empty_color_list():

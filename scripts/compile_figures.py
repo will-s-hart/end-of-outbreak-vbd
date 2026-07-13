@@ -226,12 +226,13 @@ def compile_paper_figures():
         panel_sz=wide_panel_sz,
     )
     # Figure S5 (retrospective under-reporting — inference diagnostics): suitability / R_t-factor /
-    # R_t posteriors, each overlaid with the full-reporting (no under-reporting) estimate.
+    # R_t posteriors from the suitability fit and the R_t posterior from the autoregressive fit,
+    # each overlaid with the full-reporting (no under-reporting) estimate.
     compile_figure(
         save_path=figure_dir / "figure_S5.svg",
         panel_paths=[
             figure_dir / "lazio_underreporting_retro" / f"{x}.svg"
-            for x in ["suitability", "scaling_factor", "rep_no"]
+            for x in ["suitability", "scaling_factor", "rep_no", "rep_no_ar"]
         ],
         panel_sz=wide_panel_sz,
     )

@@ -29,11 +29,11 @@ def make_plots():
     _make_prob_plot(inputs, colors)
     _make_decision_plot(inputs, colors)
     _make_cases_plot(inputs, colors)
-    _make_estimate_plots(inputs)
+    _make_estimate_plots(inputs, colors)
 
 
 def _make_cases_plot(inputs, colors):
-    df = pd.read_csv(inputs["results_paths"]["trajectory"], parse_dates=["date"])
+    df = pd.read_csv(inputs["results_paths"]["suitability_p60"], parse_dates=["date"])
     doy = dates_to_day_index(df["date"])
     fig, ax = plt.subplots()
     ax.bar(doy, df["reported"], color="tab:gray", alpha=0.5, label="Reported")
@@ -62,13 +62,12 @@ def _make_prob_plot(inputs, colors):
     df_ar = pd.read_csv(
         inputs["results_paths"]["autoregressive_p60"], parse_dates=["date"]
     )
-    df_traj = pd.read_csv(inputs["results_paths"]["trajectory"], parse_dates=["date"])
     decisions = inputs["existing_decisions"]
     full_start = inputs["full_reporting_start_date"]
 
     fig, ax = plt.subplots()
     plot_data_on_twin_ax(
-        ax, dates_to_day_index(df_traj["date"]), df_traj["reported"].to_numpy()
+        ax, dates_to_day_index(df_suit["date"]), df_suit["reported"].to_numpy()
     )
     doys = []
     for df, color, label, full_key in [
@@ -187,50 +186,68 @@ def _make_decision_plot(inputs, colors):
     fig.savefig(inputs["fig_paths"]["decision"])
 
 
-def _make_estimate_plots(inputs):
-    df = pd.read_csv(inputs["results_paths"]["trajectory"], parse_dates=["date"])
-    doy = dates_to_day_index(df["date"])
-    reported = df["reported"].to_numpy()
+def _make_estimate_plots(inputs, colors):
+    df_suit = pd.read_csv(
+        inputs["results_paths"]["suitability_p60"], parse_dates=["date"]
+    )
+    df_ar = pd.read_csv(
+        inputs["results_paths"]["autoregressive_p60"], parse_dates=["date"]
+    )
+    # Both fits run on the same reported series, so they share the under-reporting calendar axis.
+    doy = dates_to_day_index(df_suit["date"])
+    reported = df_suit["reported"].to_numpy()
     suitability_prior = inputs["suitability_mean_vec"][: len(doy)]
 
-    # Full-reporting (no under-reporting) posterior for comparison: the retrospective
-    # lazio_outbreak suitability fit, mapped onto the same calendar axis.
-    df_full = pd.read_csv(inputs["full_reporting_paths"]["suitability"])
-    full_doy = dates_to_day_index(
-        inputs["full_reporting_start_date"]
-        + pd.to_timedelta(df_full["day_of_outbreak"], unit="D")
-    )
-    common_horizon = min(doy.max(), full_doy.max())
+    # Full-reporting (no under-reporting) posteriors for comparison: the retrospective
+    # lazio_outbreak fits, mapped onto the same calendar axis.
+    full_start = inputs["full_reporting_start_date"]
+    df_full_suit = pd.read_csv(inputs["full_reporting_paths"]["suitability"])
+    df_full_ar = pd.read_csv(inputs["full_reporting_paths"]["autoregressive"])
+
+    def _full_doy(df_full):
+        return dates_to_day_index(
+            full_start + pd.to_timedelta(df_full["day_of_outbreak"], unit="D")
+        )
+
+    full_doy_suit = _full_doy(df_full_suit)
+    full_doy_ar = _full_doy(df_full_ar)
+    common_horizon = min(doy.max(), full_doy_suit.max(), full_doy_ar.max())
     plot_mask = doy <= common_horizon
 
-    def _plot_estimate(ax, column, *, prior=None):
+    # Under-reporting uses the model colour (suitability / autoregressive), matching the
+    # probability and decision panels; the full-reporting benchmark is a dashed pink line with a
+    # matching band, a distinct hue that stays legible where the two credible intervals overlap
+    # (the prob/decision panels have no bands, so they reuse the model colour there).
+    def _plot_estimate(ax, df_ur, df_full, full_doy, column, color, *, prior=None):
         plot_data_on_twin_ax(ax, doy[plot_mask], reported[plot_mask])
-        ax.plot(
-            doy[plot_mask],
-            df.loc[plot_mask, f"{column}_mean"],
-            color="tab:blue",
-            label="Under-reporting",
-        )
+        # Draw both credible-interval bands first, then every mean line on top, so no line is
+        # dimmed by an overlapping band.
         ax.fill_between(
             doy[plot_mask],
-            df.loc[plot_mask, f"{column}_lower"],
-            df.loc[plot_mask, f"{column}_upper"],
-            color="tab:blue",
-            alpha=0.3,
-        )
-        ax.plot(
-            full_doy,
-            df_full[f"{column}_mean"],
-            color="tab:red",
-            linestyle="dashed",
-            label="Full reporting",
+            df_ur.loc[plot_mask, f"{column}_lower"],
+            df_ur.loc[plot_mask, f"{column}_upper"],
+            color=color,
+            alpha=0.2,
         )
         ax.fill_between(
             full_doy,
             df_full[f"{column}_lower"],
             df_full[f"{column}_upper"],
-            color="tab:red",
-            alpha=0.15,
+            color="tab:pink",
+            alpha=0.2,
+        )
+        ax.plot(
+            doy[plot_mask],
+            df_ur.loc[plot_mask, f"{column}_mean"],
+            color=color,
+            label="Under-reporting",
+        )
+        ax.plot(
+            full_doy,
+            df_full[f"{column}_mean"],
+            color="tab:pink",
+            linestyle="dashed",
+            label="Full reporting",
         )
         if prior is not None:
             ax.plot(
@@ -245,18 +262,52 @@ def _make_estimate_plots(inputs):
         ax.set_xlabel("Date (2017)")
 
     fig, ax = plt.subplots()
-    _plot_estimate(ax, "suitability", prior=suitability_prior)
+    _plot_estimate(
+        ax,
+        df_suit,
+        df_full_suit,
+        full_doy_suit,
+        "suitability",
+        colors[0],
+        prior=suitability_prior,
+    )
     ax.set_ylim(0, 1.01)
     ax.set_ylabel("Temperature suitability for transmission")
     ax.legend(loc="upper right")
     fig.savefig(inputs["fig_paths"]["suitability"])
 
-    for column, ylabel, fig_key in [
-        ("rep_no_factor", "Reproduction number scaling factor", "scaling_factor"),
-        ("reproduction_number", "Time-dependent reproduction number", "rep_no"),
+    # Suitability-fit R_t-factor and R_t, then the autoregressive-fit R_t comparison panel.
+    for df_ur, df_full, full_doy, column, ylabel, fig_key, color in [
+        (
+            df_suit,
+            df_full_suit,
+            full_doy_suit,
+            "rep_no_factor",
+            "Reproduction number scaling factor",
+            "scaling_factor",
+            colors[0],
+        ),
+        (
+            df_suit,
+            df_full_suit,
+            full_doy_suit,
+            "reproduction_number",
+            "Time-dependent reproduction number\n(suitability-based model)",
+            "rep_no",
+            colors[0],
+        ),
+        (
+            df_ar,
+            df_full_ar,
+            full_doy_ar,
+            "reproduction_number",
+            "Time-dependent reproduction number\n(autoregressive model)",
+            "rep_no_ar",
+            colors[1],
+        ),
     ]:
         fig, ax = plt.subplots()
-        _plot_estimate(ax, column)
+        _plot_estimate(ax, df_ur, df_full, full_doy, column, color)
         ax.set_ylim(0, np.minimum(ax.get_ylim()[1], 10))
         ax.set_ylabel(ylabel)
         ax.legend(loc="upper right")

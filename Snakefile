@@ -66,7 +66,6 @@ results_files_lazio_underreporting_retro = expand(
         "suitability_p60_diagnostics",
         "autoregressive_p60",
         "autoregressive_p60_diagnostics",
-        "trajectory",
     ],
 )
 results_files = (
@@ -159,6 +158,7 @@ plot_files_lazio_underreporting_retro = expand(
         "suitability",
         "scaling_factor",
         "rep_no",
+        "rep_no_ar",
     ],
 )
 schematic_figure_file = "figures/figure_1.svg"

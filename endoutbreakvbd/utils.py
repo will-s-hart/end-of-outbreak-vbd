@@ -7,7 +7,6 @@ import pandas as pd
 import scipy.integrate
 import scipy.stats
 import seaborn as sns
-import xarray as xr
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 
@@ -206,59 +205,6 @@ def lognormal_params_from_median_percentile_2_5(
     mu = np.log(median)
     sigma = (mu - np.log(percentile_2_5)) / scipy.stats.norm.ppf(0.975)
     return {"mu": mu, "sigma": sigma}
-
-
-def posterior_trajectory_frame(
-    ds: xr.Dataset,
-    *,
-    onset_day: ArrayLike,
-    date: ArrayLike,
-    reported: ArrayLike,
-) -> pd.DataFrame:
-    """
-    Assemble a trajectory table from a suitability-model posterior.
-
-    Collects the reported incidence alongside the posterior mean / 2.5% / 97.5% summaries of
-    the latent true cases, reproduction number, suitability, and reproduction-number factor,
-    plus the additional-case probability, into a single frame indexed by ``onset_day``.
-
-    Parameters
-    ----------
-    ds : xr.Dataset
-        Suitability-model posterior carrying the ``*_mean/_lower/_upper`` summaries and
-        ``additional_case_prob``.
-    onset_day : ArrayLike
-        Day-of-outbreak index for each row.
-    date : ArrayLike
-        Calendar date for each row.
-    reported : ArrayLike
-        Reported cases by onset day.
-
-    Returns
-    -------
-    pd.DataFrame
-        Trajectory table indexed by ``onset_day``.
-    """
-    return pd.DataFrame(
-        {
-            "onset_day": onset_day,
-            "date": date,
-            "reported": reported,
-            "cases_mean": ds["cases_mean"].values,
-            "cases_lower": ds["cases_lower"].values,
-            "cases_upper": ds["cases_upper"].values,
-            "reproduction_number_mean": ds["rep_no_mean"].values,
-            "reproduction_number_lower": ds["rep_no_lower"].values,
-            "reproduction_number_upper": ds["rep_no_upper"].values,
-            "suitability_mean": ds["suitability_mean"].values,
-            "suitability_lower": ds["suitability_lower"].values,
-            "suitability_upper": ds["suitability_upper"].values,
-            "rep_no_factor_mean": ds["rep_no_factor_mean"].values,
-            "rep_no_factor_lower": ds["rep_no_factor_lower"].values,
-            "rep_no_factor_upper": ds["rep_no_factor_upper"].values,
-            "additional_case_prob": ds["additional_case_prob"].values,
-        }
-    ).set_index("onset_day")
 
 
 def set_plot_config() -> None:

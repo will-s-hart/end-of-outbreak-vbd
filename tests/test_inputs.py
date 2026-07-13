@@ -142,10 +142,9 @@ def test_get_inputs_lazio_underreporting_retro_structure(monkeypatch):
         == len(out["incidence_vec"]) + serial_interval_max
     )
     assert out["reporting_prob"] == 0.6
-    assert out["suitability_sweep"] == (("suitability_p60", 0.6),)
-    assert {"suitability_p60", "autoregressive_p60", "trajectory"}.issubset(
-        out["results_paths"]
-    )
+    assert {"suitability_p60", "autoregressive_p60"}.issubset(out["results_paths"])
+    assert "trajectory" not in out["results_paths"]
+    assert "rep_no_ar" in out["fig_paths"]
     assert {"suitability", "autoregressive"}.issubset(out["full_reporting_paths"])
     assert "perc_risk_threshold_grid" in out
 
