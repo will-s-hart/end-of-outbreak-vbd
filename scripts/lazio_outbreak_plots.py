@@ -137,7 +137,7 @@ def _make_prob_plot(
         #     0,
         #     1,
         #     color=colors[-3],
-        #     linestyle="dashed",
+        #     linestyle="dotted",
         #     label="Blood measures lifted (Rome)",
         # )
         ax.axvline(
@@ -145,7 +145,7 @@ def _make_prob_plot(
             0,
             1,
             color=colors[-2],
-            linestyle="dashed",
+            linestyle="dotted",
             label="Blood measures\nlifted",
         )
         ax.axvline(
@@ -153,7 +153,7 @@ def _make_prob_plot(
             0,
             1,
             color=colors[-1],
-            linestyle="dashed",
+            linestyle="dotted",
             label="45-day rule",
         )
     month_start_xticks(ax)
@@ -195,13 +195,13 @@ def _make_decision_plot(
         # ax.axhline(
         #     existing_decisions["blood_resumed_rome"]["days_from_final_case"],
         #     color=colors[-2],
-        #     linestyle="dashed",
+        #     linestyle="dotted",
         #     label="Blood measures lifted (Rome)",
         # )
         ax.axhline(
             existing_decisions["blood_resumed_anzio"]["days_from_final_case"],
             color=colors[-1],
-            linestyle="dashed",
+            linestyle="dotted",
             label="Blood measures lifted",
         )
     ax.set_xticks(np.append(perc_risk_thresholds[0], ax.get_xticks()))

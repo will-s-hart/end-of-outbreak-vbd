@@ -26,7 +26,7 @@ def make_plots():
     set_plot_config()
     inputs = get_inputs_lazio_underreporting_retro()
     colors = get_colors()
-    _make_prob_plot(inputs, colors, benchmark_label="Full reporting")
+    _make_prob_plot(inputs, colors)
     _make_decision_plot(inputs, colors)
     _make_cases_plot(inputs, colors)
     _make_estimate_plots(inputs)
@@ -38,7 +38,10 @@ def _make_cases_plot(inputs, colors):
     fig, ax = plt.subplots()
     ax.bar(doy, df["reported"], color="tab:gray", alpha=0.5, label="Reported")
     ax.plot(
-        doy, df["cases_mean"], color=colors[0], label="Estimated true (suitability)"
+        doy,
+        df["cases_mean"],
+        color=colors[0],
+        label="Estimated true\n(suitability-based)",
     )
     ax.fill_between(
         doy, df["cases_lower"], df["cases_upper"], color=colors[0], alpha=0.3
@@ -46,13 +49,13 @@ def _make_cases_plot(inputs, colors):
     month_start_xticks(ax)
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, None)
-    ax.set_ylabel("Cases per day")
+    ax.set_ylabel("Number of cases")
     ax.legend(loc="upper right")
     fig.savefig(inputs["fig_paths"]["cases"])
     return fig, ax
 
 
-def _make_prob_plot(inputs, colors, *, benchmark_label="Full reporting"):
+def _make_prob_plot(inputs, colors):
     df_suit = pd.read_csv(
         inputs["results_paths"]["suitability_p60"], parse_dates=["date"]
     )
@@ -74,15 +77,23 @@ def _make_prob_plot(inputs, colors, *, benchmark_label="Full reporting"):
     ]:
         doy = dates_to_day_index(df["date"])
         doys.append(doy)
-        ax.plot(doy, df["additional_case_prob"], color=color, label=label)
+        ax.plot(
+            doy,
+            df["additional_case_prob"],
+            color=color,
+            label=label,
+        )
         df_full = pd.read_csv(inputs["full_reporting_paths"][full_key])
         full_doy = dates_to_day_index(
             full_start + pd.to_timedelta(df_full["day_of_outbreak"], unit="D")
         )
         ax.plot(
-            full_doy, df_full["additional_case_prob"], color=color, linestyle="dashed"
+            full_doy,
+            df_full["additional_case_prob"],
+            color=color,
+            linestyle="dashed",
+            label=f"{label}\n(full reporting)",
         )
-    ax.plot([], [], color="tab:gray", linestyle="dashed", label=benchmark_label)
     marker_doys = [
         decisions["blood_resumed_anzio"]["doy"],
         decisions["45_day_rule"]["doy"],
@@ -104,7 +115,7 @@ def _make_prob_plot(inputs, colors, *, benchmark_label="Full reporting"):
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, 1.01)
     ax.set_ylabel("Probability of additional cases")
-    ax.legend(loc="upper right")
+    ax.legend(loc="upper left", bbox_to_anchor=(0, 0.89))
     fig.savefig(inputs["fig_paths"]["additional_case_prob"])
     return fig, ax
 
@@ -149,8 +160,8 @@ def _make_decision_plot(inputs, colors):
             ),
             color=color,
             linestyle="dashed",
+            label=f"{label} (full reporting)",
         )
-    ax.plot([], [], color="tab:gray", linestyle="dashed", label="Full reporting")
     # Decision markers follow the main Lazio outbreak colours: C3 (blood), C4 (45-day rule). The
     # 45-day line is included here (unlike in the main Lazio outbreak analysis, where it sits well
     # above the panel's y-range).
@@ -189,14 +200,21 @@ def _make_estimate_plots(inputs):
         inputs["full_reporting_start_date"]
         + pd.to_timedelta(df_full["day_of_outbreak"], unit="D")
     )
+    common_horizon = min(doy.max(), full_doy.max())
+    plot_mask = doy <= common_horizon
 
     def _plot_estimate(ax, column, *, prior=None):
-        plot_data_on_twin_ax(ax, doy, reported)
-        ax.plot(doy, df[f"{column}_mean"], color="tab:blue", label="Under-reporting")
+        plot_data_on_twin_ax(ax, doy[plot_mask], reported[plot_mask])
+        ax.plot(
+            doy[plot_mask],
+            df.loc[plot_mask, f"{column}_mean"],
+            color="tab:blue",
+            label="Under-reporting",
+        )
         ax.fill_between(
-            doy,
-            df[f"{column}_lower"],
-            df[f"{column}_upper"],
+            doy[plot_mask],
+            df.loc[plot_mask, f"{column}_lower"],
+            df.loc[plot_mask, f"{column}_upper"],
             color="tab:blue",
             alpha=0.3,
         )
@@ -216,8 +234,13 @@ def _make_estimate_plots(inputs):
         )
         if prior is not None:
             ax.plot(
-                doy, prior, color="black", linestyle="dotted", label="Seasonal prior"
+                doy[plot_mask],
+                prior[plot_mask],
+                color="black",
+                linestyle="dotted",
+                label="Seasonal prior",
             )
+        ax.set_xlim(doy.min(), common_horizon)
         month_start_xticks(ax)
         ax.set_xlabel("Date (2017)")
 
