@@ -34,11 +34,10 @@ def make_plots():
     set_plot_config()
     inputs = get_inputs_lazio_underreporting_retro()
     colors = get_colors()
-    _make_prob_plot(inputs, colors, benchmark_label="Full reporting")
+    _make_prob_plot(inputs, colors)
     _make_decision_plot(inputs, colors)
     _make_cases_plot(inputs, colors)
     _make_estimate_plots(inputs)
-
 
 def _make_decision_plot(inputs, colors):
     time_final_case = inputs["time_final_case"]
@@ -80,8 +79,8 @@ def _make_decision_plot(inputs, colors):
             ),
             color=color,
             linestyle="dashed",
+            label=f"{label} (full reporting)",
         )
-    ax.plot([], [], color="tab:gray", linestyle="dashed", label="Full reporting")
     # Decision markers follow the main Lazio outbreak colours: C3 (blood), C4 (45-day rule). The
     # 45-day line is included here (unlike in the main Lazio outbreak analysis, where it sits well
     # above the panel's y-range).
@@ -120,14 +119,21 @@ def _make_estimate_plots(inputs):
         inputs["full_reporting_start_date"]
         + pd.to_timedelta(df_full["day_of_outbreak"], unit="D")
     )
+    common_horizon = min(doy.max(), full_doy.max())
+    plot_mask = doy <= common_horizon
 
     def _plot_estimate(ax, column, *, prior=None):
-        plot_data_on_twin_ax(ax, doy, reported)
-        ax.plot(doy, df[f"{column}_mean"], color="tab:blue", label="Under-reporting")
+        plot_data_on_twin_ax(ax, doy[plot_mask], reported[plot_mask])
+        ax.plot(
+            doy[plot_mask],
+            df.loc[plot_mask, f"{column}_mean"],
+            color="tab:blue",
+            label="Under-reporting",
+        )
         ax.fill_between(
-            doy,
-            df[f"{column}_lower"],
-            df[f"{column}_upper"],
+            doy[plot_mask],
+            df.loc[plot_mask, f"{column}_lower"],
+            df.loc[plot_mask, f"{column}_upper"],
             color="tab:blue",
             alpha=0.3,
         )
@@ -147,8 +153,13 @@ def _make_estimate_plots(inputs):
         )
         if prior is not None:
             ax.plot(
-                doy, prior, color="black", linestyle="dotted", label="Seasonal prior"
+                doy[plot_mask],
+                prior[plot_mask],
+                color="black",
+                linestyle="dotted",
+                label="Seasonal prior",
             )
+        ax.set_xlim(doy.min(), common_horizon)
         month_start_xticks(ax)
         ax.set_xlabel("Date (2017)")
 

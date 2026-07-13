@@ -58,7 +58,10 @@ def _make_cases_plot(inputs, colors):
     fig, ax = plt.subplots()
     ax.bar(doy, df["reported"], color="tab:gray", alpha=0.5, label="Reported")
     ax.plot(
-        doy, df["cases_mean"], color=colors[0], label="Estimated true (suitability)"
+        doy,
+        df["cases_mean"],
+        color=colors[0],
+        label="Estimated true\n(suitability-based)",
     )
     ax.fill_between(
         doy, df["cases_lower"], df["cases_upper"], color=colors[0], alpha=0.3
@@ -66,7 +69,7 @@ def _make_cases_plot(inputs, colors):
     month_start_xticks(ax)
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, None)
-    ax.set_ylabel("Cases per day")
+    ax.set_ylabel("Number of cases")
     ax.legend(loc="upper right")
     fig.savefig(inputs["fig_paths"]["cases"])
     return fig, ax
@@ -77,7 +80,6 @@ def _make_prob_plot(
     colors,
     *,
     ylabel="Probability of additional cases",
-    benchmark_label="Full outbreak knowledge",
 ):
     df_suit = pd.read_csv(
         inputs["results_paths"]["suitability_p60"], parse_dates=["date"]
@@ -101,7 +103,12 @@ def _make_prob_plot(
     ]:
         doy = dates_to_day_index(df["date"])
         doys.append(doy)
-        ax.plot(doy, df["additional_case_prob"], color=color, label=label)
+        ax.plot(
+            doy,
+            df["additional_case_prob"],
+            color=color,
+            label=label,
+        )
         # Dashed overlay: the retrospective full-reporting fit, i.e. the probability if the whole
         # outbreak (all future onsets, full reporting) were known.
         df_full = pd.read_csv(inputs["full_reporting_paths"][full_key])
@@ -109,10 +116,12 @@ def _make_prob_plot(
             full_start + pd.to_timedelta(df_full["day_of_outbreak"], unit="D")
         )
         ax.plot(
-            full_doy, df_full["additional_case_prob"], color=color, linestyle="dashed"
+            full_doy,
+            df_full["additional_case_prob"],
+            color=color,
+            linestyle="dashed",
+            label=f"{label}\n(full reporting)",
         )
-    # A neutral proxy entry names the dashed style without doubling the legend.
-    ax.plot([], [], color="tab:gray", linestyle="dashed", label=benchmark_label)
     # Decision markers follow the main Lazio outbreak colours: C3 (blood), C4 (45-day rule).
     marker_doys = [
         decisions["blood_resumed_anzio"]["doy"],
@@ -138,7 +147,7 @@ def _make_prob_plot(
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, 1.01)
     ax.set_ylabel(ylabel)
-    ax.legend(loc="upper right")
+    ax.legend(loc="upper left", bbox_to_anchor=(0, 0.89))
     fig.savefig(inputs["fig_paths"]["additional_case_prob"])
     return fig, ax
 
