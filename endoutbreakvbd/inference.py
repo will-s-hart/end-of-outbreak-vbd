@@ -48,6 +48,11 @@ def fit_autoregressive_model(
     Fit the autoregressive renewal model to an incidence time series, inferring a
     time-varying reproduction number.
 
+    For a single incidence series of length ``N``, the returned time axis spans
+    days ``0..N``: day ``N`` is the projected decision day one day past the data.
+    With a quasi-real-time sequence of snapshots, each length-``N`` snapshot
+    contributes only its projected decision day ``N``.
+
     Parameters
     ----------
     incidence_vec : IncidenceSeriesInput
@@ -66,8 +71,9 @@ def fit_autoregressive_model(
         Defaults to ``DEFAULTS.log_rep_no_rho``.
     quasi_real_time : bool
         If True, refit using only the data available up to each successive time point.
-        ``incidence_vec`` may then also be a *sequence* of series (one per successive
-        calculation time).
+        ``incidence_vec`` may then also be a *sequence* of snapshots; each snapshot
+        must start on outbreak day 0, and its calculation time is inferred from its
+        length.
     reporting_prob : float, optional
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
         latent true-case vector instead of the full-reporting model.
@@ -136,6 +142,11 @@ def fit_suitability_model(
     Fit the climate-suitability renewal model, decomposing the reproduction number into a
     suitability profile and a reproduction-number factor.
 
+    For a single incidence series of length ``N``, the returned time axis spans
+    days ``0..N``: day ``N`` is the projected decision day one day past the data.
+    With a quasi-real-time sequence of snapshots, each length-``N`` snapshot
+    contributes only its projected decision day ``N``.
+
     Parameters
     ----------
     incidence_vec : IncidenceSeriesInput
@@ -144,8 +155,11 @@ def fit_suitability_model(
     serial_interval_dist_vec : SerialIntervalInput
         Discretised serial interval distribution (probability mass per day).
     suitability_mean_vec : list[float] or FloatArray
-        Prior mean suitability at each time. For the under-reporting offshoot it must extend
-        ``serial_interval`` days beyond the incidence so R_t can be projected forward.
+        Prior mean suitability over the full reproduction-number inference horizon.
+        For incidence length ``N`` and serial-interval length ``S``, this is at least
+        ``N + 1`` for full reporting (and can extend to one serial interval past a
+        later final case), and ``N + S`` for under-reporting. For a snapshot sequence,
+        size it for the longest snapshot.
     suitability_std : float, optional
         Stationary standard deviation of the suitability deviations. Defaults to
         ``DEFAULTS.suitability_std``.
@@ -163,8 +177,9 @@ def fit_suitability_model(
         ``DEFAULTS.log_rep_no_factor_rho``.
     quasi_real_time : bool
         If True, refit using only the data available up to each successive time point.
-        ``incidence_vec`` may then also be a *sequence* of series (one per successive
-        calculation time).
+        ``incidence_vec`` may then also be a *sequence* of snapshots; each snapshot
+        must start on outbreak day 0, and its calculation time is inferred from its
+        length.
     reporting_prob : float, optional
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
         latent true-case vector instead of the full-reporting model.
@@ -241,6 +256,11 @@ def fit_known_rep_no_model(
     ``reporting_prob`` this isolates the under-reporting (latent-case) inference from
     reproduction-number estimation.
 
+    For a single incidence series of length ``N``, the returned time axis spans
+    days ``0..N``: day ``N`` is the projected decision day one day past the data.
+    With a quasi-real-time sequence of snapshots, each length-``N`` snapshot
+    contributes only its projected decision day ``N``.
+
     Parameters
     ----------
     incidence_vec : IncidenceSeriesInput
@@ -253,8 +273,9 @@ def fit_known_rep_no_model(
         (days). Evaluated internally over the full inference horizon.
     quasi_real_time : bool
         If True, refit using only the data available up to each successive time point.
-        ``incidence_vec`` may then also be a *sequence* of series (one per successive
-        calculation time).
+        ``incidence_vec`` may then also be a *sequence* of snapshots; each snapshot
+        must start on outbreak day 0, and its calculation time is inferred from its
+        length.
     reporting_prob : float, optional
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
         latent true-case vector instead of the full-reporting model.
