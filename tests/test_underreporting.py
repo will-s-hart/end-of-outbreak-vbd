@@ -9,6 +9,7 @@ import xarray as xr
 import endoutbreakvbd._inference_models as im
 import endoutbreakvbd.inference as inf
 from endoutbreakvbd.rep_no_models import build_ar_rep_no, build_known_rep_no
+from scripts.lazio_underreporting_qrt import _posterior_trajectory_frame
 from scripts.lazio_underreporting_retro import _write_results
 
 
@@ -335,6 +336,46 @@ def test_underreporting_retro_csv_reindexes_cases_to_projected_time(tmp_path):
         .all()
     )
     assert result[["cases_mean", "cases_lower", "cases_upper"]].iloc[-1].isna().all()
+    assert result["additional_case_prob"].iloc[-1] == pytest.approx(0.1)
+
+
+def test_qrt_trajectory_reindexes_cases_to_projected_time():
+    n_data = 3
+    time = np.arange(n_data + 1)
+    data_time = np.arange(n_data)
+    time_vars = {
+        f"{var}_{stat}": ("time", np.full(len(time), value))
+        for value, var in enumerate(("rep_no", "suitability", "rep_no_factor"), 1)
+        for stat in ("mean", "lower", "upper")
+    }
+    ds = xr.Dataset(
+        {
+            "cases_mean": ("data_time", [1.0, 2.0, 3.0]),
+            "cases_lower": ("data_time", [0.5, 1.5, 2.5]),
+            "cases_upper": ("data_time", [1.5, 2.5, 3.5]),
+            "additional_case_prob": ("time", [1.0, 0.7, 0.3, 0.1]),
+            **time_vars,
+        },
+        coords={"time": time, "data_time": data_time},
+    )
+
+    result = _posterior_trajectory_frame(
+        ds,
+        onset_day=time,
+        date=pd.date_range("2017-01-01", periods=len(time)),
+        reported=np.array([1.0, 2.0, 0.0, np.nan]),
+    )
+
+    assert len(result) == n_data + 1
+    assert (
+        result[["cases_mean", "cases_lower", "cases_upper"]]
+        .iloc[:-1]
+        .notna()
+        .all()
+        .all()
+    )
+    assert result[["cases_mean", "cases_lower", "cases_upper"]].iloc[-1].isna().all()
+    assert np.isnan(result["reported"].iloc[-1])
     assert result["additional_case_prob"].iloc[-1] == pytest.approx(0.1)
 
 

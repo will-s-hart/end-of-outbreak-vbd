@@ -117,9 +117,15 @@ def run_analyses():
             "reported": reported_snapshot,
             "not_yet": not_yet[: snapshot_day + 1],
             "never": never[: snapshot_day + 1],
-            "cases_mean": ds_imperfect_est_r["cases_mean"].sel(time=onset_day).values,
-            "cases_lower": ds_imperfect_est_r["cases_lower"].sel(time=onset_day).values,
-            "cases_upper": ds_imperfect_est_r["cases_upper"].sel(time=onset_day).values,
+            "cases_mean": ds_imperfect_est_r["cases_mean"]
+            .sel(data_time=onset_day)
+            .values,
+            "cases_lower": ds_imperfect_est_r["cases_lower"]
+            .sel(data_time=onset_day)
+            .values,
+            "cases_upper": ds_imperfect_est_r["cases_upper"]
+            .sel(data_time=onset_day)
+            .values,
         }
     ).set_index("onset_day")
     df_traj.to_csv(inputs["results_paths"]["trajectory"])

@@ -26,7 +26,9 @@ def make_plots():
     day = df["day_of_outbreak"].to_numpy()
     reported = df["reported"].to_numpy()
     unreported = df["true"].to_numpy() - reported
-    time_final_reported = int(np.nonzero(reported)[0][-1])
+    # The projected decision-day value is NaN, not an observed zero; exclude it when locating the
+    # final reported case used as the decision-delay origin.
+    time_final_reported = int(np.flatnonzero(np.nan_to_num(reported, nan=0.0))[-1])
 
     # Cases: true cases split into reported/unreported (stacked), plus the inferred true.
     # The inferred credible band is drawn behind the bars (zorder) so the true cases stay

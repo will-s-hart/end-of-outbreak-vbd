@@ -42,8 +42,8 @@ def run_analyses():
     reported_vec = rng.binomial(true_vec, reporting_prob)
     reported_vec[0] = true_vec[0]  # fixed, fully reported index case
     # The fits report every day plus one projected day past the data (the current-day risk), so
-    # the output spans 0..len(reported_vec); the true/reported series (which end at the outbreak)
-    # are padded with a trailing 0 for that projected day.
+    # the output spans 0..len(reported_vec). The simulated truth is known to be zero there, while
+    # reported and inferred incidence are unobserved and reindex to NaN.
     t_calc = np.arange(len(true_vec) + 1)
 
     # Under-reporting model with the reproduction number inferred (autoregressive).
@@ -82,10 +82,11 @@ def run_analyses():
         {
             "day_of_outbreak": t_calc,
             "true": np.append(true_vec, 0),
-            "reported": np.append(reported_vec, 0),
-            "cases_mean": ds["cases_mean"].values,
-            "cases_lower": ds["cases_lower"].values,
-            "cases_upper": ds["cases_upper"].values,
+            "reported": np.append(reported_vec, np.nan),
+            **{
+                f"cases_{stat}": ds[f"cases_{stat}"].reindex(data_time=t_calc).values
+                for stat in ("mean", "lower", "upper")
+            },
             "rep_no_true": _true_rep_no(t_calc),
             "rep_no_mean": ds["rep_no_mean"].values,
             "rep_no_lower": ds["rep_no_lower"].values,

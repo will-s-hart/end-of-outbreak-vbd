@@ -99,8 +99,8 @@ def _run_trajectory(inputs, rng):
     onset_day = ds["time"].values
     date = inputs["outbreak_start_date"] + pd.to_timedelta(onset_day, unit="D")
     # The fit reports one projected day past the data (the current-day risk), so the trajectory is
-    # one longer than the snapshot; that projected day has no reported cases (0).
-    reported = np.append(incidence_vec, 0)
+    # one longer than the snapshot. Incidence on that projected day was not observed.
+    reported = np.append(incidence_vec, np.nan)
     _posterior_trajectory_frame(
         ds, onset_day=onset_day, date=date, reported=reported
     ).to_csv(inputs["results_paths"]["trajectory"])
@@ -113,9 +113,10 @@ def _posterior_trajectory_frame(ds, *, onset_day, date, reported):
             "onset_day": onset_day,
             "date": date,
             "reported": reported,
-            "cases_mean": ds["cases_mean"].values,
-            "cases_lower": ds["cases_lower"].values,
-            "cases_upper": ds["cases_upper"].values,
+            **{
+                f"cases_{stat}": ds[f"cases_{stat}"].reindex(data_time=onset_day).values
+                for stat in ("mean", "lower", "upper")
+            },
             "reproduction_number_mean": ds["rep_no_mean"].values,
             "reproduction_number_lower": ds["rep_no_lower"].values,
             "reproduction_number_upper": ds["rep_no_upper"].values,
