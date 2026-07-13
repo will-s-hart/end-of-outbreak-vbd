@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import scripts.inference_test as inference_test
 import scripts.inputs as inputs
 
 
@@ -84,6 +85,89 @@ def test_get_inputs_inference_test_standard_and_quasi_real_time(monkeypatch):
     assert "inference_test_qrt" in str(out_qrt["results_paths"]["outbreak_data"])
     assert out_std["doy_start"] == 152
     assert len(out_std["suitability_mean_grid"]) == 365
+
+
+def test_generate_inference_test_data_includes_projected_day(monkeypatch, tmp_path):
+    incidence_vec = np.array([500, 0])
+    monkeypatch.setattr(
+        inference_test, "run_renewal_model", lambda **kwargs: incidence_vec
+    )
+    monkeypatch.setattr(
+        inference_test,
+        "_run_ar_sim",
+        lambda *, mean, **kwargs: np.asarray(mean),
+    )
+    captured = {}
+
+    def fake_prob(**kwargs):
+        captured["t_calc"] = kwargs["t_calc"]
+        return np.linspace(1.0, 0.0, len(kwargs["t_calc"]))
+
+    monkeypatch.setattr(
+        inference_test, "calc_additional_case_prob_analytical", fake_prob
+    )
+
+    data = inference_test._generate_outbreak_data(
+        serial_interval_dist_vec=np.array([1.0]),
+        doy_start=100,
+        suitability_mean_grid=np.full(365, 0.5),
+        suitability_model_params={"suitability_std": 0.0, "suitability_rho": 0.0},
+        rng=np.random.default_rng(0),
+        save_path=tmp_path / "outbreak.csv",
+    )
+
+    assert len(data) == len(incidence_vec) + 1
+    np.testing.assert_array_equal(data["cases"].iloc[:-1], incidence_vec)
+    assert np.isnan(data["cases"].iloc[-1])
+    assert data.drop(columns="cases").iloc[-1].notna().all()
+    np.testing.assert_array_equal(captured["t_calc"], np.arange(len(data)))
+
+
+def test_inference_test_passes_unobserved_projection_only_to_suitability_prior(
+    monkeypatch, tmp_path
+):
+    data = pd.DataFrame(
+        {
+            "cases": [2.0, 0.0, np.nan],
+            "suitability_mean": [0.4, 0.3, 0.2],
+        }
+    )
+    results_paths = {
+        "outbreak_data": tmp_path / "outbreak.csv",
+        "autoregressive": tmp_path / "autoregressive.csv",
+        "autoregressive_diagnostics": tmp_path / "autoregressive_diagnostics.csv",
+        "suitability": tmp_path / "suitability.csv",
+        "suitability_diagnostics": tmp_path / "suitability_diagnostics.csv",
+    }
+    monkeypatch.setattr(
+        inference_test,
+        "get_inputs_inference_test",
+        lambda **kwargs: {
+            "serial_interval_dist_vec": np.array([1.0]),
+            "doy_start": 100,
+            "suitability_mean_grid": np.full(365, 0.5),
+            "suitability_model_params": {},
+            "results_paths": results_paths,
+        },
+    )
+    monkeypatch.setattr(
+        inference_test, "_generate_outbreak_data", lambda **kwargs: data
+    )
+    calls = []
+    monkeypatch.setattr(
+        inference_test, "_run_analyses_for_model", lambda **kwargs: calls.append(kwargs)
+    )
+
+    inference_test.run_analyses()
+
+    assert len(calls) == 2
+    for call in calls:
+        np.testing.assert_array_equal(call["incidence_vec"], np.array([2, 0]))
+    suitability_call = next(call for call in calls if call["model"] == "suitability")
+    np.testing.assert_array_equal(
+        suitability_call["fit_model_kwargs"]["suitability_mean_vec"],
+        np.array([0.4, 0.3, 0.2]),
+    )
 
 
 def test_get_inputs_lazio_outbreak_consistency(monkeypatch):

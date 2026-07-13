@@ -20,7 +20,9 @@ def make_plots(quasi_real_time=False):
     inputs = get_inputs_inference_test(quasi_real_time=quasi_real_time)
     df_data = pd.read_csv(inputs["results_paths"]["outbreak_data"], index_col=0)
     doy_vec = df_data["day_of_year"].to_numpy()
-    incidence_vec = df_data["cases"].to_numpy()
+    # The final table row is the projected decision day, where incidence is unknown (NaN).
+    # Plotting utilities accept a day axis one longer than the observed incidence series.
+    incidence_vec = df_data["cases"].dropna().to_numpy(dtype=int)
     suitability_vec = df_data["suitability"].to_numpy()
     suitability_mean_vec = df_data["suitability_mean"].to_numpy()
     rep_no_factor_vec = df_data["rep_no_factor"].to_numpy()

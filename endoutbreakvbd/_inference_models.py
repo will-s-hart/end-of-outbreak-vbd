@@ -147,7 +147,6 @@ def _build_underreporting_model(
         )
     t_data_to = len(observed_vec)
     serial_interval_dist_vec = np.asarray(serial_interval_dist_vec, dtype=float)
-    n_pad = t_infer_rep_no_to - t_data_to
 
     # Floor the per-day reporting probability above zero so (1 - pi) / pi stays finite and pi * mu
     # is non-degenerate in the likelihoods below.
@@ -164,6 +163,7 @@ def _build_underreporting_model(
     model = pm.Model(
         coords={
             "time": np.arange(t_infer_rep_no_to),
+            "data_time": np.arange(t_data_to),
             "unobserved_time": np.arange(1, t_data_to),
         }
     )
@@ -204,11 +204,7 @@ def _build_underreporting_model(
             dims=("unobserved_time",),
         )
         cases_data = pt.concatenate([index_col, observed_after_index + latent_rv])
-        pm.Deterministic(
-            "cases",
-            pt.concatenate([cases_data, pt.zeros((n_pad,))]) if n_pad else cases_data,
-            dims=("time",),
-        )
+        pm.Deterministic("cases", cases_data, dims=("data_time",))
         mu_vec = rep_no_data * pt.dot(conv_mat, cases_data)
         pm.Poisson(
             "obs",

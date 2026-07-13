@@ -77,17 +77,17 @@ def _write_results(ds, save_path, incidence_vec, start_date, *, suitability):
     onset_day = ds["time"].values
     date = start_date + pd.to_timedelta(onset_day, unit="D")
     # The fit reports one projected day past the data (the current-day risk), so the posterior
-    # trajectory is one longer than the observed series; that projected day has no reported cases
-    # (0, matching the model's zero-padded latent cases there — not NaN, which would break the
-    # incidence-bar axis scaling).
-    reported = np.append(incidence_vec, 0)
+    # trajectory is one longer than the observed series. Incidence on that projected day was not
+    # observed, so both reported and inferred cases are represented as NaN for that row.
+    reported = np.append(incidence_vec, np.nan)
     columns = {
         "day_of_outbreak": onset_day,
         "date": date,
         "reported": reported,
-        "cases_mean": ds["cases_mean"].values,
-        "cases_lower": ds["cases_lower"].values,
-        "cases_upper": ds["cases_upper"].values,
+        **{
+            f"cases_{stat}": ds[f"cases_{stat}"].reindex(data_time=onset_day).values
+            for stat in ("mean", "lower", "upper")
+        },
         "reproduction_number_mean": ds["rep_no_mean"].values,
         "reproduction_number_lower": ds["rep_no_lower"].values,
         "reproduction_number_upper": ds["rep_no_upper"].values,

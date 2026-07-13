@@ -53,6 +53,10 @@ def fit_autoregressive_model(
     With a quasi-real-time sequence of snapshots, each length-``N`` snapshot
     contributes only its projected decision day ``N``.
 
+    For a non-quasi-real-time under-reporting fit, posterior ``cases`` and their
+    summaries use a separate ``data_time`` axis spanning days ``0..N-1``. They are
+    omitted from quasi-real-time aggregates, whose snapshots have differing histories.
+
     Parameters
     ----------
     incidence_vec : IncidenceSeriesInput
@@ -146,6 +150,10 @@ def fit_suitability_model(
     days ``0..N``: day ``N`` is the projected decision day one day past the data.
     With a quasi-real-time sequence of snapshots, each length-``N`` snapshot
     contributes only its projected decision day ``N``.
+
+    For a non-quasi-real-time under-reporting fit, posterior ``cases`` and their
+    summaries use a separate ``data_time`` axis spanning days ``0..N-1``. They are
+    omitted from quasi-real-time aggregates, whose snapshots have differing histories.
 
     Parameters
     ----------
@@ -260,6 +268,10 @@ def fit_known_rep_no_model(
     days ``0..N``: day ``N`` is the projected decision day one day past the data.
     With a quasi-real-time sequence of snapshots, each length-``N`` snapshot
     contributes only its projected decision day ``N``.
+
+    For a non-quasi-real-time under-reporting fit, posterior ``cases`` and their
+    summaries use a separate ``data_time`` axis spanning days ``0..N-1``. They are
+    omitted from quasi-real-time aggregates, whose snapshots have differing histories.
 
     Parameters
     ----------
@@ -396,10 +408,11 @@ def _fit_model(
     # incidence series plus one projected day past the last datapoint (`0 .. t_data_to`), the
     # final entry being the "probability of further cases given everything observed" — the
     # decision-relevant current-day risk. Reproduction numbers are inferred over a horizon that
-    # covers this projection (see `_reproduction_number_horizon`) and the returned dataset is
-    # sliced to those days. A scalar `reporting_prob` (optionally with a `delay_cdf` for
-    # right-truncation) dispatches to the under-reporting offshoot; otherwise the full-reporting
-    # renewal model is fit.
+    # covers this projection (see `_reproduction_number_horizon`) and the returned time-indexed
+    # variables are sliced to those days. Under-reporting case variables retain their distinct
+    # data-only axis. A scalar `reporting_prob` (optionally with a `delay_cdf` for right-truncation)
+    # dispatches to the under-reporting offshoot; otherwise the full-reporting renewal model is
+    # fit.
     underreporting_fit = reporting_prob is not None
     if underreporting_fit and step_func is not None:
         raise ValueError(
@@ -514,7 +527,8 @@ def _fit_model(
             )
         )
 
-    # Posterior summaries for R_t (and, for the offshoot, the latent true cases).
+    # Posterior summaries for R_t (and, for the offshoot, the latent true cases). The case
+    # variables retain their data-only `data_time` axis; R_t and projected risk use `time`.
     summary_vars = ["rep_no", "cases"] if underreporting_fit else ["rep_no"]
     ds_posterior = ds_posterior.assign(
         {
@@ -534,8 +548,10 @@ def _fit_model(
 
     if underreporting_fit:
         # Each draw supplies its own latent true cases, aligned (across chain/draw) with its R_t.
+        # Cases stop at the data boundary; the analytical calculation constructs its own
+        # zero-valued future trajectory when integrating over possible additional cases.
         incidence_for_prob = np.rint(
-            ds_posterior["cases"].transpose("time", ...).values
+            ds_posterior["cases"].transpose("data_time", ...).values
         ).astype(int)
     else:
         incidence_for_prob = incidence_vec
@@ -569,8 +585,8 @@ def _fit_model(
             ds_posterior, sample_stats, raise_on_problems=raise_on_poor_diagnostics
         )
         if underreporting_fit:
-            # The latent true-case vector has a degenerate post-outbreak tail, so warn
-            # (never raise) on its diagnostics; report the median mixing summaries.
+            # The discrete Metropolis-sampled true-case block may mix slowly, so warn (never
+            # raise) on its diagnostics and report the median mixing summaries.
             cases_diag = _compute_check_diagnostics(
                 ds_posterior, None, var_name="cases", raise_on_problems=False
             )
