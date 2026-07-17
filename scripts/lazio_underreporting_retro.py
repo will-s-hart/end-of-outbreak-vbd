@@ -3,7 +3,7 @@ under-reporting (no delay / right-truncation).
 
 Unlike the quasi-real-time nowcast, this fits the full reported outbreak once per model with a
 constant per-day reporting probability (``delay_cdf=None``), inflating the reported cases to a
-latent true-case trajectory. The suitability and autoregressive models are both fit at a 60%
+latent true-incidence trajectory. The suitability and autoregressive models are both fit at a 60%
 reporting probability. Each fit writes a full posterior trajectory frame; the suitability fit
 additionally carries the suitability and R_t-factor decomposition.
 
@@ -33,9 +33,9 @@ def run_analyses(sampler_kwargs=None):
     # A single shared random number generator threads through both fits.
     rng = np.random.default_rng(2)
 
-    # Suitability fit — supplies the true-case, suitability and R_t trajectory panels.
-    ds_suit = fit_suitability_model(
-        incidence_vec=incidence_vec,
+    # Suitability fit — supplies the true-incidence, suitability and R_t trajectory panels.
+    suitability_posterior_ds = fit_suitability_model(
+        incidence=incidence_vec,
         serial_interval_dist_vec=serial_interval_dist_vec,
         suitability_mean_vec=inputs["suitability_mean_vec"],
         reporting_prob=reporting_prob,
@@ -45,17 +45,19 @@ def run_analyses(sampler_kwargs=None):
         **sampler_kwargs,
     )
     _write_results(
-        ds_suit,
+        suitability_posterior_ds,
         results_paths["suitability_p60"],
         incidence_vec,
         outbreak_start_date,
         suitability=True,
     )
-    _write_diagnostics(ds_suit, results_paths["suitability_p60_diagnostics"])
+    _write_diagnostics(
+        suitability_posterior_ds, results_paths["suitability_p60_diagnostics"]
+    )
 
     # Autoregressive fit — supplies the comparison R_t trajectory panel.
-    ds_ar = fit_autoregressive_model(
-        incidence_vec=incidence_vec,
+    autoregressive_posterior_ds = fit_autoregressive_model(
+        incidence=incidence_vec,
         serial_interval_dist_vec=serial_interval_dist_vec,
         reporting_prob=reporting_prob,
         rng=rng,
@@ -64,50 +66,57 @@ def run_analyses(sampler_kwargs=None):
         **sampler_kwargs,
     )
     _write_results(
-        ds_ar,
+        autoregressive_posterior_ds,
         results_paths["autoregressive_p60"],
         incidence_vec,
         outbreak_start_date,
         suitability=False,
     )
-    _write_diagnostics(ds_ar, results_paths["autoregressive_p60_diagnostics"])
+    _write_diagnostics(
+        autoregressive_posterior_ds,
+        results_paths["autoregressive_p60_diagnostics"],
+    )
 
 
-def _write_results(ds, save_path, incidence_vec, start_date, *, suitability):
-    onset_day = ds["time"].values
-    date = start_date + pd.to_timedelta(onset_day, unit="D")
+def _write_results(
+    posterior_ds, results_path, incidence_vec, outbreak_start_date, *, suitability
+):
+    t_vec = posterior_ds["time"].values
+    outbreak_date_vec = outbreak_start_date + pd.to_timedelta(t_vec, unit="D")
     # The fit reports one projected day past the data (the current-day risk), so the posterior
     # trajectory is one longer than the observed series. Incidence on that projected day was not
-    # observed, so both reported and inferred cases are represented as NaN for that row.
-    reported = np.append(incidence_vec, np.nan)
-    columns = {
-        "day_of_outbreak": onset_day,
-        "date": date,
-        "reported": reported,
+    # observed, so both reported and inferred incidence are represented as NaN for that row.
+    reported_incidence_vec = np.append(incidence_vec, np.nan)
+    result_columns = {
+        "day_of_outbreak": t_vec,
+        "date": outbreak_date_vec,
+        "reported_incidence": reported_incidence_vec,
         **{
-            f"cases_{stat}": ds[f"cases_{stat}"].reindex(data_time=onset_day).values
+            f"incidence_{stat}": posterior_ds[f"incidence_{stat}"]
+            .reindex(data_time=t_vec)
+            .values
             for stat in ("mean", "lower", "upper")
         },
-        "reproduction_number_mean": ds["rep_no_mean"].values,
-        "reproduction_number_lower": ds["rep_no_lower"].values,
-        "reproduction_number_upper": ds["rep_no_upper"].values,
+        "reproduction_number_mean": posterior_ds["rep_no_mean"].values,
+        "reproduction_number_lower": posterior_ds["rep_no_lower"].values,
+        "reproduction_number_upper": posterior_ds["rep_no_upper"].values,
     }
     if suitability:
-        columns.update(
+        result_columns.update(
             {
-                f"{var}_{stat}": ds[f"{var}_{stat}"].values
+                f"{var}_{stat}": posterior_ds[f"{var}_{stat}"].values
                 for var in ("suitability", "rep_no_factor")
                 for stat in ("mean", "lower", "upper")
             }
         )
-    columns["additional_case_prob"] = ds["additional_case_prob"].values
-    pd.DataFrame(columns).set_index("day_of_outbreak").to_csv(save_path)
+    result_columns["additional_case_prob"] = posterior_ds["additional_case_prob"].values
+    pd.DataFrame(result_columns).set_index("day_of_outbreak").to_csv(results_path)
 
 
-def _write_diagnostics(ds, save_path):
-    pd.Series(ds.attrs["diagnostics"], name="value").rename_axis("stat").to_csv(
-        save_path
-    )
+def _write_diagnostics(posterior_ds, diagnostics_path):
+    pd.Series(posterior_ds.attrs["diagnostics"], name="value").rename_axis(
+        "stat"
+    ).to_csv(diagnostics_path)
 
 
 if __name__ == "__main__":

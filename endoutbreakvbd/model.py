@@ -58,9 +58,9 @@ def run_renewal_model(
     incidence_vec: IntArray = np.zeros(t_stop, dtype=int)
     if incidence_init is None:
         incidence_init = 1
-    incidence_init = np.atleast_1d(incidence_init)
-    t_start = int(incidence_init.size)
-    incidence_vec[:t_start] = incidence_init
+    incidence_init_vec = np.atleast_1d(incidence_init)
+    t_start = int(incidence_init_vec.size)
+    incidence_vec[:t_start] = incidence_init_vec
     for t in range(t_start, t_stop):
         rep_no = rep_no_func(t)
         foi = np.sum(incidence_vec[:t][::-1] * serial_interval_dist_vec[:t])
@@ -135,8 +135,10 @@ def simulate_outbreak(
             t_stop=t_stop,
             incidence_init=incidence_init,
         )
-        size = int(incidence_vec.sum())
-        if size < min_size or (max_size is not None and size > max_size):
+        outbreak_size = int(incidence_vec.sum())
+        if outbreak_size < min_size or (
+            max_size is not None and outbreak_size > max_size
+        ):
             continue
         if accept is not None and not accept(incidence_vec):
             continue

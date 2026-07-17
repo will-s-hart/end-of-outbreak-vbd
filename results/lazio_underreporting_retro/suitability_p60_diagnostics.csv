@@ -6,6 +6,6 @@ ess_mean,7171.77272554579
 ess_median,6645.354189059175
 ess_min,3991.245594722807
 n_diverging,0.0
-cases_rhat_max,1.0072274487482609
-cases_ess_min,506.5292401190633
-cases_ess_median,2506.342057243047
+incidence_rhat_max,1.0072274487482609
+incidence_ess_min,506.5292401190633
+incidence_ess_median,2506.342057243047

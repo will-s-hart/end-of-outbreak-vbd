@@ -1,4 +1,4 @@
-day_of_outbreak,date,reported,cases_mean,cases_lower,cases_upper,reproduction_number_mean,reproduction_number_lower,reproduction_number_upper,additional_case_prob
+day_of_outbreak,date,reported_incidence,incidence_mean,incidence_lower,incidence_upper,reproduction_number_mean,reproduction_number_lower,reproduction_number_upper,additional_case_prob
 0,2017-06-26,2.0,2.0,2.0,2.0,3.733486867935106,1.003762364509023,9.659938964314621,1.0
 1,2017-06-27,2.0,2.0,2.0,2.0,3.7982037160074174,1.0847364807868876,9.495531086996316,0.9403348511663023
 2,2017-06-28,2.0,2.0005625,2.0,2.0,3.6217023559555632,1.0552337974270722,8.846185619192509,0.9937966257650601

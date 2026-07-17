@@ -1,4 +1,4 @@
-perc_risk_threshold,final_case_day_of_year,delay_to_decision
+risk_threshold_pct,final_case_day_of_year,delay_to_decision
 1.0,1,1.0
 1.0,2,1.0
 1.0,3,1.0

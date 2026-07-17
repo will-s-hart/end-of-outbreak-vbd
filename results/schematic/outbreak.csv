@@ -1,4 +1,4 @@
-day_of_outbreak,day_of_year,cases,reproduction_number_mean,reproduction_number_lower,reproduction_number_upper,additional_case_prob
+day_of_outbreak,day_of_year,incidence,reproduction_number_mean,reproduction_number_lower,reproduction_number_upper,additional_case_prob
 0,92,1,0.44180631737787585,7.212623127457204e-05,0.9256098172157861,1.0
 1,93,0,0.4592862367308852,0.014315393975849114,0.9354094062845578,0.48937021774370804
 2,94,0,0.4773698374893972,0.03566493995246728,0.955034967239468,0.488141092992441

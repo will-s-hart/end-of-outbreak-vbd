@@ -7,23 +7,23 @@ import scripts.inference_test as inference_test
 import scripts.inputs as inputs
 
 
-def test_get_serial_interval_dist_properties():
-    serial_interval_dist = inputs._get_serial_interval_dist()
-    assert len(serial_interval_dist) == 40
-    assert np.all(serial_interval_dist >= 0)
-    assert np.isclose(np.sum(serial_interval_dist), 1.0, atol=1e-8)
+def test_get_serial_interval_dist_vec_properties():
+    serial_interval_dist_vec = inputs._get_serial_interval_dist_vec()
+    assert len(serial_interval_dist_vec) == 40
+    assert np.all(serial_interval_dist_vec >= 0)
+    assert np.isclose(np.sum(serial_interval_dist_vec), 1.0, atol=1e-8)
 
 
-def test_get_lazio_outbreak_data_has_expected_columns_and_doy():
-    df = inputs._get_lazio_outbreak_data()
+def test_get_lazio_outbreak_df_has_expected_columns_and_doy():
+    df = inputs._get_lazio_outbreak_df()
     assert "cases" in df.columns
     assert "doy" in df.columns
     assert df.index.name == "onset_date"
     assert df["doy"].between(1, 366).all()
 
 
-def test_get_2017_suitability_data_has_expected_columns_and_doy():
-    df = inputs._get_2017_suitability_data()
+def test_get_2017_suitability_df_has_expected_columns_and_doy():
+    df = inputs._get_2017_suitability_df()
     assert "suitability_smoothed_lagged" in df.columns
     assert "doy" in df.columns
     assert df.index.name == "date"
@@ -36,7 +36,7 @@ def test_get_inputs_weather_suitability_data_structure(monkeypatch):
     assert set(out.keys()) == {
         "results_paths",
         "fig_paths",
-        "df_suitability_grid",
+        "suitability_grid_df",
         "suitability_lag_days",
     }
     assert set(out["results_paths"].keys()) == {"all", "2017"}
@@ -45,7 +45,7 @@ def test_get_inputs_weather_suitability_data_structure(monkeypatch):
         "suitability_model",
         "suitability",
     }
-    assert {"temperature", "suitability"}.issubset(out["df_suitability_grid"].columns)
+    assert {"temperature", "suitability"}.issubset(out["suitability_grid_df"].columns)
 
 
 def test_get_inputs_sim_study_structure_and_callables(monkeypatch):
@@ -55,23 +55,23 @@ def test_get_inputs_sim_study_structure_and_callables(monkeypatch):
     required_keys = {
         "serial_interval_dist_vec",
         "rep_no_factor",
-        "rep_no_func_doy",
+        "rep_no_doy_func",
         "rep_no_from_doy_start",
         "example_outbreak_doy_start_vals",
         "example_outbreak_incidence_vec",
-        "example_outbreak_perc_risk_threshold_vals",
+        "example_outbreak_risk_threshold_pct_vals",
         "many_outbreak_n_sims",
-        "many_outbreak_outbreak_size_threshold",
-        "many_outbreak_perc_risk_threshold_vals",
+        "many_outbreak_min_size",
+        "many_outbreak_risk_threshold_pct_vals",
         "results_paths",
         "fig_paths",
     }
     assert required_keys.issubset(out.keys())
 
-    rep_no_vals = out["rep_no_func_doy"](np.array([0, 10]))
-    assert rep_no_vals.shape == (2,)
-    rep_no_vals_shift = out["rep_no_from_doy_start"](np.array([0, 10]), doy_start=100)
-    assert rep_no_vals_shift.shape == (2,)
+    rep_no_vec = out["rep_no_doy_func"](np.array([0, 10]))
+    assert rep_no_vec.shape == (2,)
+    shifted_rep_no_vec = out["rep_no_from_doy_start"](np.array([0, 10]), doy_start=100)
+    assert shifted_rep_no_vec.shape == (2,)
 
 
 def test_get_inputs_inference_test_standard_and_quasi_real_time(monkeypatch):
@@ -93,8 +93,8 @@ def test_generate_inference_test_data_includes_projected_day(monkeypatch, tmp_pa
     )
     monkeypatch.setattr(
         inference_test,
-        "_run_ar_sim",
-        lambda *, mean, **kwargs: np.asarray(mean),
+        "_simulate_ar_vec",
+        lambda *, mean_vec, **kwargs: np.asarray(mean_vec),
     )
     captured = {}
 
@@ -106,28 +106,28 @@ def test_generate_inference_test_data_includes_projected_day(monkeypatch, tmp_pa
         inference_test, "calc_additional_case_prob_analytical", fake_prob
     )
 
-    data = inference_test._generate_outbreak_data(
+    outbreak_df = inference_test._generate_outbreak_data(
         serial_interval_dist_vec=np.array([1.0]),
         doy_start=100,
         suitability_mean_grid=np.full(365, 0.5),
         suitability_model_params={"suitability_std": 0.0, "suitability_rho": 0.0},
         rng=np.random.default_rng(0),
-        save_path=tmp_path / "outbreak.csv",
+        results_path=tmp_path / "outbreak.csv",
     )
 
-    assert len(data) == len(incidence_vec) + 1
-    np.testing.assert_array_equal(data["cases"].iloc[:-1], incidence_vec)
-    assert np.isnan(data["cases"].iloc[-1])
-    assert data.drop(columns="cases").iloc[-1].notna().all()
-    np.testing.assert_array_equal(captured["t_calc"], np.arange(len(data)))
+    assert len(outbreak_df) == len(incidence_vec) + 1
+    np.testing.assert_array_equal(outbreak_df["incidence"].iloc[:-1], incidence_vec)
+    assert np.isnan(outbreak_df["incidence"].iloc[-1])
+    assert outbreak_df.drop(columns="incidence").iloc[-1].notna().all()
+    np.testing.assert_array_equal(captured["t_calc"], np.arange(len(outbreak_df)))
 
 
 def test_inference_test_passes_unobserved_projection_only_to_suitability_prior(
     monkeypatch, tmp_path
 ):
-    data = pd.DataFrame(
+    outbreak_df = pd.DataFrame(
         {
-            "cases": [2.0, 0.0, np.nan],
+            "incidence": [2.0, 0.0, np.nan],
             "suitability_mean": [0.4, 0.3, 0.2],
         }
     )
@@ -150,7 +150,7 @@ def test_inference_test_passes_unobserved_projection_only_to_suitability_prior(
         },
     )
     monkeypatch.setattr(
-        inference_test, "_generate_outbreak_data", lambda **kwargs: data
+        inference_test, "_generate_outbreak_data", lambda **kwargs: outbreak_df
     )
     calls = []
     monkeypatch.setattr(
@@ -183,8 +183,8 @@ def test_get_inputs_lazio_outbreak_consistency(monkeypatch):
     assert set(out["existing_decisions"].keys()) == decision_keys
 
     for val in out["existing_decisions"].values():
-        assert {"doy", "outbreak_day", "days_from_final_case"}.issubset(val.keys())
-        assert isinstance(val["days_from_final_case"], (int, np.integer))
+        assert {"doy", "t", "days_after_final_case"}.issubset(val.keys())
+        assert isinstance(val["days_after_final_case"], (int, np.integer))
 
 
 def test_get_inputs_lazio_frozen_structure(monkeypatch):
@@ -205,7 +205,7 @@ def test_get_inputs_lazio_frozen_structure(monkeypatch):
     assert set(out["fig_paths"].keys()) == {
         "rep_no",
         "additional_case_prob",
-        "decision",
+        "decision_delay",
     }
 
 
@@ -218,7 +218,7 @@ def test_get_inputs_lazio_underreporting_retro_structure(monkeypatch):
     # The additional-case probability is reported for every (padded) day plus one projected day
     # past the data (the current-day risk); the incidence is padded with a serial interval (+1) of
     # zero-report days.
-    assert len(out["calc_times"]) == len(out["incidence_vec"]) + 1
+    assert len(out["t_calc_vec"]) == len(out["incidence_vec"]) + 1
     assert out["incidence_vec"][-1] == 0
     # Suitability prior extends a further serial interval beyond the padded data (the under-
     # reporting projection horizon).
@@ -231,7 +231,7 @@ def test_get_inputs_lazio_underreporting_retro_structure(monkeypatch):
     assert "trajectory" not in out["results_paths"]
     assert "rep_no_ar" in out["fig_paths"]
     assert {"suitability", "autoregressive"}.issubset(out["full_reporting_paths"])
-    assert "perc_risk_threshold_grid" in out
+    assert "risk_threshold_pct_grid" in out
 
 
 def test_get_inputs_lazio_epiestim_structure(monkeypatch):
@@ -252,5 +252,5 @@ def test_get_inputs_lazio_epiestim_structure(monkeypatch):
     assert set(out["fig_paths"].keys()) == {
         "rep_no",
         "additional_case_prob",
-        "decision",
+        "decision_delay",
     }

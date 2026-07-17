@@ -18,7 +18,7 @@ from endoutbreakvbd._types import (
     SerialIntervalInput,
 )
 from endoutbreakvbd.inference import (
-    _compute_check_diagnostics,
+    _compute_and_check_diagnostics,
     _fit_model,
     _is_incidence_sequence,
 )
@@ -26,7 +26,7 @@ from endoutbreakvbd.inference import (
 
 def _fit_model_qrt(
     *,
-    incidence_vec: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
+    incidence: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
     serial_interval_dist_vec: SerialIntervalInput,
     rep_no_vec_func: Callable[[int], Any],
     reporting_prob: float | None = None,
@@ -44,7 +44,7 @@ def _fit_model_qrt(
     # its data plus one projected day (`_fit_model`'s fixed convention); the decision day is that
     # projected day (its last time index), so each step keeps `time=[-1]`. This matches a single
     # non-quasi-real-time fit's "one day past the data" convention exactly. Two input shapes:
-    #   - a single incidence series -> for day t, fit the data up to day t-1 (`incidence_vec[:t]`)
+    #   - a single incidence series -> for day t, fit the data up to day t-1 (`incidence[:t]`)
     #     and keep day t (full reporting), sweeping t up to and including the full series so the
     #     final snapshot is all the data (its decision day is the projected current day, day N).
     #     The first snapshot additionally keeps day 0 (the trivial start-of-outbreak point) so the
@@ -57,24 +57,24 @@ def _fit_model_qrt(
     # The per-snapshot fits are independent, so with `parallel` they are run across processes via
     # joblib (mirroring calc_additional_case_prob_simulation); each fit then samples chains
     # sequentially (cores=1) so joblib, not pm.sample, owns the parallelism.
-    sequence_mode = _is_incidence_sequence(incidence_vec)
+    is_incidence_snapshot_sequence = _is_incidence_sequence(incidence)
     extra_kwargs: dict[str, Any] = {"progressbar": False}
     if reporting_prob is None:
         extra_kwargs["quiet"] = True
 
     # Each step pairs a snapshot incidence series with the time positions of its returned dataset
     # to keep (see above): the decision day `[-1]`, plus day 0 for the first single-series snapshot.
-    if sequence_mode:
-        steps: list[tuple[IntArray, list[int]]] = [
-            (np.asarray(v), [-1]) for v in incidence_vec
+    if is_incidence_snapshot_sequence:
+        snapshot_specs: list[tuple[IntArray, list[int]]] = [
+            (np.asarray(v), [-1]) for v in incidence
         ]
     else:
-        incidence_vec = np.asarray(incidence_vec)
+        incidence_vec = np.asarray(incidence)
         if len(incidence_vec) < 2:
             raise ValueError(
                 "quasi_real_time inference requires at least 2 time points"
             )
-        steps = [
+        snapshot_specs = [
             (incidence_vec[:t], [0, 1] if t == 1 else [-1])
             for t in range(1, len(incidence_vec) + 1)
         ]
@@ -83,9 +83,11 @@ def _fit_model_qrt(
     # calc_additional_case_prob_simulation); serial and parallel then agree exactly. A bare int
     # or None seed is replicated to preserve the previous shared-seed behaviour.
     if isinstance(rng, np.random.Generator):
-        child_rngs: list[np.random.Generator | int | None] = list(rng.spawn(len(steps)))
+        child_rngs: list[np.random.Generator | int | None] = list(
+            rng.spawn(len(snapshot_specs))
+        )
     else:
-        child_rngs = [rng] * len(steps)
+        child_rngs = [rng] * len(snapshot_specs)
 
     fit_kwargs_shared: dict[str, Any] = {
         "serial_interval_dist_vec": serial_interval_dist_vec,
@@ -101,18 +103,18 @@ def _fit_model_qrt(
     if parallel:
         # Chains sequential within a fit; joblib owns the cross-fit parallelism.
         fit_kwargs_shared = {"cores": 1, **fit_kwargs_shared}
-    tasks = [
+    fit_tasks = [
         (
             idx,
             keep,
             {
                 **fit_kwargs_shared,
-                "incidence_vec": incidence_vec_step,
+                "incidence": incidence_step_vec,
                 "rng": child_rng,
             },
         )
-        for idx, ((incidence_vec_step, keep), child_rng) in enumerate(
-            zip(steps, child_rngs, strict=True)
+        for idx, ((incidence_step_vec, keep), child_rng) in enumerate(
+            zip(snapshot_specs, child_rngs, strict=True)
         )
     ]
 
@@ -122,35 +124,35 @@ def _fit_model_qrt(
         # doesn't spawn its own pool on top of joblib's process parallelism (loky is required for
         # inner_max_num_threads to take effect).
         with parallel_config(backend="loky", inner_max_num_threads=1):
-            results = list(
+            fit_results = list(
                 tqdm(
                     Parallel(
                         n_jobs=-1,
                         return_as="generator",
                         batch_size="auto",
-                    )(delayed(_fit_model_qrt_step)(task, True) for task in tasks),
-                    total=len(tasks),
+                    )(delayed(_fit_model_qrt_step)(task, True) for task in fit_tasks),
+                    total=len(fit_tasks),
                     desc=desc,
                 )
             )
     else:
-        results = list(
+        fit_results = list(
             tqdm(
-                (_fit_model_qrt_step(task, False) for task in tasks),
-                total=len(tasks),
+                (_fit_model_qrt_step(task, False) for task in fit_tasks),
+                total=len(fit_tasks),
                 desc=desc,
             )
         )
 
-    ds_posterior_list: list[xr.Dataset | None] = [None] * len(tasks)
-    for idx, ds_subset in results:
-        ds_posterior_list[idx] = ds_subset
-    ds_posterior = xr.concat(ds_posterior_list, dim="time")
+    posterior_datasets: list[xr.Dataset | None] = [None] * len(fit_tasks)
+    for idx, posterior_subset_ds in fit_results:
+        posterior_datasets[idx] = posterior_subset_ds
+    posterior_ds = xr.concat(posterior_datasets, dim="time")
     if compute_diagnostics:
-        ds_posterior.attrs["diagnostics"] = _compute_check_diagnostics(
-            ds_posterior, None, raise_on_problems=raise_on_poor_diagnostics
+        posterior_ds.attrs["diagnostics"] = _compute_and_check_diagnostics(
+            posterior_ds, None, raise_on_problems=raise_on_poor_diagnostics
         )
-    return ds_posterior
+    return posterior_ds
 
 
 # Guards the one-time per-worker environment setup below.
@@ -195,12 +197,12 @@ def _fit_model_qrt_step(
     idx, keep, fit_kwargs = task
     if isolate:
         _prepare_qrt_worker()
-    ds_posterior_curr = _fit_model(**fit_kwargs)
-    ds_subset = ds_posterior_curr[
+    posterior_current_ds = _fit_model(**fit_kwargs)
+    posterior_subset_ds = posterior_current_ds[
         [
             var
-            for var in ds_posterior_curr.data_vars
-            if "time" in ds_posterior_curr[var].dims
+            for var in posterior_current_ds.data_vars
+            if "time" in posterior_current_ds[var].dims
         ]
     ].isel(time=keep)
-    return idx, cast(xr.Dataset, ds_subset)
+    return idx, cast(xr.Dataset, posterior_subset_ds)

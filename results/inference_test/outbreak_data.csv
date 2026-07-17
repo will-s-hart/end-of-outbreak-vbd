@@ -1,4 +1,4 @@
-,day_of_year,cases,reproduction_number,suitability,suitability_mean,rep_no_factor,additional_case_prob
+,day_of_year,incidence,reproduction_number,suitability,suitability_mean,rep_no_factor,additional_case_prob
 0,152,1.0,0.5684919101480814,0.18949730338269383,0.0874513473134347,3.0,1.0
 1,153,0.0,0.5121952581464307,0.17073175271547691,0.0996310051277685,3.0,0.674049399447892
 2,154,0.0,0.5609691580887942,0.1869897193629314,0.113021310670723,3.0,0.6740480571153848

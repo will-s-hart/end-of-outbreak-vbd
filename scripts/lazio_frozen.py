@@ -19,7 +19,7 @@ def run_analyses():
             "quasi_real_time": False,
             "freeze_from_final_case": True,
         },
-        save_path=inputs["results_paths"]["autoregressive_frozen"],
+        results_path=inputs["results_paths"]["autoregressive_frozen"],
         compute_diagnostics=False,
     )
 

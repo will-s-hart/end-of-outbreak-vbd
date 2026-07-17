@@ -4,7 +4,7 @@ import numpy as np
 import xarray as xr
 
 import endoutbreakvbd._inference_qrt as qrt
-import endoutbreakvbd.inference as inf
+import endoutbreakvbd.inference as inference
 import endoutbreakvbd.rep_no_models as rnm
 
 
@@ -17,14 +17,14 @@ def test_fit_model_qrt_sequence_mode_forwards_per_snapshot(monkeypatch):
     def fake_fit_model(**kwargs):
         calls.append(kwargs)
         t = len(
-            kwargs["incidence_vec"]
+            kwargs["incidence"]
         )  # projected decision day = one past the snapshot data
         return xr.Dataset(
             {
                 "rep_no_mean": ("time", [float(t)]),
                 "additional_case_prob": ("time", [0.1 * t]),
-                "cases": ("data_time", np.arange(t, dtype=float)),
-                "cases_mean": ("data_time", np.arange(t, dtype=float)),
+                "incidence": ("data_time", np.arange(t, dtype=float)),
+                "incidence_mean": ("data_time", np.arange(t, dtype=float)),
             },
             coords={"time": [t], "data_time": np.arange(t)},
         )
@@ -32,10 +32,10 @@ def test_fit_model_qrt_sequence_mode_forwards_per_snapshot(monkeypatch):
     monkeypatch.setattr(qrt, "_fit_model", fake_fit_model)
     monkeypatch.setattr(qrt, "tqdm", lambda iterable, **kwargs: iterable)
 
-    series = [np.array([2, 1]), np.array([2, 1, 0, 0])]
+    incidence_snapshots = [np.array([2, 1]), np.array([2, 1, 0, 0])]
     delay_cdf = np.array([0.5, 1.0])
     out = qrt._fit_model_qrt(
-        incidence_vec=series,
+        incidence=incidence_snapshots,
         serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         reporting_prob=0.6,
@@ -45,17 +45,17 @@ def test_fit_model_qrt_sequence_mode_forwards_per_snapshot(monkeypatch):
 
     assert all(c["reporting_prob"] == 0.6 for c in calls)
     assert all(np.array_equal(c["delay_cdf"], delay_cdf) for c in calls)
-    np.testing.assert_array_equal(calls[0]["incidence_vec"], series[0])
-    np.testing.assert_array_equal(calls[1]["incidence_vec"], series[1])
+    np.testing.assert_array_equal(calls[0]["incidence"], incidence_snapshots[0])
+    np.testing.assert_array_equal(calls[1]["incidence"], incidence_snapshots[1])
     # progressbar suppressed, but the full-reporting-only `quiet` flag is not injected here.
     assert calls[0]["progressbar"] is False
     assert "quiet" not in calls[0]
-    # Each snapshot keeps its projected decision day = len(series); concatenated in order.
+    # Each snapshot keeps its projected decision day = len(snapshot); concatenated in order.
     np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.array([2, 4]))
     np.testing.assert_allclose(out["additional_case_prob"].to_numpy(), [0.2, 0.4])
     assert "data_time" not in out.dims
-    assert "cases" not in out
-    assert "cases_mean" not in out
+    assert "incidence" not in out
+    assert "incidence_mean" not in out
 
 
 def test_fit_autoregressive_model_routes_sequence_through_qrt(monkeypatch):
@@ -69,15 +69,15 @@ def test_fit_autoregressive_model_routes_sequence_through_qrt(monkeypatch):
 
     monkeypatch.setattr(qrt, "_fit_model_qrt", fake_fit_model_qrt)
 
-    series = [np.array([2, 1]), np.array([2, 1, 0, 0])]
-    inf.fit_autoregressive_model(
-        incidence_vec=series,
+    incidence_snapshots = [np.array([2, 1]), np.array([2, 1, 0, 0])]
+    inference.fit_autoregressive_model(
+        incidence=incidence_snapshots,
         serial_interval_dist_vec=np.array([1.0]),
         quasi_real_time=True,
         compute_diagnostics=False,
     )
 
-    assert len(captured["incidence_vec"]) == 2
+    assert len(captured["incidence"]) == 2
 
 
 def test_fit_model_qrt_spawns_distinct_child_rng_per_step(monkeypatch):
@@ -88,7 +88,7 @@ def test_fit_model_qrt_spawns_distinct_child_rng_per_step(monkeypatch):
 
     def fake_fit_model(**kwargs):
         seen_rngs.append(kwargs["rng"])
-        t = len(kwargs["incidence_vec"])
+        t = len(kwargs["incidence"])
         return xr.Dataset({"rep_no_mean": ("time", [float(t)])}, coords={"time": [t]})
 
     monkeypatch.setattr(qrt, "_fit_model", fake_fit_model)
@@ -96,7 +96,7 @@ def test_fit_model_qrt_spawns_distinct_child_rng_per_step(monkeypatch):
 
     parent_rng = np.random.default_rng(0)
     out = qrt._fit_model_qrt(
-        incidence_vec=[np.array([1, 1]), np.array([1, 1, 0]), np.array([1, 1, 0, 0])],
+        incidence=[np.array([1, 1]), np.array([1, 1, 0]), np.array([1, 1, 0, 0])],
         serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         reporting_prob=0.6,
@@ -119,11 +119,14 @@ def test_fit_model_qrt_serial_matches_parallel():
     rep_no_vec_func = rnm.build_known_rep_no(
         rep_no_func=lambda t: np.full(np.shape(t), 0.7, dtype=float)
     )
-    series = [np.array([1, 2, 1, 0, 0]), np.array([1, 2, 1, 1, 0, 0, 0])]
+    incidence_snapshots = [
+        np.array([1, 2, 1, 0, 0]),
+        np.array([1, 2, 1, 1, 0, 0, 0]),
+    ]
 
     def fit(parallel):
         return qrt._fit_model_qrt(
-            incidence_vec=series,
+            incidence=incidence_snapshots,
             serial_interval_dist_vec=serial_interval_dist_vec,
             rep_no_vec_func=rep_no_vec_func,
             reporting_prob=0.8,
@@ -135,13 +138,14 @@ def test_fit_model_qrt_serial_matches_parallel():
             cores=1,
         )
 
-    ds_serial = fit(parallel=False)
-    ds_parallel = fit(parallel=True)
+    serial_ds = fit(parallel=False)
+    parallel_ds = fit(parallel=True)
 
     np.testing.assert_allclose(
-        ds_serial["additional_case_prob"].to_numpy(),
-        ds_parallel["additional_case_prob"].to_numpy(),
+        serial_ds["additional_case_prob"].to_numpy(),
+        parallel_ds["additional_case_prob"].to_numpy(),
     )
     np.testing.assert_allclose(
-        ds_serial["rep_no_mean"].to_numpy(), ds_parallel["rep_no_mean"].to_numpy()
+        serial_ds["rep_no_mean"].to_numpy(),
+        parallel_ds["rep_no_mean"].to_numpy(),
     )

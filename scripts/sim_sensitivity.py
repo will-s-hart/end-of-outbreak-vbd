@@ -10,17 +10,19 @@ from scripts.sim_study import _run_many_outbreak_analysis
 def run_analyses():
     inputs = get_inputs_sim_sensitivity()
     rng = np.random.default_rng(3)
-    runs = inputs["rep_no_factor"]["runs"] + inputs["decay_speed"]["runs"]
-    for run in runs:
+    run_specs = (
+        inputs["rep_no_factor"]["run_specs"] + inputs["decay_speed"]["run_specs"]
+    )
+    for run_spec in run_specs:
         _run_many_outbreak_analysis(
             n_sims=inputs["many_outbreak_n_sims"],
-            outbreak_size_threshold=inputs["many_outbreak_outbreak_size_threshold"],
-            perc_risk_threshold_vals=inputs["many_outbreak_perc_risk_threshold_vals"],
-            rep_no_from_doy_start=run["rep_no_from_doy_start"],
+            outbreak_min_size=inputs["many_outbreak_min_size"],
+            risk_threshold_pct_vals=inputs["many_outbreak_risk_threshold_pct_vals"],
+            rep_no_from_doy_start=run_spec["rep_no_from_doy_start"],
             serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
             track_premature_decisions=False,
             rng=rng,
-            save_path=run["results_path"],
+            results_path=run_spec["results_path"],
         )
 
 
@@ -32,7 +34,7 @@ if __name__ == "__main__":
         action="store_true",
         help="Only run analyses and save results (no plots)",
     )
-    args_in = parser.parse_args()
+    args = parser.parse_args()
     run_analyses()
-    if not args_in.results_only:
+    if not args.results_only:
         make_plots()
