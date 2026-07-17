@@ -30,7 +30,7 @@ from endoutbreakvbd.utils import rep_no_from_grid
 
 def fit_autoregressive_model(
     *,
-    incidence_vec: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
+    incidence: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
     serial_interval_dist_vec: SerialIntervalInput,
     prior_median: float | None = None,
     prior_percentile_2_5: float | None = None,
@@ -53,13 +53,13 @@ def fit_autoregressive_model(
     With a quasi-real-time sequence of snapshots, each length-``N`` snapshot
     contributes only its projected decision day ``N``.
 
-    For a non-quasi-real-time under-reporting fit, posterior ``cases`` and their
+    For a non-quasi-real-time under-reporting fit, posterior ``incidence`` and its
     summaries use a separate ``data_time`` axis spanning days ``0..N-1``. They are
     omitted from quasi-real-time aggregates, whose snapshots have differing histories.
 
     Parameters
     ----------
-    incidence_vec : IncidenceSeriesInput
+    incidence : IncidenceSeriesInput
         Observed incidence time series. When ``reporting_prob`` is supplied, the series
         must start on the index-case day and its first value must be positive.
     serial_interval_dist_vec : SerialIntervalInput
@@ -75,7 +75,7 @@ def fit_autoregressive_model(
         Defaults to ``DEFAULTS.log_rep_no_rho``.
     quasi_real_time : bool
         If True, refit using only the data available up to each successive time point.
-        ``incidence_vec`` may then also be a *sequence* of snapshots; each snapshot
+        ``incidence`` may then also be a *sequence* of snapshots; each snapshot
         must start on outbreak day 0, and its calculation time is inferred from its
         length.
     reporting_prob : float, optional
@@ -110,7 +110,7 @@ def fit_autoregressive_model(
         rho=rho,
     )
     return _fit_model(
-        incidence_vec=incidence_vec,
+        incidence=incidence,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
@@ -126,7 +126,7 @@ def fit_autoregressive_model(
 
 def fit_suitability_model(
     *,
-    incidence_vec: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
+    incidence: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
     serial_interval_dist_vec: SerialIntervalInput,
     suitability_mean_vec: list[float] | FloatArray,
     suitability_std: float | None = None,
@@ -151,13 +151,13 @@ def fit_suitability_model(
     With a quasi-real-time sequence of snapshots, each length-``N`` snapshot
     contributes only its projected decision day ``N``.
 
-    For a non-quasi-real-time under-reporting fit, posterior ``cases`` and their
+    For a non-quasi-real-time under-reporting fit, posterior ``incidence`` and its
     summaries use a separate ``data_time`` axis spanning days ``0..N-1``. They are
     omitted from quasi-real-time aggregates, whose snapshots have differing histories.
 
     Parameters
     ----------
-    incidence_vec : IncidenceSeriesInput
+    incidence : IncidenceSeriesInput
         Observed incidence time series. When ``reporting_prob`` is supplied, the series
         must start on the index-case day and its first value must be positive.
     serial_interval_dist_vec : SerialIntervalInput
@@ -185,7 +185,7 @@ def fit_suitability_model(
         ``DEFAULTS.log_rep_no_factor_rho``.
     quasi_real_time : bool
         If True, refit using only the data available up to each successive time point.
-        ``incidence_vec`` may then also be a *sequence* of snapshots; each snapshot
+        ``incidence`` may then also be a *sequence* of snapshots; each snapshot
         must start on outbreak day 0, and its calculation time is inferred from its
         length.
     reporting_prob : float, optional
@@ -220,8 +220,8 @@ def fit_suitability_model(
         rep_no_factor_prior_percentile_2_5=rep_no_factor_prior_percentile_2_5,
         log_rep_no_factor_rho=log_rep_no_factor_rho,
     )
-    ds_posterior = _fit_model(
-        incidence_vec=incidence_vec,
+    posterior_ds = _fit_model(
+        incidence=incidence,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
@@ -233,19 +233,19 @@ def fit_suitability_model(
         **kwargs,
     )
     # Extract further summary stats
-    ds_posterior = ds_posterior.assign(
+    posterior_ds = posterior_ds.assign(
         {
-            f"{var}_{stat}": _posterior_summary(ds_posterior[var], stat)
+            f"{var}_{stat}": _posterior_summary(posterior_ds[var], stat)
             for var in ("suitability", "rep_no_factor")
             for stat in ("mean", "lower", "upper")
         }
     )
-    return ds_posterior
+    return posterior_ds
 
 
 def fit_known_rep_no_model(
     *,
-    incidence_vec: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
+    incidence: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
     serial_interval_dist_vec: SerialIntervalInput,
     rep_no_func: Callable[[IntArray], FloatArray],
     quasi_real_time: bool = False,
@@ -269,13 +269,13 @@ def fit_known_rep_no_model(
     With a quasi-real-time sequence of snapshots, each length-``N`` snapshot
     contributes only its projected decision day ``N``.
 
-    For a non-quasi-real-time under-reporting fit, posterior ``cases`` and their
+    For a non-quasi-real-time under-reporting fit, posterior ``incidence`` and its
     summaries use a separate ``data_time`` axis spanning days ``0..N-1``. They are
     omitted from quasi-real-time aggregates, whose snapshots have differing histories.
 
     Parameters
     ----------
-    incidence_vec : IncidenceSeriesInput
+    incidence : IncidenceSeriesInput
         Observed incidence time series. When ``reporting_prob`` is supplied, the series
         must start on the index-case day and its first value must be positive.
     serial_interval_dist_vec : SerialIntervalInput
@@ -285,7 +285,7 @@ def fit_known_rep_no_model(
         (days). Evaluated internally over the full inference horizon.
     quasi_real_time : bool
         If True, refit using only the data available up to each successive time point.
-        ``incidence_vec`` may then also be a *sequence* of snapshots; each snapshot
+        ``incidence`` may then also be a *sequence* of snapshots; each snapshot
         must start on outbreak day 0, and its calculation time is inferred from its
         length.
     reporting_prob : float, optional
@@ -314,7 +314,7 @@ def fit_known_rep_no_model(
     """
     rep_no_vec_func = build_known_rep_no(rep_no_func=rep_no_func)
     return _fit_model(
-        incidence_vec=incidence_vec,
+        incidence=incidence,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
@@ -327,9 +327,9 @@ def fit_known_rep_no_model(
     )
 
 
-def _compute_check_diagnostics(
-    posterior: xr.Dataset,
-    sample_stats: xr.Dataset | None,
+def _compute_and_check_diagnostics(
+    posterior_ds: xr.Dataset,
+    sample_stats_ds: xr.Dataset | None,
     *,
     raise_on_problems: bool = False,
     var_name: str = "rep_no",
@@ -337,24 +337,24 @@ def _compute_check_diagnostics(
     rhat_max_threshold: float = 1.01,
 ) -> dict[str, float]:
     # Summarise convergence diagnostics for `var_name` and warn (or raise) on poor
-    # sampling. Divergences are N/A (NaN) when sample_stats is None, as for the
+    # sampling. Divergences are N/A (NaN) when sample_stats_ds is None, as for the
     # quasi-real-time aggregate of many separate fits.
     # Subset to the single variable first: arviz's var-name resolution mis-handles an
     # exact name when the dataset also carries derived vars that share it as a prefix
-    # (e.g. `cases` alongside `cases_mean`) together with time-only summaries.
-    posterior_var = posterior[[var_name]]
-    rhat_vals = rhat(posterior_var, var_names=var_name)[var_name]
-    ess_vals = ess(posterior_var, var_names=var_name)[var_name]
+    # (e.g. `incidence` alongside `incidence_mean`) together with time-only summaries.
+    posterior_var_ds = posterior_ds[[var_name]]
+    rhat_da = rhat(posterior_var_ds, var_names=var_name)[var_name]
+    ess_da = ess(posterior_var_ds, var_names=var_name)[var_name]
     n_diverging = (
-        np.nan if sample_stats is None else float(sample_stats["diverging"].sum())
+        np.nan if sample_stats_ds is None else float(sample_stats_ds["diverging"].sum())
     )
     diagnostics = {
-        "rhat_mean": rhat_vals.mean().item(),
-        "rhat_median": rhat_vals.median().item(),
-        "rhat_max": rhat_vals.max().item(),
-        "ess_mean": ess_vals.mean().item(),
-        "ess_median": ess_vals.median().item(),
-        "ess_min": ess_vals.min().item(),
+        "rhat_mean": rhat_da.mean().item(),
+        "rhat_median": rhat_da.median().item(),
+        "rhat_max": rhat_da.max().item(),
+        "ess_mean": ess_da.mean().item(),
+        "ess_median": ess_da.median().item(),
+        "ess_min": ess_da.min().item(),
         "n_diverging": n_diverging,
     }
     problems = []
@@ -374,22 +374,22 @@ def _compute_check_diagnostics(
     return diagnostics
 
 
-def _is_incidence_sequence(incidence_vec: Any) -> bool:
+def _is_incidence_sequence(incidence: Any) -> bool:
     # Distinguish a *sequence of incidence series* (one series per calculation time) from a
     # *single* incidence series. A single series is a 1-D array or a flat list of counts; a
     # sequence is a list/tuple whose elements are themselves array-like, or a 2-D array. Keying
     # off the container type alone would misread a single series passed as a plain list (e.g.
     # ``[1, 2, 3]``) as several one-element series.
-    if isinstance(incidence_vec, np.ndarray):
-        return incidence_vec.ndim >= 2
-    if isinstance(incidence_vec, (list, tuple)):
-        return len(incidence_vec) > 0 and all(np.ndim(v) >= 1 for v in incidence_vec)
+    if isinstance(incidence, np.ndarray):
+        return incidence.ndim >= 2
+    if isinstance(incidence, (list, tuple)):
+        return len(incidence) > 0 and all(np.ndim(v) >= 1 for v in incidence)
     return False
 
 
 def _fit_model(
     *,
-    incidence_vec: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
+    incidence: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
     serial_interval_dist_vec: SerialIntervalInput,
     rep_no_vec_func: Callable[[int], Any],
     quasi_real_time: bool,
@@ -405,11 +405,11 @@ def _fit_model(
     **kwargs_sample: Any,
 ) -> xr.Dataset:
     # Core model fit. The additional-case probability is always reported over every day of the
-    # incidence series plus one projected day past the last datapoint (`0 .. t_data_to`), the
+    # incidence series plus one projected day past the last datapoint (`0 .. t_data_stop`), the
     # final entry being the "probability of further cases given everything observed" — the
     # decision-relevant current-day risk. Reproduction numbers are inferred over a horizon that
-    # covers this projection (see `_reproduction_number_horizon`) and the returned time-indexed
-    # variables are sliced to those days. Under-reporting case variables retain their distinct
+    # covers this projection (see `_get_t_rep_no_stop`) and the returned time-indexed
+    # variables are sliced to those days. Under-reporting incidence variables retain their distinct
     # data-only axis. A scalar `reporting_prob` (optionally with a `delay_cdf` for right-truncation)
     # dispatches to the under-reporting offshoot; otherwise the full-reporting renewal model is
     # fit.
@@ -429,7 +429,7 @@ def _fit_model(
         from endoutbreakvbd._inference_qrt import _fit_model_qrt
 
         return _fit_model_qrt(
-            incidence_vec=incidence_vec,
+            incidence=incidence,
             serial_interval_dist_vec=serial_interval_dist_vec,
             rep_no_vec_func=rep_no_vec_func,
             reporting_prob=reporting_prob,
@@ -443,17 +443,17 @@ def _fit_model(
             **kwargs_sample,
         )
 
-    if _is_incidence_sequence(incidence_vec):
+    if _is_incidence_sequence(incidence):
         raise ValueError("a sequence of incidence series requires quasi_real_time=True")
-    incidence_vec = np.asarray(incidence_vec)
+    incidence_vec = np.asarray(incidence)
     serial_interval_dist_vec = np.asarray(serial_interval_dist_vec)
-    t_data_to = len(incidence_vec)
+    t_data_stop = len(incidence_vec)
     # Report over every observed day plus one projected day past the data (the current-day risk).
-    t_calc = np.arange(t_data_to + 1)
-    t_infer_rep_no_to = _reproduction_number_horizon(
+    t_calc_vec = np.arange(t_data_stop + 1)
+    t_rep_no_stop = _get_t_rep_no_stop(
         incidence_vec=incidence_vec,
         serial_interval_max=len(serial_interval_dist_vec),
-        t_calc=t_calc,
+        t_calc_vec=t_calc_vec,
         underreporting_fit=underreporting_fit,
     )
 
@@ -490,14 +490,14 @@ def _fit_model(
             rep_no_vec_func=rep_no_vec_func,
             reporting_prob=reporting_prob,
             delay_cdf=delay_cdf,
-            t_infer_rep_no_to=t_infer_rep_no_to,
+            t_rep_no_stop=t_rep_no_stop,
         )
     else:
         model = _build_full_reporting_model(
             incidence_vec=incidence_vec,
             serial_interval_dist_vec=serial_interval_dist_vec,
             rep_no_vec_func=rep_no_vec_func,
-            t_infer_rep_no_to=t_infer_rep_no_to,
+            t_rep_no_stop=t_rep_no_stop,
         )
 
     with model:
@@ -507,7 +507,7 @@ def _fit_model(
             kwargs_sample = {"step": step_func(), **kwargs_sample}
         trace = pm.sample(**kwargs_sample)
 
-    sample_stats = (
+    sample_stats_ds = (
         trace.sample_stats
         if compute_diagnostics and "diverging" in trace.sample_stats.data_vars
         else None
@@ -515,89 +515,91 @@ def _fit_model(
     if thin > 1:
         trace = trace.isel(draw=slice(0, None, thin))
         trace = trace.assign_coords(draw=np.arange(len(trace.posterior.draw)))
-    ds_posterior = azb.convert_to_dataset(trace.posterior)
+    posterior_ds = azb.convert_to_dataset(trace.posterior)
 
     if freeze_from_final_case:
         # Hold R_t after the final case fixed at its final-case-day posterior samples
-        t_final_case = _final_case_time(incidence_vec)
-        rep_no_frozen = ds_posterior["rep_no"].isel(time=t_final_case)
-        ds_posterior = ds_posterior.assign(
-            rep_no=ds_posterior["rep_no"].where(
-                ds_posterior["time"] <= t_final_case, rep_no_frozen
+        t_final_case = _get_t_final_case(incidence_vec)
+        rep_no_frozen_da = posterior_ds["rep_no"].isel(time=t_final_case)
+        posterior_ds = posterior_ds.assign(
+            rep_no=posterior_ds["rep_no"].where(
+                posterior_ds["time"] <= t_final_case, rep_no_frozen_da
             )
         )
 
-    # Posterior summaries for R_t (and, for the offshoot, the latent true cases). The case
+    # Posterior summaries for R_t (and, for the offshoot, the latent true incidence). The incidence
     # variables retain their data-only `data_time` axis; R_t and projected risk use `time`.
-    summary_vars = ["rep_no", "cases"] if underreporting_fit else ["rep_no"]
-    ds_posterior = ds_posterior.assign(
+    summary_vars = ["rep_no", "incidence"] if underreporting_fit else ["rep_no"]
+    posterior_ds = posterior_ds.assign(
         {
-            f"{var}_{stat}": _posterior_summary(ds_posterior[var], stat)
+            f"{var}_{stat}": _posterior_summary(posterior_ds[var], stat)
             for var in summary_vars
             for stat in ("mean", "lower", "upper")
         }
     )
 
     # Additional-case probability at the calculation times. For the offshoot each draw
-    # supplies its own latent true cases, aligned with its R_t; for full reporting the fixed
+    # supplies its own latent true incidence, aligned with its R_t; for full reporting the fixed
     # incidence is pushed through the posterior R_t (sample dimensions averaged over).
-    rep_no_grid = ds_posterior["rep_no"].transpose("time", ...).values
+    rep_no_grid = posterior_ds["rep_no"].transpose("time", ...).values
 
     def rep_no_post_func(t: int | IntArray) -> RepNoOutput:
         return rep_no_from_grid(t, rep_no_grid=rep_no_grid, periodic=False)
 
     if underreporting_fit:
-        # Each draw supplies its own latent true cases, aligned (across chain/draw) with its R_t.
-        # Cases stop at the data boundary; the analytical calculation constructs its own
-        # zero-valued future trajectory when integrating over possible additional cases.
+        # Each draw supplies its own latent true incidence, aligned (across chain/draw) with its
+        # R_t. Incidence stops at the data boundary; the analytical calculation constructs its
+        # own zero-valued future trajectory when integrating over possible additional cases.
         incidence_for_prob = np.rint(
-            ds_posterior["cases"].transpose("data_time", ...).values
+            posterior_ds["incidence"].transpose("data_time", ...).values
         ).astype(int)
     else:
         incidence_for_prob = incidence_vec
 
     # Keep the per-sample probabilities (additional_dims="broadcast") so we can report the
     # posterior mean and a credible interval, not just the mean.
-    prob_samples = np.asarray(
+    prob_sample_mat = np.asarray(
         calc_additional_case_prob_analytical(
-            incidence_vec=incidence_for_prob,
+            incidence=incidence_for_prob,
             rep_no_func=rep_no_post_func,
             serial_interval_dist_vec=serial_interval_dist_vec,
-            t_calc=t_calc,
+            t_calc=t_calc_vec,
             additional_dims="broadcast",
         )
-    ).reshape(len(t_calc), -1)
-    ds_posterior = ds_posterior.isel(time=t_calc)
-    ds_posterior = ds_posterior.assign(
-        additional_case_prob=(("time",), prob_samples.mean(axis=1)),
+    ).reshape(len(t_calc_vec), -1)
+    posterior_ds = posterior_ds.isel(time=t_calc_vec)
+    posterior_ds = posterior_ds.assign(
+        additional_case_prob=(("time",), prob_sample_mat.mean(axis=1)),
         additional_case_prob_lower=(
             ("time",),
-            np.quantile(prob_samples, 0.025, axis=1),
+            np.quantile(prob_sample_mat, 0.025, axis=1),
         ),
         additional_case_prob_upper=(
             ("time",),
-            np.quantile(prob_samples, 0.975, axis=1),
+            np.quantile(prob_sample_mat, 0.975, axis=1),
         ),
     )
 
     if compute_diagnostics:
-        diagnostics = _compute_check_diagnostics(
-            ds_posterior, sample_stats, raise_on_problems=raise_on_poor_diagnostics
+        diagnostics = _compute_and_check_diagnostics(
+            posterior_ds,
+            sample_stats_ds,
+            raise_on_problems=raise_on_poor_diagnostics,
         )
         if underreporting_fit:
             # The discrete Metropolis-sampled true-case block may mix slowly, so warn (never
             # raise) on its diagnostics and report the median mixing summaries.
-            cases_diag = _compute_check_diagnostics(
-                ds_posterior, None, var_name="cases", raise_on_problems=False
+            incidence_diagnostics = _compute_and_check_diagnostics(
+                posterior_ds, None, var_name="incidence", raise_on_problems=False
             )
             diagnostics.update(
                 {
-                    f"cases_{k}": cases_diag[k]
-                    for k in ("rhat_max", "ess_min", "ess_median")
+                    f"incidence_{key}": incidence_diagnostics[key]
+                    for key in ("rhat_max", "ess_min", "ess_median")
                 }
             )
-        ds_posterior.attrs["diagnostics"] = diagnostics
-    return ds_posterior
+        posterior_ds.attrs["diagnostics"] = diagnostics
+    return posterior_ds
 
 
 def _posterior_summary(data_array: xr.DataArray, stat: str) -> xr.DataArray:
@@ -608,17 +610,17 @@ def _posterior_summary(data_array: xr.DataArray, stat: str) -> xr.DataArray:
     return data_array.quantile(quantile, dim=["chain", "draw"]).drop_vars("quantile")
 
 
-def _final_case_time(incidence_vec: IntArray) -> int:
+def _get_t_final_case(incidence_vec: IntArray) -> int:
     # Outbreak day of the last observed case (0 if there are none).
-    nonzero_incidence_idx = np.nonzero(incidence_vec)[0]
-    return int(nonzero_incidence_idx[-1]) if nonzero_incidence_idx.size else 0
+    positive_incidence_idx_vec = np.nonzero(incidence_vec)[0]
+    return int(positive_incidence_idx_vec[-1]) if positive_incidence_idx_vec.size else 0
 
 
-def _reproduction_number_horizon(
+def _get_t_rep_no_stop(
     *,
     incidence_vec: IntArray,
     serial_interval_max: int,
-    t_calc: IntArray,
+    t_calc_vec: IntArray,
     underreporting_fit: bool,
 ) -> int:
     # Horizon to which R_t must be inferred so the additional-case projection (which needs R_t
@@ -627,9 +629,9 @@ def _reproduction_number_horizon(
     #   full reporting: the last *observed* case, so project a serial interval past it;
     #   under-reporting: the last *true* (latent) case can sit anywhere in the observed window,
     #     so project a serial interval past *all* data (carrying any seasonal R_t decline).
-    t_data_to = len(incidence_vec)
+    t_data_stop = len(incidence_vec)
     if underreporting_fit:
-        base = t_data_to + serial_interval_max
+        base = t_data_stop + serial_interval_max
     else:
-        base = _final_case_time(incidence_vec) + serial_interval_max + 1
-    return max(t_data_to, base, int(np.max(t_calc)) + 1)
+        base = _get_t_final_case(incidence_vec) + serial_interval_max + 1
+    return max(t_data_stop, base, int(np.max(t_calc_vec)) + 1)

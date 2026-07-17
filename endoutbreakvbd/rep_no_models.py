@@ -60,11 +60,11 @@ def build_known_rep_no(
         Function taking the inference horizon and returning the ``rep_no`` deterministic.
     """
 
-    def rep_no_vec_func(t_infer_to: int) -> Any:
+    def rep_no_vec_func(t_stop: int) -> Any:
         return pm.Deterministic(
             "rep_no",
             pt.as_tensor_variable(
-                np.asarray(rep_no_func(np.arange(t_infer_to)), dtype=float)
+                np.asarray(rep_no_func(np.arange(t_stop)), dtype=float)
             ),
             dims=("time",),
         )
@@ -108,24 +108,26 @@ def build_ar_rep_no(
         else prior_percentile_2_5
     )
     rho = DEFAULTS.log_rep_no_rho if rho is None else rho
-    lognormal_params = lognormal_params_from_median_percentile_2_5(
+    rep_no_lognormal_params = lognormal_params_from_median_percentile_2_5(
         median=prior_median, percentile_2_5=prior_percentile_2_5
     )
-    log_rep_no_sigma_innov = _ar_innovation_std(
-        stationary_std=lognormal_params["sigma"], rho=rho
+    log_rep_no_innovation_std = _ar_innovation_std(
+        stationary_std=rep_no_lognormal_params["sigma"], rho=rho
     )
 
     def rep_no_vec_func(_: int) -> Any:
         log_rep_no_deviation_vec = pm.AR(
             "log_rep_no_deviation",
-            sigma=log_rep_no_sigma_innov,
+            sigma=log_rep_no_innovation_std,
             rho=rho,
             dims=("time",),
-            init_dist=pm.Normal.dist(mu=0, sigma=lognormal_params["sigma"]),
+            init_dist=pm.Normal.dist(mu=0, sigma=rep_no_lognormal_params["sigma"]),
         )
         rep_no_vec = pm.Deterministic(
             "rep_no",
-            pm.math.exp(lognormal_params["mu"] + cast(Any, log_rep_no_deviation_vec)),
+            pm.math.exp(
+                rep_no_lognormal_params["mu"] + cast(Any, log_rep_no_deviation_vec)
+            ),
             dims=("time",),
         )
         return rep_no_vec
@@ -199,11 +201,11 @@ def build_suitability_rep_no(
         percentile_2_5=rep_no_factor_prior_percentile_2_5,
     )
 
-    def rep_no_vec_func(t_infer_to: int) -> Any:
-        if len(suitability_mean_vec) < t_infer_to:
+    def rep_no_vec_func(t_stop: int) -> Any:
+        if len(suitability_mean_vec) < t_stop:
             raise ValueError(
                 f"suitability_mean_vec has length {len(suitability_mean_vec)} but R_t is "
-                f"inferred to horizon {t_infer_to}; extend it (typically a serial interval "
+                f"inferred to horizon {t_stop}; extend it (typically a serial interval "
                 "past the incidence) so R_t can be projected forward."
             )
         log_rep_no_factor_deviation_vec = pm.AR(
@@ -236,8 +238,7 @@ def build_suitability_rep_no(
         suitability_vec = pm.Deterministic(
             "suitability",
             _softclip(
-                suitability_mean_vec[:t_infer_to]
-                + cast(Any, suitability_deviation_vec),
+                suitability_mean_vec[:t_stop] + cast(Any, suitability_deviation_vec),
                 lower=1e-8,
                 upper=1.0,
             ),

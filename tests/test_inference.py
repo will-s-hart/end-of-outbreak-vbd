@@ -9,7 +9,7 @@ import pytest
 import xarray as xr
 
 import endoutbreakvbd._inference_qrt as qrt
-import endoutbreakvbd.inference as inf
+import endoutbreakvbd.inference as inference
 import endoutbreakvbd.rep_no_models as rnm
 
 
@@ -30,7 +30,7 @@ def _setup_minimal_pm_for_fit_model(monkeypatch):
     state = {}
 
     monkeypatch.setattr(
-        inf.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
+        inference.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
     )
 
     poisson_calls = []
@@ -40,7 +40,7 @@ def _setup_minimal_pm_for_fit_model(monkeypatch):
             {"name": name, "mu": np.array(mu), "observed": np.array(observed)}
         )
 
-    monkeypatch.setattr(inf.pm, "Poisson", fake_poisson)
+    monkeypatch.setattr(inference.pm, "Poisson", fake_poisson)
 
     class _FakeTrace:
         def __init__(self, posterior):
@@ -71,7 +71,7 @@ def _setup_minimal_pm_for_fit_model(monkeypatch):
         )
         return _FakeTrace(posterior=posterior)
 
-    monkeypatch.setattr(inf.pm, "sample", fake_sample)
+    monkeypatch.setattr(inference.pm, "sample", fake_sample)
 
     return state, poisson_calls
 
@@ -80,14 +80,14 @@ def _setup_pm_rep_no_depends_on_observed_sum(monkeypatch):
     state: dict[str, Any] = {"observed_sum": 0.0}
 
     monkeypatch.setattr(
-        inf.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
+        inference.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
     )
 
     def fake_poisson(name, mu, observed):
         del name, mu
         state["observed_sum"] = float(np.sum(observed))
 
-    monkeypatch.setattr(inf.pm, "Poisson", fake_poisson)
+    monkeypatch.setattr(inference.pm, "Poisson", fake_poisson)
 
     class _FakeTrace:
         def __init__(self, posterior):
@@ -119,16 +119,16 @@ def _setup_pm_rep_no_depends_on_observed_sum(monkeypatch):
         )
         return _FakeTrace(posterior=posterior)
 
-    monkeypatch.setattr(inf.pm, "sample", fake_sample)
+    monkeypatch.setattr(inference.pm, "sample", fake_sample)
 
 
 def _setup_pm_with_time_varying_rep_no(monkeypatch):
     state: dict[str, Any] = {}
 
     monkeypatch.setattr(
-        inf.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
+        inference.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
     )
-    monkeypatch.setattr(inf.pm, "Poisson", lambda name, mu, observed: None)
+    monkeypatch.setattr(inference.pm, "Poisson", lambda name, mu, observed: None)
 
     class _FakeTrace:
         def __init__(self, posterior):
@@ -148,18 +148,22 @@ def _setup_pm_with_time_varying_rep_no(monkeypatch):
     def fake_sample(**kwargs):
         del kwargs
         t_stop = len(state["coords"]["time"])
-        n_draw = 3
+        n_draws = 3
         # rep_no[chain, draw, t] = t + 0.1 * draw, so it varies over both time and draw
-        time_idx = np.arange(t_stop, dtype=float)
-        draw_offset = np.arange(n_draw, dtype=float)[:, None] * 0.1
-        values = (time_idx[None, :] + draw_offset)[None, :, :]
+        t_idx_vec = np.arange(t_stop, dtype=float)
+        draw_offset_col = np.arange(n_draws, dtype=float)[:, None] * 0.1
+        rep_no_samples = (t_idx_vec[None, :] + draw_offset_col)[None, :, :]
         posterior = xr.Dataset(
-            {"rep_no": (("chain", "draw", "time"), values)},
-            coords={"chain": [0], "draw": np.arange(n_draw), "time": np.arange(t_stop)},
+            {"rep_no": (("chain", "draw", "time"), rep_no_samples)},
+            coords={
+                "chain": [0],
+                "draw": np.arange(n_draws),
+                "time": np.arange(t_stop),
+            },
         )
         return _FakeTrace(posterior=posterior)
 
-    monkeypatch.setattr(inf.pm, "sample", fake_sample)
+    monkeypatch.setattr(inference.pm, "sample", fake_sample)
     return state
 
 
@@ -193,8 +197,8 @@ def test_defaults_dataclass_is_frozen():
 
 def test_fit_model_raises_when_local_incidence_positive_with_zero_foi():
     with pytest.raises(ValueError, match="force of infection is 0"):
-        inf._fit_model(
-            incidence_vec=np.array([0, 1]),
+        inference._fit_model(
+            incidence=np.array([0, 1]),
             serial_interval_dist_vec=np.array([0.0]),
             rep_no_vec_func=lambda t_stop: np.ones(t_stop),
             quasi_real_time=False,
@@ -205,8 +209,8 @@ def test_fit_model_sets_random_seed_uses_step_func_and_thins(monkeypatch):
     state, poisson_calls = _setup_minimal_pm_for_fit_model(monkeypatch)
 
     rng = np.random.default_rng(0)
-    out = inf._fit_model(
-        incidence_vec=np.array([1, 0, 0]),
+    out = inference._fit_model(
+        incidence=np.array([1, 0, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=False,
@@ -233,8 +237,8 @@ def test_fit_model_quasi_real_time_concatenates_one_time_slice_per_day(monkeypat
     _setup_minimal_pm_for_fit_model(monkeypatch)
     monkeypatch.setattr(qrt, "tqdm", lambda iterable, **kwargs: iterable)
 
-    out = inf._fit_model(
-        incidence_vec=np.array([1, 0, 0, 0]),
+    out = inference._fit_model(
+        incidence=np.array([1, 0, 0, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=True,
@@ -253,8 +257,8 @@ def test_fit_model_quasi_real_time_concatenates_one_time_slice_per_day(monkeypat
 
 def test_fit_model_quasi_real_time_raises_for_single_time_point():
     with pytest.raises(ValueError, match="at least 2 time points"):
-        inf._fit_model(
-            incidence_vec=np.array([1]),
+        inference._fit_model(
+            incidence=np.array([1]),
             serial_interval_dist_vec=np.array([1.0]),
             rep_no_vec_func=lambda t_stop: np.ones(t_stop),
             quasi_real_time=True,
@@ -269,15 +273,15 @@ def test_fit_model_quasi_real_time_excludes_current_day_incidence(monkeypatch):
     incidence_changed = np.array([1, 1, 0, 2, 0, 0])  # changed at day 3 only
     serial_interval_dist_vec = np.array([0.6, 0.4])
 
-    out_base = inf._fit_model(
-        incidence_vec=incidence_base,
+    out_base = inference._fit_model(
+        incidence=incidence_base,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=True,
         parallel=False,
     )
-    out_changed = inf._fit_model(
-        incidence_vec=incidence_changed,
+    out_changed = inference._fit_model(
+        incidence=incidence_changed,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=True,
@@ -297,12 +301,12 @@ def test_fit_model_quasi_real_time_excludes_current_day_incidence(monkeypatch):
 def test_is_incidence_sequence_distinguishes_single_series_from_sequence():
     # A single series (1-D array or a flat list of counts) is not a sequence-of-series; a
     # list/tuple of array-likes (or a 2-D array) is.
-    assert not inf._is_incidence_sequence([1, 2, 3])
-    assert not inf._is_incidence_sequence(np.array([1, 2, 3]))
-    assert not inf._is_incidence_sequence([])
-    assert inf._is_incidence_sequence([np.array([1, 2]), np.array([1, 2, 3])])
-    assert inf._is_incidence_sequence([[1, 2], [1, 2, 3]])
-    assert inf._is_incidence_sequence(np.zeros((2, 3)))
+    assert not inference._is_incidence_sequence([1, 2, 3])
+    assert not inference._is_incidence_sequence(np.array([1, 2, 3]))
+    assert not inference._is_incidence_sequence([])
+    assert inference._is_incidence_sequence([np.array([1, 2]), np.array([1, 2, 3])])
+    assert inference._is_incidence_sequence([[1, 2], [1, 2, 3]])
+    assert inference._is_incidence_sequence(np.zeros((2, 3)))
 
 
 def test_fit_model_quasi_real_time_treats_plain_list_as_single_series(monkeypatch):
@@ -311,8 +315,8 @@ def test_fit_model_quasi_real_time_treats_plain_list_as_single_series(monkeypatc
     _setup_minimal_pm_for_fit_model(monkeypatch)
     monkeypatch.setattr(qrt, "tqdm", lambda iterable, **kwargs: iterable)
 
-    out = inf._fit_model(
-        incidence_vec=[1, 0, 0, 0],
+    out = inference._fit_model(
+        incidence=[1, 0, 0, 0],
         serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=True,
@@ -328,8 +332,8 @@ def test_fit_model_quasi_real_time_treats_plain_list_as_single_series(monkeypatc
 
 def test_fit_model_rejects_sequence_of_series_without_quasi_real_time():
     with pytest.raises(ValueError, match="requires quasi_real_time"):
-        inf._fit_model(
-            incidence_vec=[np.array([1, 0]), np.array([1, 0, 0])],
+        inference._fit_model(
+            incidence=[np.array([1, 0]), np.array([1, 0, 0])],
             serial_interval_dist_vec=np.array([1.0]),
             rep_no_vec_func=lambda t_stop: np.ones(t_stop),
             quasi_real_time=False,
@@ -339,8 +343,8 @@ def test_fit_model_rejects_sequence_of_series_without_quasi_real_time():
 def test_fit_model_reports_one_day_past_the_data(monkeypatch):
     _setup_minimal_pm_for_fit_model(monkeypatch)
 
-    out = inf._fit_model(
-        incidence_vec=np.array([1, 0, 0, 0]),
+    out = inference._fit_model(
+        incidence=np.array([1, 0, 0, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=False,
@@ -359,8 +363,8 @@ def test_fit_model_reports_one_day_past_the_data(monkeypatch):
 def test_fit_model_freeze_from_final_case_freezes_tail(monkeypatch):
     _setup_pm_with_time_varying_rep_no(monkeypatch)
 
-    out = inf._fit_model(
-        incidence_vec=np.array([1, 1, 0, 0, 0]),
+    out = inference._fit_model(
+        incidence=np.array([1, 1, 0, 0, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=False,
@@ -368,16 +372,16 @@ def test_fit_model_freeze_from_final_case_freezes_tail(monkeypatch):
     )
 
     # Final case is at time index 1; R_t after it is frozen at the time=1 samples.
-    final_case_samples = out["rep_no"].isel(time=1).to_numpy()
+    final_case_sample_mat = out["rep_no"].isel(time=1).to_numpy()
     for t in (2, 3, 4):
         np.testing.assert_array_equal(
-            out["rep_no"].isel(time=t).to_numpy(), final_case_samples
+            out["rep_no"].isel(time=t).to_numpy(), final_case_sample_mat
         )
     # Times up to and including the final case remain time-varying (unchanged).
     np.testing.assert_allclose(
         out["rep_no"].isel(time=0).to_numpy().ravel(), np.array([0.0, 0.1, 0.2])
     )
-    np.testing.assert_allclose(final_case_samples.ravel(), np.array([1.0, 1.1, 1.2]))
+    np.testing.assert_allclose(final_case_sample_mat.ravel(), np.array([1.0, 1.1, 1.2]))
     # The summary mean reflects the frozen tail.
     assert float(out["rep_no_mean"].sel(time=4).item()) == float(
         out["rep_no_mean"].sel(time=1).item()
@@ -387,8 +391,8 @@ def test_fit_model_freeze_from_final_case_freezes_tail(monkeypatch):
 def test_fit_model_freeze_from_final_case_default_off(monkeypatch):
     _setup_pm_with_time_varying_rep_no(monkeypatch)
 
-    out = inf._fit_model(
-        incidence_vec=np.array([1, 1, 0, 0, 0]),
+    out = inference._fit_model(
+        incidence=np.array([1, 1, 0, 0, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         rep_no_vec_func=lambda t_stop: np.ones(t_stop),
         quasi_real_time=False,
@@ -402,8 +406,8 @@ def test_fit_model_freeze_from_final_case_default_off(monkeypatch):
 
 def test_fit_model_freeze_raises_with_quasi_real_time():
     with pytest.raises(NotImplementedError, match="freeze_from_final_case"):
-        inf._fit_model(
-            incidence_vec=np.array([1, 0]),
+        inference._fit_model(
+            incidence=np.array([1, 0]),
             serial_interval_dist_vec=np.array([1.0]),
             rep_no_vec_func=lambda t_stop: np.ones(t_stop),
             quasi_real_time=True,
@@ -417,16 +421,16 @@ def test_fit_autoregressive_model_forwards_freeze_from_final_case(monkeypatch):
         "lognormal_params_from_median_percentile_2_5",
         lambda *, median, percentile_2_5: {"mu": 0.0, "sigma": 1.0},
     )
-    monkeypatch.setattr(inf, "_fit_model", lambda **kwargs: kwargs)
+    monkeypatch.setattr(inference, "_fit_model", lambda **kwargs: kwargs)
 
-    out_default = inf.fit_autoregressive_model(
-        incidence_vec=np.array([1, 0]),
+    out_default = inference.fit_autoregressive_model(
+        incidence=np.array([1, 0]),
         serial_interval_dist_vec=np.array([1.0]),
     )
     assert out_default["freeze_from_final_case"] is False
 
-    out_set = inf.fit_autoregressive_model(
-        incidence_vec=np.array([1, 0]),
+    out_set = inference.fit_autoregressive_model(
+        incidence=np.array([1, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         freeze_from_final_case=True,
     )
@@ -448,10 +452,10 @@ def test_fit_autoregressive_model_uses_defaults(monkeypatch):
     monkeypatch.setattr(
         rnm, "lognormal_params_from_median_percentile_2_5", fake_lognormal
     )
-    monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
+    monkeypatch.setattr(inference, "_fit_model", fake_fit_model)
 
-    out = inf.fit_autoregressive_model(
-        incidence_vec=np.array([1, 0]),
+    out = inference.fit_autoregressive_model(
+        incidence=np.array([1, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         quasi_real_time=True,
     )
@@ -473,10 +477,10 @@ def test_fit_autoregressive_model_respects_overrides(monkeypatch):
     monkeypatch.setattr(
         rnm, "lognormal_params_from_median_percentile_2_5", fake_lognormal
     )
-    monkeypatch.setattr(inf, "_fit_model", lambda **kwargs: kwargs)
+    monkeypatch.setattr(inference, "_fit_model", lambda **kwargs: kwargs)
 
-    out = inf.fit_autoregressive_model(
-        incidence_vec=np.array([1, 0]),
+    out = inference.fit_autoregressive_model(
+        incidence=np.array([1, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         prior_median=2.5,
         prior_percentile_2_5=0.7,
@@ -496,10 +500,10 @@ def test_fit_autoregressive_model_respects_zero_rho(monkeypatch):
         return stationary_std
 
     monkeypatch.setattr(rnm, "_ar_innovation_std", fake_ar_innovation_std)
-    monkeypatch.setattr(inf, "_fit_model", lambda **kwargs: kwargs)
+    monkeypatch.setattr(inference, "_fit_model", lambda **kwargs: kwargs)
 
-    inf.fit_autoregressive_model(
-        incidence_vec=np.array([1, 0]),
+    inference.fit_autoregressive_model(
+        incidence=np.array([1, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         rho=0,
     )
@@ -517,15 +521,15 @@ def test_fit_suitability_model_uses_defaults(monkeypatch):
 
     def fake_fit_model(**kwargs):
         captured["fit_model_kwargs"] = kwargs
-        return _fake_suitability_posterior(len(kwargs["incidence_vec"]))
+        return _fake_suitability_posterior(len(kwargs["incidence"]))
 
     monkeypatch.setattr(
         rnm, "lognormal_params_from_median_percentile_2_5", fake_lognormal
     )
-    monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
+    monkeypatch.setattr(inference, "_fit_model", fake_fit_model)
 
-    out = inf.fit_suitability_model(
-        incidence_vec=np.array([1, 0]),
+    out = inference.fit_suitability_model(
+        incidence=np.array([1, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         suitability_mean_vec=np.array([0.2, 0.3]),
         quasi_real_time=True,
@@ -551,12 +555,12 @@ def test_fit_suitability_model_respects_overrides(monkeypatch):
 
     def fake_fit_model(**kwargs):
         captured["fit_model_kwargs"] = kwargs
-        return _fake_suitability_posterior(len(kwargs["incidence_vec"]))
+        return _fake_suitability_posterior(len(kwargs["incidence"]))
 
-    monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
+    monkeypatch.setattr(inference, "_fit_model", fake_fit_model)
 
-    inf.fit_suitability_model(
-        incidence_vec=np.array([1, 0]),
+    inference.fit_suitability_model(
+        incidence=np.array([1, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         suitability_mean_vec=np.array([0.2, 0.3]),
         suitability_std=0.2,
@@ -601,10 +605,10 @@ def test_fit_suitability_model_respects_zero_process_parameters(monkeypatch):
         kwargs["rep_no_vec_func"](2)
         return _fake_suitability_posterior(2)
 
-    monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
+    monkeypatch.setattr(inference, "_fit_model", fake_fit_model)
 
-    inf.fit_suitability_model(
-        incidence_vec=np.array([1, 0]),
+    inference.fit_suitability_model(
+        incidence=np.array([1, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         suitability_mean_vec=np.array([0.2, 0.3]),
         suitability_std=0,
@@ -649,20 +653,20 @@ def test_fit_suitability_model_rep_no_func_uses_softclip(monkeypatch):
     def fake_fit_model(**kwargs):
         rep_no_vec = kwargs["rep_no_vec_func"](4)
         captured["rep_no_vec"] = rep_no_vec
-        return _fake_suitability_posterior(len(kwargs["incidence_vec"]))
+        return _fake_suitability_posterior(len(kwargs["incidence"]))
 
-    monkeypatch.setattr(inf, "_fit_model", fake_fit_model)
+    monkeypatch.setattr(inference, "_fit_model", fake_fit_model)
 
-    out = inf.fit_suitability_model(
-        incidence_vec=np.array([1, 0, 0, 0]),
+    out = inference.fit_suitability_model(
+        incidence=np.array([1, 0, 0, 0]),
         serial_interval_dist_vec=np.array([1.0]),
         suitability_mean_vec=np.array([0.1, 0.2, 0.3, 0.4]),
     )
 
     assert isinstance(out, xr.Dataset)
     assert len(softclip_calls) == 1
-    softclip_arr, lower, upper = softclip_calls[0]
-    np.testing.assert_allclose(softclip_arr, np.array([0.1, 0.2, 0.3, 0.4]))
+    softclip_vec, lower, upper = softclip_calls[0]
+    np.testing.assert_allclose(softclip_vec, np.array([0.1, 0.2, 0.3, 0.4]))
     assert lower == 1e-8
     assert upper == 1.0
     assert captured["rep_no_vec"].shape == (4,)
@@ -684,14 +688,14 @@ def _sample_stats(diverging):
 
 def _patch_stats(monkeypatch, *, rhat_values, ess_values):
     monkeypatch.setattr(
-        inf,
+        inference,
         "rhat",
         lambda posterior, var_names: xr.Dataset(
             {var_names: ("time", np.asarray(rhat_values, dtype=float))}
         ),
     )
     monkeypatch.setattr(
-        inf,
+        inference,
         "ess",
         lambda posterior, var_names: xr.Dataset(
             {var_names: ("time", np.asarray(ess_values, dtype=float))}
@@ -699,14 +703,16 @@ def _patch_stats(monkeypatch, *, rhat_values, ess_values):
     )
 
 
-def test_compute_check_diagnostics_good_returns_dict_no_warning(monkeypatch):
+def test_compute_and_check_diagnostics_good_returns_dict_no_warning(monkeypatch):
     _patch_stats(monkeypatch, rhat_values=[1.001, 1.002], ess_values=[2000.0, 3000.0])
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        diagnostics = inf._compute_check_diagnostics(
+        diagnostics = inference._compute_and_check_diagnostics(
             _diag_posterior(), _sample_stats([[False, False], [False, False]])
         )
-    assert not [w for w in caught if "Poor sampling" in str(w.message)]
+    assert not [
+        warning for warning in caught if "Poor sampling" in str(warning.message)
+    ]
     assert set(diagnostics) == {
         "rhat_mean",
         "rhat_median",
@@ -721,37 +727,39 @@ def test_compute_check_diagnostics_good_returns_dict_no_warning(monkeypatch):
     assert diagnostics["n_diverging"] == 0.0
 
 
-def test_compute_check_diagnostics_warns_when_not_raising(monkeypatch):
+def test_compute_and_check_diagnostics_warns_when_not_raising(monkeypatch):
     _patch_stats(monkeypatch, rhat_values=[1.0, 1.0], ess_values=[500.0, 600.0])
     with pytest.warns(UserWarning, match="min ESS 500.0 < 1000"):
-        diagnostics = inf._compute_check_diagnostics(
+        diagnostics = inference._compute_and_check_diagnostics(
             _diag_posterior(), _sample_stats([[False, False], [False, False]])
         )
     assert diagnostics["ess_min"] == 500.0
 
 
-def test_compute_check_diagnostics_raises_when_requested(monkeypatch):
+def test_compute_and_check_diagnostics_raises_when_requested(monkeypatch):
     _patch_stats(monkeypatch, rhat_values=[1.02, 1.005], ess_values=[500.0, 2000.0])
     with pytest.raises(RuntimeError, match="min ESS .* max R-hat"):
-        inf._compute_check_diagnostics(
+        inference._compute_and_check_diagnostics(
             _diag_posterior(),
             _sample_stats([[True, False], [False, False]]),
             raise_on_problems=True,
         )
 
 
-def test_compute_check_diagnostics_reports_divergences(monkeypatch):
+def test_compute_and_check_diagnostics_reports_divergences(monkeypatch):
     _patch_stats(monkeypatch, rhat_values=[1.0, 1.0], ess_values=[2000.0, 3000.0])
     with pytest.warns(UserWarning, match="1 divergence"):
-        inf._compute_check_diagnostics(
+        inference._compute_and_check_diagnostics(
             _diag_posterior(), _sample_stats([[True, False], [False, False]])
         )
 
 
-def test_compute_check_diagnostics_divergences_na_when_no_sample_stats(monkeypatch):
+def test_compute_and_check_diagnostics_divergences_na_when_no_sample_stats(monkeypatch):
     _patch_stats(monkeypatch, rhat_values=[1.0, 1.0], ess_values=[2000.0, 3000.0])
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        diagnostics = inf._compute_check_diagnostics(_diag_posterior(), None)
-    assert not [w for w in caught if "Poor sampling" in str(w.message)]
+        diagnostics = inference._compute_and_check_diagnostics(_diag_posterior(), None)
+    assert not [
+        warning for warning in caught if "Poor sampling" in str(warning.message)
+    ]
     assert np.isnan(diagnostics["n_diverging"])

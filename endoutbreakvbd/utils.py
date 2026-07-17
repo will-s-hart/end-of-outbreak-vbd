@@ -16,7 +16,7 @@ from endoutbreakvbd._types import FloatArray, IntArray
 
 @overload
 def rep_no_from_grid(
-    t_vec: int,
+    t: int,
     *,
     rep_no_grid: FloatArray,
     periodic: bool,
@@ -26,7 +26,7 @@ def rep_no_from_grid(
 
 @overload
 def rep_no_from_grid(
-    t_vec: IntArray,
+    t: IntArray,
     *,
     rep_no_grid: FloatArray,
     periodic: bool,
@@ -35,7 +35,7 @@ def rep_no_from_grid(
 
 
 def rep_no_from_grid(
-    t_vec: int | IntArray,
+    t: int | IntArray,
     *,
     rep_no_grid: FloatArray,
     periodic: bool,
@@ -46,8 +46,8 @@ def rep_no_from_grid(
 
     Parameters
     ----------
-    t_vec : int or IntArray
-        Vector of times (days) for which to interpolate the reproduction number.
+    t : int or IntArray
+        Time(s) for which to interpolate the reproduction number.
     rep_no_grid : FloatArray
         Grid of reproduction numbers to interpolate from.
     periodic : bool
@@ -55,7 +55,7 @@ def rep_no_from_grid(
         year. If True, the grid should have length 365, with the first element
         corresponding to day 1 of the year (January 1st).
     doy_start : int, optional
-        Day of year (1-indexed) on which the outbreak starts (so that t_vec=0
+        Day of year (1-indexed) on which the outbreak starts (so that t=0
         corresponds to this day of year). Should be provided if and only if periodic is
         True.
 
@@ -71,28 +71,28 @@ def rep_no_from_grid(
             raise ValueError(
                 "For periodic interpolation, rep_no_grid must have length 365"
             )
-        t_vec_grid_idx = (t_vec + (doy_start - 1)) % 365
+        t_grid_idx = (t + (doy_start - 1)) % 365
     else:
         if doy_start is not None:
             raise ValueError("doy_start should not be provided when periodic is False")
-        if np.any(t_vec < 0) or np.any(t_vec >= len(rep_no_grid)):
-            raise ValueError("t_vec contains indices outside the range of rep_no_grid")
-        t_vec_grid_idx = t_vec
-    rep_no = rep_no_grid[t_vec_grid_idx, ...]
+        if np.any(t < 0) or np.any(t >= len(rep_no_grid)):
+            raise ValueError("t contains indices outside the range of rep_no_grid")
+        t_grid_idx = t
+    rep_no = rep_no_grid[t_grid_idx, ...]
     if rep_no.size == 1:
         return float(rep_no.item())
     return rep_no
 
 
 def rescale_rep_no_grid_in_time(
-    rep_no_grid: FloatArray, season_centre_doy: int, decay_speed: float
+    rep_no_grid: FloatArray, doy_season_centre: int, decay_speed: float
 ) -> FloatArray:
     """
     Rescale a periodic (year-long) reproduction number grid in time about the centre
     of the transmission season.
 
-    The profile is stretched or compressed in time about ``season_centre_doy`` as
-    ``R(d) = R_default(season_centre_doy + decay_speed * (d - season_centre_doy))``.
+    The profile is stretched or compressed in time about ``doy_season_centre`` as
+    ``R(d) = R_default(doy_season_centre + decay_speed * (d - doy_season_centre))``.
     More than half a year from the centre falls outside the transmission season, where
     R is held at its grid minimum (winter floor) so that a compressed season does not
     wrap around into a spurious repeated summer.
@@ -102,7 +102,7 @@ def rescale_rep_no_grid_in_time(
     rep_no_grid : FloatArray
         Periodic grid of reproduction numbers over a year. Must have length 365, with
         the first element corresponding to day 1 of the year (January 1st).
-    season_centre_doy : int
+    doy_season_centre : int
         Day of year (1-indexed) about which the seasonal profile is rescaled.
     decay_speed : float
         Factor controlling the speed of the seasonal decline. ``decay_speed > 1``
@@ -116,14 +116,14 @@ def rescale_rep_no_grid_in_time(
     """
     if len(rep_no_grid) != 365:
         raise ValueError("rep_no_grid must have length 365")
-    centre_idx = season_centre_doy - 1  # grid is 0-indexed: doy d is at index d - 1
+    centre_idx = doy_season_centre - 1  # grid is 0-indexed: doy d is at index d - 1
     half_year = 365 / 2
-    day_idxs = np.arange(365)
-    days_from_centre = ((day_idxs - centre_idx + half_year) % 365) - half_year
-    sampled_idxs = centre_idx + decay_speed * days_from_centre
-    rescaled_grid = np.interp(sampled_idxs, day_idxs, rep_no_grid, period=365)
-    in_season = np.abs(sampled_idxs - centre_idx) <= half_year
-    return np.where(in_season, rescaled_grid, rep_no_grid.min())
+    day_idx_vec = np.arange(365)
+    days_from_centre_vec = ((day_idx_vec - centre_idx + half_year) % 365) - half_year
+    sampled_idx_vec = centre_idx + decay_speed * days_from_centre_vec
+    rescaled_grid = np.interp(sampled_idx_vec, day_idx_vec, rep_no_grid, period=365)
+    in_season_mask = np.abs(sampled_idx_vec - centre_idx) <= half_year
+    return np.where(in_season_mask, rescaled_grid, rep_no_grid.min())
 
 
 def discretise_cori(
@@ -316,15 +316,15 @@ def month_start_xticks(ax: Axes, year: int = 2017, interval_months: int = 1) -> 
     month_starts = pd.date_range(
         start=f"{year}-01-01", end=f"{year + 1}-01-01", freq="MS"
     )
-    month_starts_doy = month_starts.dayofyear.to_numpy(copy=True)
-    month_starts_doy[-1] = 366
-    xlim = ax.get_xlim()
-    month_start_in_range = (month_starts_doy >= xlim[0]) & (
-        month_starts_doy <= xlim[-1]
+    doy_month_start_vec = month_starts.dayofyear.to_numpy(copy=True)
+    doy_month_start_vec[-1] = 366
+    x_limits = ax.get_xlim()
+    month_start_in_range = (doy_month_start_vec >= x_limits[0]) & (
+        doy_month_start_vec <= x_limits[-1]
     )
     month_starts = month_starts[month_start_in_range]
-    month_starts_doy = month_starts_doy[month_start_in_range]
-    ax.set_xticks(month_starts_doy)
+    doy_month_start_vec = doy_month_start_vec[month_start_in_range]
+    ax.set_xticks(doy_month_start_vec)
     labels = [
         f"{d.day} {d:%b}" if (i % interval_months == 0) else ""
         for i, d in enumerate(month_starts)
@@ -357,16 +357,16 @@ def dates_to_day_index(
     return (pd.DatetimeIndex(dates) - pd.Timestamp(f"{year}-01-01")).days.to_numpy() + 1
 
 
-def plot_data_on_twin_ax(
+def plot_incidence_on_twin_ax(
     ax: Axes,
     t_vec: ArrayLike,
-    bar_heights: ArrayLike,
+    incidence: ArrayLike,
     *,
-    bar_labels: list[str | None] | None = None,
+    incidence_labels: list[str | None] | None = None,
     alpha: float = 0.5,
-    fitted: tuple[ArrayLike, ArrayLike, ArrayLike] | None = None,
-    fitted_color: str | None = None,
-    fitted_label: str | None = None,
+    fitted_incidence: tuple[ArrayLike, ArrayLike, ArrayLike] | None = None,
+    fitted_incidence_color: str | None = None,
+    fitted_incidence_label: str | None = None,
 ) -> Axes:
     """
     Plot an incidence time series as a bar chart on a twin y-axis.
@@ -380,61 +380,84 @@ def plot_data_on_twin_ax(
         Primary axes to attach the twin axis to.
     t_vec : ArrayLike
         Times (days) for the incidence bars.
-    bar_heights : ArrayLike
+    incidence : ArrayLike
         Number of cases at each time. A single 1-D series draws one bar; a list of series
         draws them stacked (ordered least- to most-hidden), coloured by an internal palette
         (grey base, then orange/purple). NaN marks an unobserved time and draws no bar.
-    bar_labels : list[str | None], optional
+    incidence_labels : list[str | None], optional
         Legend labels for the stacked bars (one per series; ``None`` to omit a label). If
         omitted, the bars are unlabelled.
     alpha : float
         Bar transparency.
-    fitted : tuple[ArrayLike, ArrayLike, ArrayLike], optional
+    fitted_incidence : tuple[ArrayLike, ArrayLike, ArrayLike], optional
         ``(mean, lower, upper)`` of a fitted-case series to overlay: the credible band is
         drawn behind the bars and the mean line in front.
-    fitted_color : str, optional
-        Colour of the ``fitted`` band and mean line.
-    fitted_label : str, optional
-        Legend label for the ``fitted`` mean line.
+    fitted_incidence_color : str, optional
+        Colour of the ``fitted_incidence`` band and mean line.
+    fitted_incidence_label : str, optional
+        Legend label for the ``fitted_incidence`` mean line.
 
     Returns
     -------
     Axes
         The created twin axis.
     """
-    layers = _as_bar_layers(bar_heights)
+    incidence_layers = _as_incidence_layers(incidence)
     # The day axis may run one projected day past the incidence bars (a fit reports the
     # current-day risk one day beyond its data); pad the bars with a trailing zero so a longer
     # `t_vec` still aligns (no bar is drawn for the projected day).
-    n_t = len(np.asarray(t_vec))
-    layers = [
-        np.append(layer, np.zeros(n_t - len(layer))) if len(layer) < n_t else layer
-        for layer in layers
+    n_times = len(np.asarray(t_vec))
+    incidence_layers = [
+        np.append(layer, np.zeros(n_times - len(layer)))
+        if len(layer) < n_times
+        else layer
+        for layer in incidence_layers
     ]
-    colors = _stacked_bar_colors(len(layers))
-    labels = bar_labels if bar_labels is not None else [None] * len(layers)
+    colors = _stacked_bar_colors(len(incidence_layers))
+    labels = (
+        incidence_labels
+        if incidence_labels is not None
+        else [None] * len(incidence_layers)
+    )
 
     twin_ax = ax.twinx()
-    if fitted is not None:
-        fitted_mean, fitted_lower, fitted_upper = (
-            np.asarray(a, dtype=float) for a in fitted
+    if fitted_incidence is not None:
+        fitted_mean_vec, fitted_lower_vec, fitted_upper_vec = (
+            np.asarray(a, dtype=float) for a in fitted_incidence
         )
         twin_ax.fill_between(
-            t_vec, fitted_lower, fitted_upper, color=fitted_color, alpha=0.25, zorder=1
+            t_vec,
+            fitted_lower_vec,
+            fitted_upper_vec,
+            color=fitted_incidence_color,
+            alpha=0.25,
+            zorder=1,
         )
-    total = np.zeros(len(layers[0]), dtype=float)
-    for layer, color, label in zip(layers, colors, labels, strict=True):
+    incidence_total_vec = np.zeros(len(incidence_layers[0]), dtype=float)
+    for layer, color, label in zip(incidence_layers, colors, labels, strict=True):
         twin_ax.bar(
-            t_vec, layer, bottom=total, color=color, alpha=alpha, label=label, zorder=2
+            t_vec,
+            layer,
+            bottom=incidence_total_vec,
+            color=color,
+            alpha=alpha,
+            label=label,
+            zorder=2,
         )
         # Preserve NaN as a missing bar while excluding it from stacked totals and axis scaling.
-        total = total + np.where(np.isnan(layer), 0.0, layer)
-    if fitted is not None:
-        twin_ax.plot(
-            t_vec, fitted_mean, color=fitted_color, label=fitted_label, zorder=3
+        incidence_total_vec = incidence_total_vec + np.where(
+            np.isnan(layer), 0.0, layer
         )
-        total = np.fmax(total, fitted_upper)
-    twin_ax.set_ylim(0, np.max(total))
+    if fitted_incidence is not None:
+        twin_ax.plot(
+            t_vec,
+            fitted_mean_vec,
+            color=fitted_incidence_color,
+            label=fitted_incidence_label,
+            zorder=3,
+        )
+        incidence_total_vec = np.fmax(incidence_total_vec, fitted_upper_vec)
+    twin_ax.set_ylim(0, np.max(incidence_total_vec))
     twin_ax.set_ylabel("Number of cases")
     twin_ax.yaxis.label.set_color("tab:gray")
     twin_ax.tick_params(axis="y", colors="tab:gray")
@@ -502,14 +525,14 @@ def _stacked_bar_colors(n_layers: int) -> list[str]:
     ]
 
 
-def _as_bar_layers(bar_heights: Any) -> list[NDArray[np.float64]]:
+def _as_incidence_layers(incidence: Any) -> list[NDArray[np.float64]]:
     # A single series (1-D array or flat list of scalars) is one layer; a list/tuple whose
     # elements are themselves array-like is several stacked layers. Typed ``Any`` as a private
-    # runtime dispatcher; the public ``plot_data_on_twin_ax`` carries the ``ArrayLike`` type.
+    # runtime dispatcher; the public ``plot_incidence_on_twin_ax`` carries the ``ArrayLike`` type.
     if (
-        isinstance(bar_heights, (list, tuple))
-        and len(bar_heights) > 0
-        and all(np.ndim(layer) >= 1 for layer in bar_heights)
+        isinstance(incidence, (list, tuple))
+        and len(incidence) > 0
+        and all(np.ndim(layer) >= 1 for layer in incidence)
     ):
-        return [np.asarray(layer, dtype=float) for layer in bar_heights]
-    return [np.asarray(bar_heights, dtype=float)]
+        return [np.asarray(layer, dtype=float) for layer in incidence]
+    return [np.asarray(incidence, dtype=float)]

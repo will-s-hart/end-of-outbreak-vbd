@@ -44,11 +44,11 @@ def run_analyses():
     # The fits report every day plus one projected day past the data (the current-day risk), so
     # the output spans 0..len(reported_vec). The simulated truth is known to be zero there, while
     # reported and inferred incidence are unobserved and reindex to NaN.
-    t_calc = np.arange(len(true_vec) + 1)
+    t_calc_vec = np.arange(len(true_vec) + 1)
 
     # Under-reporting model with the reproduction number inferred (autoregressive).
-    ds = fit_autoregressive_model(
-        incidence_vec=reported_vec,
+    posterior_ds = fit_autoregressive_model(
+        incidence=reported_vec,
         serial_interval_dist_vec=serial_interval_dist_vec,
         reporting_prob=reporting_prob,
         rng=rng,
@@ -56,8 +56,8 @@ def run_analyses():
         raise_on_poor_diagnostics=False,
     )
     # Under-reporting model with the reproduction number fixed to the truth.
-    ds_known_r = fit_known_rep_no_model(
-        incidence_vec=reported_vec,
+    known_r_posterior_ds = fit_known_rep_no_model(
+        incidence=reported_vec,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_func=_true_rep_no,
         reporting_prob=reporting_prob,
@@ -65,51 +65,61 @@ def run_analyses():
         compute_diagnostics=False,
     )
     # Naive analysis: reported cases treated as complete, reproduction number inferred.
-    ds_naive = fit_autoregressive_model(
-        incidence_vec=reported_vec,
+    naive_posterior_ds = fit_autoregressive_model(
+        incidence=reported_vec,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rng=rng,
         compute_diagnostics=False,
     )
-    true_prob = calc_additional_case_prob_analytical(
-        incidence_vec=true_vec,
+    true_prob_vec = calc_additional_case_prob_analytical(
+        incidence=true_vec,
         rep_no_func=_true_rep_no,
         serial_interval_dist_vec=serial_interval_dist_vec,
-        t_calc=t_calc,
+        t_calc=t_calc_vec,
     )
 
-    df_out = pd.DataFrame(
+    output_df = pd.DataFrame(
         {
-            "day_of_outbreak": t_calc,
-            "true": np.append(true_vec, 0),
-            "reported": np.append(reported_vec, np.nan),
+            "day_of_outbreak": t_calc_vec,
+            "true_incidence": np.append(true_vec, 0),
+            "reported_incidence": np.append(reported_vec, np.nan),
             **{
-                f"cases_{stat}": ds[f"cases_{stat}"].reindex(data_time=t_calc).values
+                f"incidence_{stat}": posterior_ds[f"incidence_{stat}"]
+                .reindex(data_time=t_calc_vec)
+                .values
                 for stat in ("mean", "lower", "upper")
             },
-            "rep_no_true": _true_rep_no(t_calc),
-            "rep_no_mean": ds["rep_no_mean"].values,
-            "rep_no_lower": ds["rep_no_lower"].values,
-            "rep_no_upper": ds["rep_no_upper"].values,
-            "rep_no_naive_mean": ds_naive["rep_no_mean"].values,
-            "additional_case_prob_true": true_prob,
-            "additional_case_prob_est_r": ds["additional_case_prob"].values,
-            "additional_case_prob_est_r_lower": ds["additional_case_prob_lower"].values,
-            "additional_case_prob_est_r_upper": ds["additional_case_prob_upper"].values,
-            "additional_case_prob_known_r": ds_known_r["additional_case_prob"].values,
-            "additional_case_prob_known_r_lower": ds_known_r[
+            "rep_no_true": _true_rep_no(t_calc_vec),
+            "rep_no_mean": posterior_ds["rep_no_mean"].values,
+            "rep_no_lower": posterior_ds["rep_no_lower"].values,
+            "rep_no_upper": posterior_ds["rep_no_upper"].values,
+            "rep_no_naive_mean": naive_posterior_ds["rep_no_mean"].values,
+            "additional_case_prob_true": true_prob_vec,
+            "additional_case_prob_est_r": posterior_ds["additional_case_prob"].values,
+            "additional_case_prob_est_r_lower": posterior_ds[
                 "additional_case_prob_lower"
             ].values,
-            "additional_case_prob_known_r_upper": ds_known_r[
+            "additional_case_prob_est_r_upper": posterior_ds[
                 "additional_case_prob_upper"
             ].values,
-            "additional_case_prob_naive": ds_naive["additional_case_prob"].values,
+            "additional_case_prob_known_r": known_r_posterior_ds[
+                "additional_case_prob"
+            ].values,
+            "additional_case_prob_known_r_lower": known_r_posterior_ds[
+                "additional_case_prob_lower"
+            ].values,
+            "additional_case_prob_known_r_upper": known_r_posterior_ds[
+                "additional_case_prob_upper"
+            ].values,
+            "additional_case_prob_naive": naive_posterior_ds[
+                "additional_case_prob"
+            ].values,
         }
     ).set_index("day_of_outbreak")
-    df_out.to_csv(inputs["results_paths"]["sim"])
-    pd.Series(ds.attrs["diagnostics"], name="value").rename_axis("stat").to_csv(
-        inputs["results_paths"]["diagnostics"]
-    )
+    output_df.to_csv(inputs["results_paths"]["sim"])
+    pd.Series(posterior_ds.attrs["diagnostics"], name="value").rename_axis(
+        "stat"
+    ).to_csv(inputs["results_paths"]["diagnostics"])
 
 
 def _true_rep_no(t):

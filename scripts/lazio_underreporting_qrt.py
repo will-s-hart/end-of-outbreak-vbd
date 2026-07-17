@@ -51,7 +51,7 @@ def run_analyses(
     ] + [("autoregressive", "autoregressive_p60", inputs["reporting_prob"])]
     for model, name, reporting_prob in sweeps:
         fit_kwargs: dict[str, Any] = {
-            "incidence_vec": inputs["incidence_vecs"],
+            "incidence": inputs["incidence_vec_list"],
             "serial_interval_dist_vec": serial_interval_dist_vec,
             "quasi_real_time": True,
             "reporting_prob": reporting_prob,
@@ -62,23 +62,23 @@ def run_analyses(
             "raise_on_poor_diagnostics": False,
         }
         if model == "suitability":
-            ds = fit_suitability_model(
+            posterior_ds = fit_suitability_model(
                 suitability_mean_vec=suitability_mean_vec, **fit_kwargs
             )
         else:
-            ds = fit_autoregressive_model(**fit_kwargs)
-        df_out = pd.DataFrame(
+            posterior_ds = fit_autoregressive_model(**fit_kwargs)
+        output_df = pd.DataFrame(
             {
-                "calc_time": inputs["calc_times"],
-                "date": inputs["decision_dates"],
-                "additional_case_prob": ds["additional_case_prob"].values,
-                "reproduction_number_mean": ds["rep_no_mean"].values,
+                "calc_time": inputs["t_calc_vec"],
+                "date": inputs["decision_date_vec"],
+                "additional_case_prob": posterior_ds["additional_case_prob"].values,
+                "reproduction_number_mean": posterior_ds["rep_no_mean"].values,
             }
         ).set_index("calc_time")
-        df_out.to_csv(inputs["results_paths"][name])
-        pd.Series(ds.attrs["diagnostics"], name="value").rename_axis("stat").to_csv(
-            inputs["results_paths"][f"{name}_diagnostics"]
-        )
+        output_df.to_csv(inputs["results_paths"][name])
+        pd.Series(posterior_ds.attrs["diagnostics"], name="value").rename_axis(
+            "stat"
+        ).to_csv(inputs["results_paths"][f"{name}_diagnostics"])
 
     _run_trajectory(inputs, rng)
     _write_delay(inputs)
@@ -87,8 +87,8 @@ def run_analyses(
 def _run_trajectory(inputs, rng):
     # Full-output suitability fit at the latest snapshot for the true-case / R_t panels.
     incidence_vec = inputs["latest_incidence_vec"]
-    ds = fit_suitability_model(
-        incidence_vec=incidence_vec,
+    posterior_ds = fit_suitability_model(
+        incidence=incidence_vec,
         serial_interval_dist_vec=inputs["serial_interval_dist_vec"],
         suitability_mean_vec=inputs["suitability_mean_vec"],
         reporting_prob=inputs["reporting_prob"],
@@ -96,37 +96,44 @@ def _run_trajectory(inputs, rng):
         rng=rng,
         compute_diagnostics=False,
     )
-    onset_day = ds["time"].values
-    date = inputs["outbreak_start_date"] + pd.to_timedelta(onset_day, unit="D")
+    onset_day = posterior_ds["time"].values
+    date_vec = inputs["outbreak_start_date"] + pd.to_timedelta(onset_day, unit="D")
     # The fit reports one projected day past the data (the current-day risk), so the trajectory is
     # one longer than the snapshot. Incidence on that projected day was not observed.
-    reported = np.append(incidence_vec, np.nan)
+    reported_incidence_vec = np.append(incidence_vec, np.nan)
     _posterior_trajectory_frame(
-        ds, onset_day=onset_day, date=date, reported=reported
+        posterior_ds,
+        onset_day=onset_day,
+        date_vec=date_vec,
+        reported_incidence_vec=reported_incidence_vec,
     ).to_csv(inputs["results_paths"]["trajectory"])
 
 
-def _posterior_trajectory_frame(ds, *, onset_day, date, reported):
+def _posterior_trajectory_frame(
+    posterior_ds, *, onset_day, date_vec, reported_incidence_vec
+):
     """Assemble the QRT suitability trajectory used by the case panel."""
     return pd.DataFrame(
         {
             "onset_day": onset_day,
-            "date": date,
-            "reported": reported,
+            "date": date_vec,
+            "reported_incidence": reported_incidence_vec,
             **{
-                f"cases_{stat}": ds[f"cases_{stat}"].reindex(data_time=onset_day).values
+                f"incidence_{stat}": posterior_ds[f"incidence_{stat}"]
+                .reindex(data_time=onset_day)
+                .values
                 for stat in ("mean", "lower", "upper")
             },
-            "reproduction_number_mean": ds["rep_no_mean"].values,
-            "reproduction_number_lower": ds["rep_no_lower"].values,
-            "reproduction_number_upper": ds["rep_no_upper"].values,
-            "suitability_mean": ds["suitability_mean"].values,
-            "suitability_lower": ds["suitability_lower"].values,
-            "suitability_upper": ds["suitability_upper"].values,
-            "rep_no_factor_mean": ds["rep_no_factor_mean"].values,
-            "rep_no_factor_lower": ds["rep_no_factor_lower"].values,
-            "rep_no_factor_upper": ds["rep_no_factor_upper"].values,
-            "additional_case_prob": ds["additional_case_prob"].values,
+            "reproduction_number_mean": posterior_ds["rep_no_mean"].values,
+            "reproduction_number_lower": posterior_ds["rep_no_lower"].values,
+            "reproduction_number_upper": posterior_ds["rep_no_upper"].values,
+            "suitability_mean": posterior_ds["suitability_mean"].values,
+            "suitability_lower": posterior_ds["suitability_lower"].values,
+            "suitability_upper": posterior_ds["suitability_upper"].values,
+            "rep_no_factor_mean": posterior_ds["rep_no_factor_mean"].values,
+            "rep_no_factor_lower": posterior_ds["rep_no_factor_lower"].values,
+            "rep_no_factor_upper": posterior_ds["rep_no_factor_upper"].values,
+            "additional_case_prob": posterior_ds["additional_case_prob"].values,
         }
     ).set_index("onset_day")
 

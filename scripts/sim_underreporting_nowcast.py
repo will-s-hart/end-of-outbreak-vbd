@@ -68,8 +68,8 @@ def run_analyses():
     # days 0..D) and the decision-day probability. The fit reports every day plus one projected day
     # (0..D+1), so the case trajectory (0..D) and the probability at the decision day D+1 both come
     # from a single fit.
-    ds_imperfect_est_r = fit_autoregressive_model(
-        incidence_vec=reported_snapshot,
+    imperfect_est_r_posterior_ds = fit_autoregressive_model(
+        incidence=reported_snapshot,
         serial_interval_dist_vec=serial_interval_dist_vec,
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
@@ -78,8 +78,8 @@ def run_analyses():
         raise_on_poor_diagnostics=False,
     )
     # Under-reporting offshoot with R fixed to the truth (isolates the reporting inference).
-    ds_imperfect_true_r = fit_known_rep_no_model(
-        incidence_vec=reported_snapshot,
+    imperfect_true_r_posterior_ds = fit_known_rep_no_model(
+        incidence=reported_snapshot,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_func=_true_rep_no,
         reporting_prob=reporting_prob,
@@ -88,8 +88,8 @@ def run_analyses():
         compute_diagnostics=False,
     )
     # Naive analysis with R inferred: reported-by-D treated as complete.
-    ds_naive_est_r = fit_autoregressive_model(
-        incidence_vec=reported_snapshot,
+    naive_est_r_posterior_ds = fit_autoregressive_model(
+        incidence=reported_snapshot,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rng=rng,
         compute_diagnostics=False,
@@ -98,56 +98,56 @@ def run_analyses():
     #   true         — full true outbreak + true R (the oracle);
     #   naive_true_r — reported-by-D treated as complete + true R (reporting/data error at true R).
     prob_true = calc_additional_case_prob_analytical(
-        incidence_vec=true_vec,
+        incidence=true_vec,
         rep_no_func=_true_rep_no,
         serial_interval_dist_vec=serial_interval_dist_vec,
         t_calc=t_calc,
     )
     prob_naive_true_r = calc_additional_case_prob_analytical(
-        incidence_vec=reported_snapshot,
+        incidence=reported_snapshot,
         rep_no_func=_true_rep_no,
         serial_interval_dist_vec=serial_interval_dist_vec,
         t_calc=t_calc,
     )
 
-    df_traj = pd.DataFrame(
+    trajectory_df = pd.DataFrame(
         {
             "onset_day": onset_day,
-            "true": true_vec[: snapshot_day + 1],
-            "reported": reported_snapshot,
+            "true_incidence": true_vec[: snapshot_day + 1],
+            "reported_incidence": reported_snapshot,
             "not_yet": not_yet[: snapshot_day + 1],
             "never": never[: snapshot_day + 1],
-            "cases_mean": ds_imperfect_est_r["cases_mean"]
+            "incidence_mean": imperfect_est_r_posterior_ds["incidence_mean"]
             .sel(data_time=onset_day)
             .values,
-            "cases_lower": ds_imperfect_est_r["cases_lower"]
+            "incidence_lower": imperfect_est_r_posterior_ds["incidence_lower"]
             .sel(data_time=onset_day)
             .values,
-            "cases_upper": ds_imperfect_est_r["cases_upper"]
+            "incidence_upper": imperfect_est_r_posterior_ds["incidence_upper"]
             .sel(data_time=onset_day)
             .values,
         }
     ).set_index("onset_day")
-    df_traj.to_csv(inputs["results_paths"]["trajectory"])
+    trajectory_df.to_csv(inputs["results_paths"]["trajectory"])
 
     prob_rows = {
         "true": (prob_true, np.nan, np.nan),
         "naive_true_r": (prob_naive_true_r, np.nan, np.nan),
-        "naive_est_r": _prob_at(ds_naive_est_r, t_calc),
-        "imperfect_true_r": _prob_at(ds_imperfect_true_r, t_calc),
-        "imperfect_est_r": _prob_at(ds_imperfect_est_r, t_calc),
+        "naive_est_r": _prob_at(naive_est_r_posterior_ds, t_calc),
+        "imperfect_true_r": _prob_at(imperfect_true_r_posterior_ds, t_calc),
+        "imperfect_est_r": _prob_at(imperfect_est_r_posterior_ds, t_calc),
     }
-    df_probs = pd.DataFrame(
+    probs_df = pd.DataFrame(
         [
             {"method": method, "prob": prob, "prob_lower": lower, "prob_upper": upper}
             for method, (prob, lower, upper) in prob_rows.items()
         ]
     ).set_index("method")
-    df_probs.to_csv(inputs["results_paths"]["probs"])
+    probs_df.to_csv(inputs["results_paths"]["probs"])
 
-    pd.Series(ds_imperfect_est_r.attrs["diagnostics"], name="value").rename_axis(
-        "stat"
-    ).to_csv(inputs["results_paths"]["diagnostics"])
+    pd.Series(
+        imperfect_est_r_posterior_ds.attrs["diagnostics"], name="value"
+    ).rename_axis("stat").to_csv(inputs["results_paths"]["diagnostics"])
 
 
 def _simulate_reporting(true_vec, reporting_prob, delay_cdf, snapshot_day, rng):
@@ -172,12 +172,12 @@ def _simulate_reporting(true_vec, reporting_prob, delay_cdf, snapshot_day, rng):
     return reported, not_yet, never
 
 
-def _prob_at(ds, t_calc):
+def _prob_at(posterior_ds, t_calc):
     # (mean, lower, upper) additional-case probability at the decision day.
     return (
-        float(ds["additional_case_prob"].sel(time=t_calc)),
-        float(ds["additional_case_prob_lower"].sel(time=t_calc)),
-        float(ds["additional_case_prob_upper"].sel(time=t_calc)),
+        float(posterior_ds["additional_case_prob"].sel(time=t_calc)),
+        float(posterior_ds["additional_case_prob_lower"].sel(time=t_calc)),
+        float(posterior_ds["additional_case_prob_upper"].sel(time=t_calc)),
     )
 
 

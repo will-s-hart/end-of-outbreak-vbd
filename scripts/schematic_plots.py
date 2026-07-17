@@ -31,62 +31,69 @@ PANEL_TITLES = {
     "D": "D. Output: probability of additional cases",
 }
 
-FIG_WIDTH = 13.0
-FIG_HEIGHT = 9.0
-ASPECT = FIG_WIDTH / FIG_HEIGHT
+FIGURE_WIDTH = 13.0
+FIGURE_HEIGHT = 9.0
+FIGURE_ASPECT_RATIO = FIGURE_WIDTH / FIGURE_HEIGHT
 
 LEFT_MARGIN = 0.035
 RIGHT_MARGIN = 0.035
 TOP_MARGIN = 0.025
 BOTTOM_MARGIN = 0.04
-H_GAP = 0.06
-V_GAP = 0.11
-TITLE_BAR_H = 0.05
+HORIZONTAL_GAP = 0.06
+VERTICAL_GAP = 0.11
+TITLE_BAR_HEIGHT = 0.05
 ROUNDING = 0.010
 
-PANEL_H = (1 - TOP_MARGIN - BOTTOM_MARGIN - V_GAP) / 2
+PANEL_HEIGHT = (1 - TOP_MARGIN - BOTTOM_MARGIN - VERTICAL_GAP) / 2
 LEFT_RIGHT_RATIO = 1.0
-_total_w = 1 - LEFT_MARGIN - RIGHT_MARGIN - H_GAP
-PANEL_W_RIGHT = _total_w / (1 + LEFT_RIGHT_RATIO)
-PANEL_W_LEFT = _total_w - PANEL_W_RIGHT
+AVAILABLE_PANEL_WIDTH = 1 - LEFT_MARGIN - RIGHT_MARGIN - HORIZONTAL_GAP
+PANEL_WIDTH_RIGHT = AVAILABLE_PANEL_WIDTH / (1 + LEFT_RIGHT_RATIO)
+PANEL_WIDTH_LEFT = AVAILABLE_PANEL_WIDTH - PANEL_WIDTH_RIGHT
 
-PANEL_BBOX = {
-    "A": (LEFT_MARGIN, BOTTOM_MARGIN + PANEL_H + V_GAP, PANEL_W_LEFT, PANEL_H),
-    "B": (
-        LEFT_MARGIN + PANEL_W_LEFT + H_GAP,
-        BOTTOM_MARGIN + PANEL_H + V_GAP,
-        PANEL_W_RIGHT,
-        PANEL_H,
+PANEL_BOUNDS = {
+    "A": (
+        LEFT_MARGIN,
+        BOTTOM_MARGIN + PANEL_HEIGHT + VERTICAL_GAP,
+        PANEL_WIDTH_LEFT,
+        PANEL_HEIGHT,
     ),
-    "C": (LEFT_MARGIN, BOTTOM_MARGIN, PANEL_W_LEFT, PANEL_H),
+    "B": (
+        LEFT_MARGIN + PANEL_WIDTH_LEFT + HORIZONTAL_GAP,
+        BOTTOM_MARGIN + PANEL_HEIGHT + VERTICAL_GAP,
+        PANEL_WIDTH_RIGHT,
+        PANEL_HEIGHT,
+    ),
+    "C": (LEFT_MARGIN, BOTTOM_MARGIN, PANEL_WIDTH_LEFT, PANEL_HEIGHT),
     "D": (
-        LEFT_MARGIN + PANEL_W_LEFT + H_GAP,
+        LEFT_MARGIN + PANEL_WIDTH_LEFT + HORIZONTAL_GAP,
         BOTTOM_MARGIN,
-        PANEL_W_RIGHT,
-        PANEL_H,
+        PANEL_WIDTH_RIGHT,
+        PANEL_HEIGHT,
     ),
 }
 
-AX_PAD_LEFT = 0.045
-AX_PAD_RIGHT = 0.020
-AX_PAD_BOTTOM = 0.065
-AX_PAD_TOP = 0.010
+AXES_PADDING_LEFT = 0.045
+AXES_PADDING_RIGHT = 0.020
+AXES_PADDING_BOTTOM = 0.065
+AXES_PADDING_TOP = 0.010
 
 DOY_MIN = 91
 DOY_MAX = 335
-RISK_THRESHOLD = 0.05
+ADDITIONAL_CASE_PROB_THRESHOLD = 0.05
 
 
 def make_plots():
     set_plot_config()
     inputs = get_inputs_schematic()
-    df = pd.read_csv(inputs["results_paths"]["outbreak"], index_col="day_of_outbreak")
-    doy_start = int(df["day_of_year"].iloc[0])
-    incidence_vec = df["cases"].to_numpy()
-    final_case_doy = doy_start + int(np.nonzero(incidence_vec)[0][-1])
-    current_day_doy = final_case_doy + inputs["current_day_offset"]
+    outbreak_df = pd.read_csv(
+        inputs["results_paths"]["outbreak"], index_col="day_of_outbreak"
+    )
+    doy_start = int(outbreak_df["day_of_year"].iloc[0])
+    incidence_vec = outbreak_df["incidence"].to_numpy()
+    doy_final_case = doy_start + int(np.nonzero(incidence_vec)[0][-1])
+    doy_current = doy_final_case + inputs["days_after_final_case"]
 
-    fig = plt.figure(figsize=(FIG_WIDTH, FIG_HEIGHT))
+    fig = plt.figure(figsize=(FIGURE_WIDTH, FIGURE_HEIGHT))
 
     for key in ("A", "B", "C", "D"):
         _decorate_panel(fig, key)
@@ -95,7 +102,7 @@ def make_plots():
         _add_panel_axes(fig, "A"),
         doy_start=doy_start,
         incidence_vec=incidence_vec,
-        current_day_doy=current_day_doy,
+        doy_current=doy_current,
     )
     _populate_panel_b(
         _add_panel_axes(fig, "B"),
@@ -103,13 +110,13 @@ def make_plots():
     )
     _populate_panel_c(
         _add_panel_axes(fig, "C"),
-        df=df,
-        seasonal_full=inputs["seasonal_full"],
+        outbreak_df=outbreak_df,
+        seasonal_profile_grid=inputs["seasonal_profile_grid"],
     )
     _populate_panel_d(
         _add_panel_axes(fig, "D"),
-        df=df,
-        current_day_doy=current_day_doy,
+        outbreak_df=outbreak_df,
+        doy_current=doy_current,
         intervention_graphic_path=inputs["intervention_graphic_path"],
         safe_graphic_path=inputs["safe_graphic_path"],
     )
@@ -121,25 +128,25 @@ def make_plots():
     plt.close(fig)
 
 
-def _rounded_box_path(x, y, w, h, *, r_top, r_bot):
-    rx_top = r_top
-    ry_top = r_top * ASPECT
-    rx_bot = r_bot
-    ry_bot = r_bot * ASPECT
-    verts = [
-        (x + rx_top, y + h),
-        (x + w - rx_top, y + h),
-        (x + w, y + h),
-        (x + w, y + h - ry_top),
-        (x + w, y + ry_bot),
-        (x + w, y),
-        (x + w - rx_bot, y),
-        (x + rx_bot, y),
-        (x, y),
-        (x, y + ry_bot),
-        (x, y + h - ry_top),
-        (x, y + h),
-        (x + rx_top, y + h),
+def _rounded_box_path(left, bottom, width, height, *, top_radius, bottom_radius):
+    top_radius_x = top_radius
+    top_radius_y = top_radius * FIGURE_ASPECT_RATIO
+    bottom_radius_x = bottom_radius
+    bottom_radius_y = bottom_radius * FIGURE_ASPECT_RATIO
+    vertices = [
+        (left + top_radius_x, bottom + height),
+        (left + width - top_radius_x, bottom + height),
+        (left + width, bottom + height),
+        (left + width, bottom + height - top_radius_y),
+        (left + width, bottom + bottom_radius_y),
+        (left + width, bottom),
+        (left + width - bottom_radius_x, bottom),
+        (left + bottom_radius_x, bottom),
+        (left, bottom),
+        (left, bottom + bottom_radius_y),
+        (left, bottom + height - top_radius_y),
+        (left, bottom + height),
+        (left + top_radius_x, bottom + height),
         (0.0, 0.0),
     ]
     codes = [
@@ -158,17 +165,22 @@ def _rounded_box_path(x, y, w, h, *, r_top, r_bot):
         Path.CURVE3,
         Path.CLOSEPOLY,
     ]
-    return Path(verts, codes)
+    return Path(vertices, codes)
 
 
 def _decorate_panel(fig, panel_key):
-    px, py, pw, ph = PANEL_BBOX[panel_key]
+    panel_left, panel_bottom, panel_width, panel_height = PANEL_BOUNDS[panel_key]
     color = PANEL_COLORS[panel_key]
     title = PANEL_TITLES[panel_key]
 
-    title_y = py + ph - TITLE_BAR_H
+    title_bottom = panel_bottom + panel_height - TITLE_BAR_HEIGHT
     title_path = _rounded_box_path(
-        px, title_y, pw, TITLE_BAR_H, r_top=ROUNDING, r_bot=0.0
+        panel_left,
+        title_bottom,
+        panel_width,
+        TITLE_BAR_HEIGHT,
+        top_radius=ROUNDING,
+        bottom_radius=0.0,
     )
     fig.patches.append(
         mpatches.PathPatch(
@@ -182,7 +194,14 @@ def _decorate_panel(fig, panel_key):
         )
     )
 
-    border_path = _rounded_box_path(px, py, pw, ph, r_top=ROUNDING, r_bot=ROUNDING)
+    border_path = _rounded_box_path(
+        panel_left,
+        panel_bottom,
+        panel_width,
+        panel_height,
+        top_radius=ROUNDING,
+        bottom_radius=ROUNDING,
+    )
     fig.patches.append(
         mpatches.PathPatch(
             border_path,
@@ -196,8 +215,8 @@ def _decorate_panel(fig, panel_key):
     )
 
     fig.text(
-        px + pw / 2,
-        title_y + TITLE_BAR_H / 2,
+        panel_left + panel_width / 2,
+        title_bottom + TITLE_BAR_HEIGHT / 2,
         title,
         color="white",
         fontsize=14,
@@ -208,37 +227,37 @@ def _decorate_panel(fig, panel_key):
     )
 
 
-def _add_panel_axes(fig, panel_key, *, left_pad=AX_PAD_LEFT):
-    px, py, pw, ph = PANEL_BBOX[panel_key]
+def _add_panel_axes(fig, panel_key, *, left_padding=AXES_PADDING_LEFT):
+    panel_left, panel_bottom, panel_width, panel_height = PANEL_BOUNDS[panel_key]
     return fig.add_axes(
         [
-            px + left_pad,
-            py + AX_PAD_BOTTOM,
-            pw - left_pad - AX_PAD_RIGHT,
-            ph - TITLE_BAR_H - AX_PAD_TOP - AX_PAD_BOTTOM,
+            panel_left + left_padding,
+            panel_bottom + AXES_PADDING_BOTTOM,
+            panel_width - left_padding - AXES_PADDING_RIGHT,
+            panel_height - TITLE_BAR_HEIGHT - AXES_PADDING_TOP - AXES_PADDING_BOTTOM,
         ]
     )
 
 
-def _populate_panel_a(ax, *, doy_start, incidence_vec, current_day_doy):
-    doy = doy_start + np.arange(incidence_vec.size)
-    mask = doy <= DOY_MAX
+def _populate_panel_a(ax, *, doy_start, incidence_vec, doy_current):
+    doy_vec = doy_start + np.arange(incidence_vec.size)
+    plot_mask = doy_vec <= DOY_MAX
     ax.bar(
-        doy[mask],
-        incidence_vec[mask],
+        doy_vec[plot_mask],
+        incidence_vec[plot_mask],
         color=PANEL_COLORS["A"],
         width=1.0,
         align="center",
     )
 
-    ymax = max(int(incidence_vec.max()) * 1.18, 1)
+    y_max = max(int(incidence_vec.max()) * 1.18, 1)
     ax.set_xlim(DOY_MIN, DOY_MAX)
-    ax.set_ylim(0, ymax)
+    ax.set_ylim(0, y_max)
 
-    ax.axvline(current_day_doy, color="black", linestyle="--", linewidth=1.5)
+    ax.axvline(doy_current, color="black", linestyle="--", linewidth=1.5)
     ax.text(
-        current_day_doy - 3,
-        ymax * 0.93,
+        doy_current - 3,
+        y_max * 0.93,
         "Current day",
         ha="right",
         va="top",
@@ -253,15 +272,15 @@ def _populate_panel_a(ax, *, doy_start, incidence_vec, current_day_doy):
 
 
 def _populate_panel_b(ax, *, serial_interval_dist_vec):
-    days = np.arange(serial_interval_dist_vec.size)
+    serial_interval_lag_vec = np.arange(1, serial_interval_dist_vec.size + 1)
     ax.bar(
-        days,
+        serial_interval_lag_vec,
         serial_interval_dist_vec,
         color=PANEL_COLORS["B"],
         width=1.0,
         align="center",
     )
-    ax.set_xlim(-0.5, days[-1] + 0.5)
+    ax.set_xlim(0.5, serial_interval_lag_vec[-1] + 0.5)
     ax.set_ylim(0, serial_interval_dist_vec.max() * 1.18)
     ax.set_xlabel("Serial interval (days)", labelpad=14)
     ax.set_ylabel("Probability")
@@ -269,38 +288,38 @@ def _populate_panel_b(ax, *, serial_interval_dist_vec):
     ax.set_yticks([])
 
 
-def _populate_panel_c(ax, *, df, seasonal_full):
-    doy_inf = df["day_of_year"].to_numpy()
-    mean_inf = df["reproduction_number_mean"].to_numpy()
-    lower_inf = df["reproduction_number_lower"].to_numpy()
-    upper_inf = df["reproduction_number_upper"].to_numpy()
+def _populate_panel_c(ax, *, outbreak_df, seasonal_profile_grid):
+    doy_vec = outbreak_df["day_of_year"].to_numpy()
+    rep_no_mean_vec = outbreak_df["reproduction_number_mean"].to_numpy()
+    rep_no_lower_vec = outbreak_df["reproduction_number_lower"].to_numpy()
+    rep_no_upper_vec = outbreak_df["reproduction_number_upper"].to_numpy()
 
-    in_range = doy_inf <= DOY_MAX
-    doy_inf = doy_inf[in_range]
-    mean_inf = mean_inf[in_range]
-    lower_inf = lower_inf[in_range]
-    upper_inf = upper_inf[in_range]
+    in_range_mask = doy_vec <= DOY_MAX
+    doy_vec = doy_vec[in_range_mask]
+    rep_no_mean_vec = rep_no_mean_vec[in_range_mask]
+    rep_no_lower_vec = rep_no_lower_vec[in_range_mask]
+    rep_no_upper_vec = rep_no_upper_vec[in_range_mask]
 
-    doy_grid_seasonal = np.arange(DOY_MIN, DOY_MAX + 1)
-    seasonal = seasonal_full[doy_grid_seasonal - 1]
+    doy_seasonal_vec = np.arange(DOY_MIN, DOY_MAX + 1)
+    seasonal_rep_no_vec = seasonal_profile_grid[doy_seasonal_vec - 1]
 
     fill_handle = ax.fill_between(
-        doy_inf,
-        lower_inf,
-        upper_inf,
+        doy_vec,
+        rep_no_lower_vec,
+        rep_no_upper_vec,
         color=PANEL_COLORS["C"],
         alpha=0.35,
         linewidth=0,
     )
     (seasonal_handle,) = ax.plot(
-        doy_grid_seasonal, seasonal, color="black", linewidth=2
+        doy_seasonal_vec, seasonal_rep_no_vec, color="black", linewidth=2
     )
     (inferred_handle,) = ax.plot(
-        doy_inf, mean_inf, color=PANEL_COLORS["C"], linewidth=2
+        doy_vec, rep_no_mean_vec, color=PANEL_COLORS["C"], linewidth=2
     )
 
     ax.set_xlim(DOY_MIN, DOY_MAX)
-    ax.set_ylim(0, upper_inf.max() * 1.05)
+    ax.set_ylim(0, rep_no_upper_vec.max() * 1.05)
     ax.set_xlabel("Date")
     ax.set_ylabel("Time-dependent\nreproduction number")
     ax.set_yticks([])
@@ -318,23 +337,40 @@ def _populate_panel_c(ax, *, df, seasonal_full):
 def _populate_panel_d(
     ax,
     *,
-    df,
-    current_day_doy,
+    outbreak_df,
+    doy_current,
     intervention_graphic_path,
     safe_graphic_path,
 ):
-    doy_inf = df["day_of_year"].to_numpy()
-    prob = df["additional_case_prob"].to_numpy()
+    doy_vec = outbreak_df["day_of_year"].to_numpy()
+    prob_vec = outbreak_df["additional_case_prob"].to_numpy()
     x_lower = 305  # 1 November (non-leap year)
-    mask = (doy_inf >= x_lower) & (doy_inf <= current_day_doy)
+    plot_mask = (doy_vec >= x_lower) & (doy_vec <= doy_current)
 
-    y_upper = float(np.ceil(prob[mask].max() * 40) / 40)
+    y_upper = float(np.ceil(prob_vec[plot_mask].max() * 40) / 40)
 
-    ax.axhspan(0, RISK_THRESHOLD, color="#9CCC65", alpha=0.45, zorder=0)
-    ax.axhspan(RISK_THRESHOLD, 1.0, color="#FFE082", alpha=0.45, zorder=0)
-    ax.axhline(RISK_THRESHOLD, color="#558B2F", linestyle=":", linewidth=1, zorder=1)
-    ax.plot(doy_inf[mask], prob[mask], color=PANEL_COLORS["D"], linewidth=2)
-    ax.axvline(current_day_doy, color="black", linestyle="--", linewidth=1.5)
+    ax.axhspan(0, ADDITIONAL_CASE_PROB_THRESHOLD, color="#9CCC65", alpha=0.45, zorder=0)
+    ax.axhspan(
+        ADDITIONAL_CASE_PROB_THRESHOLD,
+        1.0,
+        color="#FFE082",
+        alpha=0.45,
+        zorder=0,
+    )
+    ax.axhline(
+        ADDITIONAL_CASE_PROB_THRESHOLD,
+        color="#558B2F",
+        linestyle=":",
+        linewidth=1,
+        zorder=1,
+    )
+    ax.plot(
+        doy_vec[plot_mask],
+        prob_vec[plot_mask],
+        color=PANEL_COLORS["D"],
+        linewidth=2,
+    )
+    ax.axvline(doy_current, color="black", linestyle="--", linewidth=1.5)
 
     ax.set_xlim(x_lower, DOY_MAX)
     ax.set_ylim(0, y_upper)
@@ -343,26 +379,26 @@ def _populate_panel_d(
     ax.set_yticks([])
 
     ax.text(
-        current_day_doy - 0.5,
+        doy_current - 0.5,
         y_upper * 0.93,
         "Current day",
         ha="right",
         va="top",
         fontsize=12,
     )
-    intervention_img = mpimg.imread(intervention_graphic_path)
+    intervention_image = mpimg.imread(intervention_graphic_path)
     ax.add_artist(
         AnnotationBbox(
-            OffsetImage(intervention_img, zoom=0.18),
+            OffsetImage(intervention_image, zoom=0.18),
             (0.7, 0.56),
             xycoords="axes fraction",
             frameon=False,
         )
     )
-    safe_img = mpimg.imread(safe_graphic_path)
+    safe_image = mpimg.imread(safe_graphic_path)
     ax.add_artist(
         AnnotationBbox(
-            OffsetImage(safe_img, zoom=0.75 * 0.18),
+            OffsetImage(safe_image, zoom=0.75 * 0.18),
             (0.71, 0.06),
             xycoords="axes fraction",
             frameon=False,
@@ -374,14 +410,14 @@ def _populate_panel_d(
 
 
 def _draw_inference_arrows(fig):
-    a_x, a_y, a_w, _ = PANEL_BBOX["A"]
-    b_x, b_y, b_w, _ = PANEL_BBOX["B"]
-    c_x, c_y, c_w, c_h = PANEL_BBOX["C"]
+    panel_a_left, panel_a_bottom, panel_a_width, _ = PANEL_BOUNDS["A"]
+    panel_b_left, panel_b_bottom, panel_b_width, _ = PANEL_BOUNDS["B"]
+    _, panel_c_bottom, _, panel_c_height = PANEL_BOUNDS["C"]
 
-    a_col_x = a_x + a_w * 0.5
-    b_col_x = b_x + b_w * 0.5
-    c_top_y = c_y + c_h
-    rail_y = (a_y + c_top_y) / 2
+    panel_a_centre_x = panel_a_left + panel_a_width * 0.5
+    panel_b_centre_x = panel_b_left + panel_b_width * 0.5
+    panel_c_top = panel_c_bottom + panel_c_height
+    rail_y = (panel_a_bottom + panel_c_top) / 2
 
     line_kwargs: dict[str, Any] = dict(
         arrowstyle="-",
@@ -394,18 +430,30 @@ def _draw_inference_arrows(fig):
     )
 
     fig.patches.append(
-        mpatches.FancyArrowPatch((a_col_x, a_y), (a_col_x, rail_y), **line_kwargs)
-    )
-    fig.patches.append(
-        mpatches.FancyArrowPatch((b_col_x, b_y), (b_col_x, rail_y), **line_kwargs)
-    )
-    fig.patches.append(
-        mpatches.FancyArrowPatch((a_col_x, rail_y), (b_col_x, rail_y), **line_kwargs)
+        mpatches.FancyArrowPatch(
+            (panel_a_centre_x, panel_a_bottom),
+            (panel_a_centre_x, rail_y),
+            **line_kwargs,
+        )
     )
     fig.patches.append(
         mpatches.FancyArrowPatch(
-            (a_col_x, rail_y),
-            (a_col_x, c_top_y),
+            (panel_b_centre_x, panel_b_bottom),
+            (panel_b_centre_x, rail_y),
+            **line_kwargs,
+        )
+    )
+    fig.patches.append(
+        mpatches.FancyArrowPatch(
+            (panel_a_centre_x, rail_y),
+            (panel_b_centre_x, rail_y),
+            **line_kwargs,
+        )
+    )
+    fig.patches.append(
+        mpatches.FancyArrowPatch(
+            (panel_a_centre_x, rail_y),
+            (panel_a_centre_x, panel_c_top),
             arrowstyle="-|>",
             linestyle="--",
             color="dimgray",
@@ -418,7 +466,7 @@ def _draw_inference_arrows(fig):
     )
 
     fig.text(
-        a_col_x - 0.015,
+        panel_a_centre_x - 0.015,
         rail_y,
         "Inference (optional)",
         ha="right",
@@ -447,25 +495,28 @@ def _block_arrow(fig, start, end, *, connectionstyle="arc3,rad=0"):
 
 
 def _draw_output_arrows(fig):
-    a_x, a_y, a_w, a_h = PANEL_BBOX["A"]
-    b_x, b_y, b_w, _ = PANEL_BBOX["B"]
-    c_x, c_y, c_w, c_h = PANEL_BBOX["C"]
-    d_x, d_y, d_w, d_h = PANEL_BBOX["D"]
+    panel_a_left, panel_a_bottom, panel_a_width, _ = PANEL_BOUNDS["A"]
+    panel_b_left, panel_b_bottom, panel_b_width, _ = PANEL_BOUNDS["B"]
+    panel_c_left, panel_c_bottom, panel_c_width, panel_c_height = PANEL_BOUNDS["C"]
+    panel_d_left, panel_d_bottom, panel_d_width, panel_d_height = PANEL_BOUNDS["D"]
 
     _block_arrow(
         fig,
-        start=(c_x + c_w, c_y + c_h * 0.55),
-        end=(d_x, d_y + d_h * 0.55),
+        start=(panel_c_left + panel_c_width, panel_c_bottom + panel_c_height * 0.55),
+        end=(panel_d_left, panel_d_bottom + panel_d_height * 0.55),
     )
     _block_arrow(
         fig,
-        start=(b_x + b_w * 0.7, b_y),
-        end=(d_x + d_w * 0.7, d_y + d_h),
+        start=(panel_b_left + panel_b_width * 0.7, panel_b_bottom),
+        end=(
+            panel_d_left + panel_d_width * 0.7,
+            panel_d_bottom + panel_d_height,
+        ),
     )
     _block_arrow(
         fig,
-        start=(a_x + a_w, a_y),
-        end=(d_x, d_y + d_h),
+        start=(panel_a_left + panel_a_width, panel_a_bottom),
+        end=(panel_d_left, panel_d_bottom + panel_d_height),
     )
 
 

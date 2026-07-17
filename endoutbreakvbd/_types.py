@@ -9,6 +9,6 @@ FloatArray: TypeAlias = NDArray[np.floating[Any]]
 SerialIntervalInput: TypeAlias = list[float] | FloatArray
 IncidenceSeriesInput: TypeAlias = list[int] | IntArray
 IncidenceInitInput: TypeAlias = int | list[int] | IntArray | None
-PercRiskThresholdInput: TypeAlias = int | float | IntArray | FloatArray
+RiskThresholdPctInput: TypeAlias = int | float | IntArray | FloatArray
 RepNoOutput: TypeAlias = int | float | np.number[Any] | IntArray | FloatArray
 RepNoFunc: TypeAlias = Callable[[int | IntArray], RepNoOutput]

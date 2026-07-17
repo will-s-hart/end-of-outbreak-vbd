@@ -20,7 +20,7 @@ from endoutbreakvbd.utils import (
     dates_to_day_index,
     get_colors,
     month_start_xticks,
-    plot_data_on_twin_ax,
+    plot_incidence_on_twin_ax,
     set_plot_config,
 )
 from scripts.inputs import get_inputs_lazio_underreporting_qrt
@@ -38,12 +38,21 @@ def make_plots(start_date="2017-09-30", end_date="2017-12-31", stride=1):
 
 
 def _make_delay_plot(inputs):
-    df = pd.read_csv(inputs["results_paths"]["delay"])
+    delay_df = pd.read_csv(inputs["results_paths"]["delay"])
     fig, ax = plt.subplots()
     ax.bar(
-        df["delay"], df["pmf_empirical"], color="tab:gray", alpha=0.6, label="Empirical"
+        delay_df["delay"],
+        delay_df["pmf_empirical"],
+        color="tab:gray",
+        alpha=0.6,
+        label="Empirical",
     )
-    ax.plot(df["delay"], df["pmf_fitted"], color="tab:blue", label="Fitted gamma")
+    ax.plot(
+        delay_df["delay"],
+        delay_df["pmf_fitted"],
+        color="tab:blue",
+        label="Fitted gamma",
+    )
     ax.set_xlim(0, None)
     ax.set_xlabel("Onset-to-report delay (days)")
     ax.set_ylabel("Probability")
@@ -53,25 +62,35 @@ def _make_delay_plot(inputs):
 
 
 def _make_cases_plot(inputs, colors):
-    df = _read_case_trajectory(inputs)
-    doy = dates_to_day_index(df["date"])
+    trajectory_df = _read_case_trajectory(inputs)
+    day_index_vec = dates_to_day_index(trajectory_df["date"])
     fig, ax = plt.subplots()
-    ax.bar(doy, df["reported"], color="tab:gray", alpha=0.5, label="Reported")
+    ax.bar(
+        day_index_vec,
+        trajectory_df["reported_incidence"],
+        color="tab:gray",
+        alpha=0.5,
+        label="Reported",
+    )
     ax.plot(
-        doy,
-        df["cases_mean"],
+        day_index_vec,
+        trajectory_df["incidence_mean"],
         color=colors[0],
         label="Estimated true\n(suitability-based)",
     )
     ax.fill_between(
-        doy, df["cases_lower"], df["cases_upper"], color=colors[0], alpha=0.3
+        day_index_vec,
+        trajectory_df["incidence_lower"],
+        trajectory_df["incidence_upper"],
+        color=colors[0],
+        alpha=0.3,
     )
     month_start_xticks(ax)
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, None)
     ax.set_ylabel("Number of cases")
     ax.legend(loc="upper right")
-    fig.savefig(inputs["fig_paths"]["cases"])
+    fig.savefig(inputs["fig_paths"]["incidence"])
     return fig, ax
 
 
@@ -81,49 +100,52 @@ def _make_prob_plot(
     *,
     ylabel="Probability of additional cases",
 ):
-    df_suit = pd.read_csv(
+    suitability_df = pd.read_csv(
         inputs["results_paths"]["suitability_p60"], parse_dates=["date"]
     )
-    df_ar = pd.read_csv(
+    autoregressive_df = pd.read_csv(
         inputs["results_paths"]["autoregressive_p60"], parse_dates=["date"]
     )
-    df_traj = _read_case_trajectory(inputs)
+    trajectory_df = _read_case_trajectory(inputs)
     decisions = inputs["existing_decisions"]
-    full_start = inputs["full_reporting_start_date"]
+    full_reporting_outbreak_start_date = inputs["full_reporting_outbreak_start_date"]
 
     fig, ax = plt.subplots()
     # Observed reported cases (by onset) as a twin-axis underlay, matching the main Lazio panels.
-    plot_data_on_twin_ax(
-        ax, dates_to_day_index(df_traj["date"]), df_traj["reported"].to_numpy()
+    plot_incidence_on_twin_ax(
+        ax,
+        dates_to_day_index(trajectory_df["date"]),
+        trajectory_df["reported_incidence"].to_numpy(),
     )
-    doys = []
-    for df, color, label, full_key in [
-        (df_suit, colors[0], "Suitability-based", "suitability"),
-        (df_ar, colors[1], "Autoregressive", "autoregressive"),
+    day_index_vectors = []
+    for results_df, color, label, full_key in [
+        (suitability_df, colors[0], "Suitability-based", "suitability"),
+        (autoregressive_df, colors[1], "Autoregressive", "autoregressive"),
     ]:
-        doy = dates_to_day_index(df["date"])
-        doys.append(doy)
+        day_index_vec = dates_to_day_index(results_df["date"])
+        day_index_vectors.append(day_index_vec)
         ax.plot(
-            doy,
-            df["additional_case_prob"],
+            day_index_vec,
+            results_df["additional_case_prob"],
             color=color,
             label=label,
         )
         # Dashed overlay: the retrospective full-reporting fit, i.e. the probability if the whole
         # outbreak (all future onsets, full reporting) were known.
-        df_full = pd.read_csv(inputs["full_reporting_paths"][full_key])
-        full_doy = dates_to_day_index(
-            full_start + pd.to_timedelta(df_full["day_of_outbreak"], unit="D")
+        full_reporting_df = pd.read_csv(inputs["full_reporting_paths"][full_key])
+        full_reporting_day_index_vec = dates_to_day_index(
+            full_reporting_outbreak_start_date
+            + pd.to_timedelta(full_reporting_df["day_of_outbreak"], unit="D")
         )
         ax.plot(
-            full_doy,
-            df_full["additional_case_prob"],
+            full_reporting_day_index_vec,
+            full_reporting_df["additional_case_prob"],
             color=color,
             linestyle="dashed",
             label=f"{label}\n(full reporting)",
         )
     # Decision markers follow the main Lazio outbreak colours: C3 (blood), C4 (45-day rule).
-    marker_doys = [
+    marker_day_index_vals = [
         decisions["blood_resumed_anzio"]["doy"],
         decisions["45_day_rule"]["doy"],
     ]
@@ -142,7 +164,10 @@ def _make_prob_plot(
     # Focus on the decision window: from the first estimate (the first decision date; with the
     # snapshot grid starting 30 Sep this is 1 Oct, whose month tick then shows) to just past the
     # later marker; the estimate may run on into a flat post-outbreak tail, which is clipped.
-    ax.set_xlim(min(d.min() for d in doys), max(marker_doys) + 6)
+    ax.set_xlim(
+        min(day_index_vec.min() for day_index_vec in day_index_vectors),
+        max(marker_day_index_vals) + 6,
+    )
     month_start_xticks(ax)
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, 1.01)

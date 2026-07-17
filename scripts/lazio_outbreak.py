@@ -20,8 +20,8 @@ def run_analyses(quasi_real_time=False, ar2=False):
             "quasi_real_time": quasi_real_time,
             "rho": [0.8, 0.175] if ar2 else None,
         },
-        save_path=inputs["results_paths"]["autoregressive"],
-        save_path_diagnostics=inputs["results_paths"]["autoregressive_diagnostics"],
+        results_path=inputs["results_paths"]["autoregressive"],
+        diagnostics_path=inputs["results_paths"]["autoregressive_diagnostics"],
         raise_on_poor_diagnostics=not quasi_real_time,
     )
     _run_analyses_for_model(
@@ -33,8 +33,8 @@ def run_analyses(quasi_real_time=False, ar2=False):
             "rng": rng,
             "quasi_real_time": quasi_real_time,
         },
-        save_path=inputs["results_paths"]["suitability"],
-        save_path_diagnostics=inputs["results_paths"]["suitability_diagnostics"],
+        results_path=inputs["results_paths"]["suitability"],
+        diagnostics_path=inputs["results_paths"]["suitability_diagnostics"],
         raise_on_poor_diagnostics=not quasi_real_time,
     )
 
@@ -45,22 +45,22 @@ def _run_analyses_for_model(
     incidence_vec,
     serial_interval_dist_vec,
     fit_model_kwargs,
-    save_path,
-    save_path_diagnostics=None,
+    results_path,
+    diagnostics_path=None,
     compute_diagnostics=True,
     raise_on_poor_diagnostics=False,
 ):
     if model == "autoregressive":
-        ds_posterior = fit_autoregressive_model(
-            incidence_vec=incidence_vec,
+        posterior_ds = fit_autoregressive_model(
+            incidence=incidence_vec,
             serial_interval_dist_vec=serial_interval_dist_vec,
             compute_diagnostics=compute_diagnostics,
             raise_on_poor_diagnostics=raise_on_poor_diagnostics,
             **fit_model_kwargs,
         )
     elif model == "suitability":
-        ds_posterior = fit_suitability_model(
-            incidence_vec=incidence_vec,
+        posterior_ds = fit_suitability_model(
+            incidence=incidence_vec,
             serial_interval_dist_vec=serial_interval_dist_vec,
             compute_diagnostics=compute_diagnostics,
             raise_on_poor_diagnostics=raise_on_poor_diagnostics,
@@ -68,32 +68,30 @@ def _run_analyses_for_model(
         )
     else:
         raise ValueError(f"Unknown model: {model}")
-    df_out = pd.DataFrame(
+    results_df = pd.DataFrame(
         {
-            "day_of_outbreak": ds_posterior["time"].values,
-            "reproduction_number_mean": ds_posterior["rep_no_mean"].values,
-            "reproduction_number_lower": ds_posterior["rep_no_lower"].values,
-            "reproduction_number_upper": ds_posterior["rep_no_upper"].values,
-            "additional_case_prob": ds_posterior["additional_case_prob"].values,
+            "day_of_outbreak": posterior_ds["time"].values,
+            "reproduction_number_mean": posterior_ds["rep_no_mean"].values,
+            "reproduction_number_lower": posterior_ds["rep_no_lower"].values,
+            "reproduction_number_upper": posterior_ds["rep_no_upper"].values,
+            "additional_case_prob": posterior_ds["additional_case_prob"].values,
         }
     ).set_index("day_of_outbreak")
     if model == "suitability":
-        df_out = df_out.assign(
-            suitability_mean=ds_posterior["suitability_mean"].values,
-            suitability_lower=ds_posterior["suitability_lower"].values,
-            suitability_upper=ds_posterior["suitability_upper"].values,
-            rep_no_factor_mean=ds_posterior["rep_no_factor_mean"].values,
-            rep_no_factor_lower=ds_posterior["rep_no_factor_lower"].values,
-            rep_no_factor_upper=ds_posterior["rep_no_factor_upper"].values,
+        results_df = results_df.assign(
+            suitability_mean=posterior_ds["suitability_mean"].values,
+            suitability_lower=posterior_ds["suitability_lower"].values,
+            suitability_upper=posterior_ds["suitability_upper"].values,
+            rep_no_factor_mean=posterior_ds["rep_no_factor_mean"].values,
+            rep_no_factor_lower=posterior_ds["rep_no_factor_lower"].values,
+            rep_no_factor_upper=posterior_ds["rep_no_factor_upper"].values,
         )
-    df_out.to_csv(save_path)
+    results_df.to_csv(results_path)
     if not compute_diagnostics:
         return
     # Diagnostics were computed, attached, and warned/raised on by the fit function.
-    diagnostics = ds_posterior.attrs["diagnostics"]
-    pd.Series(diagnostics, name="value").rename_axis("stat").to_csv(
-        save_path_diagnostics
-    )
+    diagnostics = posterior_ds.attrs["diagnostics"]
+    pd.Series(diagnostics, name="value").rename_axis("stat").to_csv(diagnostics_path)
 
 
 if __name__ == "__main__":

@@ -1,12 +1,12 @@
-data_file_lazio_incidence = "data/lazio_chik_2017.csv"
-data_file_lazio_reporting_matrix = "data/lazio_chik_2017_reporting_matrix.csv"
-data_file_suitability_grid = "data/tegar_suitability_grid.csv"
+lazio_incidence_path = "data/lazio_chik_2017.csv"
+lazio_reporting_matrix_path = "data/lazio_chik_2017_reporting_matrix.csv"
+suitability_grid_path = "data/tegar_suitability_grid.csv"
 
-results_files_schematic = ["results/schematic/outbreak.csv"]
-results_files_weather_suitability_data = expand(
+results_paths_schematic = ["results/schematic/outbreak.csv"]
+results_paths_weather_suitability_data = expand(
     "results/weather_suitability_data/{name}.csv", name=["all", "2017"]
 )
-results_files_sim_study = expand(
+results_paths_sim_study = expand(
     "results/sim_study/{name}.csv",
     name=[
         "example_outbreak_prob",
@@ -17,7 +17,7 @@ results_files_sim_study = expand(
 )
 
 
-def get_results_files_lazio_outbreak(qrt):
+def get_results_paths_lazio_outbreak(qrt):
     return expand(
         "results/lazio_outbreak{qrt}/{name}.csv",
         qrt=qrt,
@@ -30,10 +30,10 @@ def get_results_files_lazio_outbreak(qrt):
     )
 
 
-results_files_lazio_outbreak = get_results_files_lazio_outbreak(qrt=[""])
+results_paths_lazio_outbreak = get_results_paths_lazio_outbreak(qrt=[""])
 
 
-def get_results_files_inference_test(qrt):
+def get_results_paths_inference_test(qrt):
     return expand(
         "results/inference_test{qrt}/{name}.csv",
         qrt=qrt,
@@ -47,9 +47,9 @@ def get_results_files_inference_test(qrt):
     )
 
 
-results_files_inference_test = get_results_files_inference_test(qrt=[""])
+results_paths_inference_test = get_results_paths_inference_test(qrt=[""])
 
-results_files_sim_sensitivity = expand(
+results_paths_sim_sensitivity = expand(
     "results/sim_sensitivity/{name}.csv",
     name=[
         "rep_no_factor_low",
@@ -58,9 +58,9 @@ results_files_sim_sensitivity = expand(
         "decay_speed_high",
     ],
 )
-results_files_lazio_frozen = ["results/lazio_frozen/autoregressive_frozen.csv"]
-results_files_lazio_epiestim = ["results/lazio_epiestim/epiestim.csv"]
-results_files_lazio_underreporting_qrt = expand(
+results_paths_lazio_frozen = ["results/lazio_frozen/autoregressive_frozen.csv"]
+results_paths_lazio_epiestim = ["results/lazio_epiestim/epiestim.csv"]
+results_paths_lazio_underreporting_qrt = expand(
     "results/lazio_underreporting_qrt/{name}.csv",
     name=[
         "suitability_p60",
@@ -71,7 +71,7 @@ results_files_lazio_underreporting_qrt = expand(
         "delay",
     ],
 )
-results_files_lazio_underreporting_retro = expand(
+results_paths_lazio_underreporting_retro = expand(
     "results/lazio_underreporting_retro/{name}.csv",
     name=[
         "suitability_p60",
@@ -80,34 +80,34 @@ results_files_lazio_underreporting_retro = expand(
         "autoregressive_p60_diagnostics",
     ],
 )
-results_files_sim_underreporting = expand(
+results_paths_sim_underreporting = expand(
     "results/sim_underreporting/{name}.csv", name=["sim", "diagnostics"]
 )
-results_files_sim_underreporting_nowcast = expand(
+results_paths_sim_underreporting_nowcast = expand(
     "results/sim_underreporting_nowcast/{name}.csv",
     name=["trajectory", "probs", "diagnostics"],
 )
 
-results_files = (
-    results_files_schematic
-    + results_files_weather_suitability_data
-    + results_files_sim_study
-    + results_files_lazio_outbreak
-    + results_files_inference_test
-    + results_files_sim_sensitivity
-    + results_files_lazio_frozen
-    + results_files_lazio_epiestim
-    + results_files_lazio_underreporting_qrt
-    + results_files_lazio_underreporting_retro
-    + results_files_sim_underreporting
-    + results_files_sim_underreporting_nowcast
+results_paths = (
+    results_paths_schematic
+    + results_paths_weather_suitability_data
+    + results_paths_sim_study
+    + results_paths_lazio_outbreak
+    + results_paths_inference_test
+    + results_paths_sim_sensitivity
+    + results_paths_lazio_frozen
+    + results_paths_lazio_epiestim
+    + results_paths_lazio_underreporting_qrt
+    + results_paths_lazio_underreporting_retro
+    + results_paths_sim_underreporting
+    + results_paths_sim_underreporting_nowcast
 )
 
-plot_files_weather_suitability_data = expand(
+figure_paths_weather_suitability_data = expand(
     "figures/weather_suitability_data/{name}.svg",
     name=["temperature", "suitability_model", "suitability"],
 )
-plot_files_sim_study = expand(
+figure_paths_sim_study = expand(
     "figures/sim_study/{name}.svg",
     name=[
         "rep_no",
@@ -119,7 +119,7 @@ plot_files_sim_study = expand(
 )
 
 
-def get_plot_files_lazio_outbreak(qrt):
+def get_figure_paths_lazio_outbreak(qrt):
     return expand(
         "figures/lazio_outbreak{qrt}/{name}.svg",
         qrt=qrt,
@@ -134,10 +134,10 @@ def get_plot_files_lazio_outbreak(qrt):
     )
 
 
-plot_files_lazio_outbreak = get_plot_files_lazio_outbreak(qrt=[""])
+figure_paths_lazio_outbreak = get_figure_paths_lazio_outbreak(qrt=[""])
 
 
-def get_plot_files_inference_test(qrt):
+def get_figure_paths_inference_test(qrt):
     return expand(
         "figures/inference_test{qrt}/{name}.svg",
         qrt=qrt,
@@ -151,9 +151,9 @@ def get_plot_files_inference_test(qrt):
     )
 
 
-plot_files_inference_test = get_plot_files_inference_test(qrt=[""])
+figure_paths_inference_test = get_figure_paths_inference_test(qrt=[""])
 
-plot_files_sim_sensitivity = expand(
+figure_paths_sim_sensitivity = expand(
     "figures/sim_sensitivity/{name}.svg",
     name=[
         "rep_no_factor_curves",
@@ -164,19 +164,19 @@ plot_files_sim_sensitivity = expand(
         "decay_speed_high",
     ],
 )
-plot_files_lazio_frozen = expand(
+figure_paths_lazio_frozen = expand(
     "figures/lazio_frozen/{name}.svg",
     name=["rep_no", "additional_case_prob", "decision"],
 )
-plot_files_lazio_epiestim = expand(
+figure_paths_lazio_epiestim = expand(
     "figures/lazio_epiestim/{name}.svg",
     name=["rep_no", "additional_case_prob", "decision"],
 )
-plot_files_lazio_underreporting_qrt = expand(
+figure_paths_lazio_underreporting_qrt = expand(
     "figures/lazio_underreporting_qrt/{name}.svg",
     name=["delay", "cases", "additional_case_prob"],
 )
-plot_files_lazio_underreporting_retro = expand(
+figure_paths_lazio_underreporting_retro = expand(
     "figures/lazio_underreporting_retro/{name}.svg",
     name=[
         "cases",
@@ -188,39 +188,39 @@ plot_files_lazio_underreporting_retro = expand(
         "rep_no_ar",
     ],
 )
-plot_files_sim_underreporting = expand(
+figure_paths_sim_underreporting = expand(
     "figures/sim_underreporting/{name}.svg",
     name=["cases", "rep_no", "additional_case_prob", "decision"],
 )
-plot_files_sim_underreporting_nowcast = expand(
+figure_paths_sim_underreporting_nowcast = expand(
     "figures/sim_underreporting_nowcast/{name}.svg",
     name=["delay", "verification"],
 )
 
-schematic_figure_file = "figures/figure_1.svg"
-paper_figure_files_compiled = expand(
+schematic_figure_path = "figures/figure_1.svg"
+compiled_paper_figure_paths = expand(
     "figures/figure_{number}.svg",
     number=["2", "3", "4", "5", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"],
 )
-paper_figure_files = [schematic_figure_file] + paper_figure_files_compiled
-paper_figure_files_png = [x.replace(".svg", ".png") for x in paper_figure_files]
+paper_figure_paths = [schematic_figure_path] + compiled_paper_figure_paths
+paper_figure_png_paths = [x.replace(".svg", ".png") for x in paper_figure_paths]
 
 
-plot_files = (
-    plot_files_weather_suitability_data
-    + plot_files_sim_study
-    + plot_files_lazio_outbreak
-    + plot_files_inference_test
-    + plot_files_sim_sensitivity
-    + plot_files_lazio_frozen
-    + plot_files_lazio_epiestim
-    + plot_files_lazio_underreporting_qrt
-    + plot_files_lazio_underreporting_retro
-    + plot_files_sim_underreporting
-    + plot_files_sim_underreporting_nowcast
+figure_paths = (
+    figure_paths_weather_suitability_data
+    + figure_paths_sim_study
+    + figure_paths_lazio_outbreak
+    + figure_paths_inference_test
+    + figure_paths_sim_sensitivity
+    + figure_paths_lazio_frozen
+    + figure_paths_lazio_epiestim
+    + figure_paths_lazio_underreporting_qrt
+    + figure_paths_lazio_underreporting_retro
+    + figure_paths_sim_underreporting
+    + figure_paths_sim_underreporting_nowcast
 )
 
-package_files = [
+package_paths = [
     f"endoutbreakvbd/{name}.py"
     for name in [
         "__init__",
@@ -233,7 +233,7 @@ package_files = [
     ]
 ]
 # Every analysis/plot script also imports parameter assembly from scripts/inputs.py.
-shared_input_files = package_files + ["scripts/inputs.py"]
+shared_input_paths = package_paths + ["scripts/inputs.py"]
 
 
 wildcard_constraints:
@@ -243,14 +243,14 @@ wildcard_constraints:
 
 rule all:
     input:
-        paper_figure_files,
+        paper_figure_paths,
 
 
 rule paper_figures_png:
     input:
-        paper_figure_files,
+        paper_figure_paths,
     output:
-        paper_figure_files_png,
+        paper_figure_png_paths,
     shell:
         r"""
         for svg in {input}; do
@@ -263,15 +263,15 @@ rule paper_figures_png:
 
 rule results:
     input:
-        results_files,
+        results_paths,
 
 
 rule paper_figures:
     input:
-        plot_files,
+        figure_paths,
         "scripts/compile_figures.py",
     output:
-        paper_figure_files_compiled,
+        compiled_paper_figure_paths,
     shell:
         """
         pixi run python scripts/compile_figures.py
@@ -280,10 +280,10 @@ rule paper_figures:
 
 rule schematic_results:
     input:
-        shared_input_files,
+        shared_input_paths,
         "scripts/schematic.py",
     output:
-        results_files_schematic,
+        results_paths_schematic,
     shell:
         """
         pixi run python scripts/schematic.py -r
@@ -292,13 +292,13 @@ rule schematic_results:
 
 rule schematic_plots:
     input:
-        shared_input_files,
+        shared_input_paths,
         "scripts/schematic_plots.py",
-        results_files_schematic,
+        results_paths_schematic,
         "figures/schematic/intervention_graphic.png",
         "figures/schematic/safe_graphic.png",
     output:
-        schematic_figure_file,
+        schematic_figure_path,
     shell:
         """
         pixi run python scripts/schematic_plots.py
@@ -307,11 +307,11 @@ rule schematic_plots:
 
 rule weather_suitability_data_results:
     input:
-        shared_input_files,
-        data_file_suitability_grid,
+        shared_input_paths,
+        suitability_grid_path,
         "scripts/weather_suitability_data.py",
     output:
-        results_files_weather_suitability_data,
+        results_paths_weather_suitability_data,
     shell:
         """
         pixi run python scripts/weather_suitability_data.py -r
@@ -320,11 +320,11 @@ rule weather_suitability_data_results:
 
 rule weather_suitability_data_plots:
     input:
-        shared_input_files,
+        shared_input_paths,
         "scripts/weather_suitability_data_plots.py",
-        results_files_weather_suitability_data,
+        results_paths_weather_suitability_data,
     output:
-        plot_files_weather_suitability_data,
+        figure_paths_weather_suitability_data,
     shell:
         """
         pixi run python scripts/weather_suitability_data_plots.py
@@ -333,11 +333,11 @@ rule weather_suitability_data_plots:
 
 rule sim_study_results:
     input:
-        shared_input_files,
-        results_files_weather_suitability_data,
+        shared_input_paths,
+        results_paths_weather_suitability_data,
         "scripts/sim_study.py",
     output:
-        results_files_sim_study,
+        results_paths_sim_study,
     shell:
         """
         pixi run python scripts/sim_study.py -r
@@ -346,12 +346,12 @@ rule sim_study_results:
 
 rule sim_study_plots:
     input:
-        shared_input_files,
-        results_files_weather_suitability_data,
+        shared_input_paths,
+        results_paths_weather_suitability_data,
         "scripts/sim_study_plots.py",
-        results_files_sim_study,
+        results_paths_sim_study,
     output:
-        plot_files_sim_study,
+        figure_paths_sim_study,
     shell:
         """
         pixi run python scripts/sim_study_plots.py
@@ -360,12 +360,12 @@ rule sim_study_plots:
 
 rule lazio_outbreak_results:
     input:
-        shared_input_files,
-        data_file_lazio_incidence,
-        results_files_weather_suitability_data,
+        shared_input_paths,
+        lazio_incidence_path,
+        results_paths_weather_suitability_data,
         "scripts/lazio_outbreak.py",
     output:
-        get_results_files_lazio_outbreak(qrt="{qrt}"),
+        get_results_paths_lazio_outbreak(qrt="{qrt}"),
     params:
         qrt_flag=lambda wildcards: (
             "--quasi-real-time" if wildcards.qrt == "_qrt" else ""
@@ -378,12 +378,12 @@ rule lazio_outbreak_results:
 
 rule lazio_outbreak_plots:
     input:
-        shared_input_files,
-        results_files_weather_suitability_data,
+        shared_input_paths,
+        results_paths_weather_suitability_data,
         "scripts/lazio_outbreak_plots.py",
-        get_results_files_lazio_outbreak(qrt="{qrt}"),
+        get_results_paths_lazio_outbreak(qrt="{qrt}"),
     output:
-        get_plot_files_lazio_outbreak(qrt="{qrt}"),
+        get_figure_paths_lazio_outbreak(qrt="{qrt}"),
     params:
         qrt_flag=lambda wildcards: (
             "--quasi-real-time" if wildcards.qrt == "_qrt" else ""
@@ -396,12 +396,12 @@ rule lazio_outbreak_plots:
 
 rule inference_test_results:
     input:
-        shared_input_files,
-        results_files_weather_suitability_data,
+        shared_input_paths,
+        results_paths_weather_suitability_data,
         "scripts/inference_test.py",
         "scripts/lazio_outbreak.py",
     output:
-        get_results_files_inference_test(qrt="{qrt}"),
+        get_results_paths_inference_test(qrt="{qrt}"),
     params:
         qrt_flag=lambda wildcards: (
             "--quasi-real-time" if wildcards.qrt == "_qrt" else ""
@@ -414,13 +414,13 @@ rule inference_test_results:
 
 rule inference_test_plots:
     input:
-        shared_input_files,
-        results_files_weather_suitability_data,
+        shared_input_paths,
+        results_paths_weather_suitability_data,
         "scripts/inference_test_plots.py",
         "scripts/lazio_outbreak_plots.py",
-        get_results_files_inference_test(qrt="{qrt}"),
+        get_results_paths_inference_test(qrt="{qrt}"),
     output:
-        get_plot_files_inference_test(qrt="{qrt}"),
+        get_figure_paths_inference_test(qrt="{qrt}"),
     params:
         qrt_flag=lambda wildcards: (
             "--quasi-real-time" if wildcards.qrt == "_qrt" else ""
@@ -433,12 +433,12 @@ rule inference_test_plots:
 
 rule sim_sensitivity_results:
     input:
-        shared_input_files,
-        results_files_weather_suitability_data,
+        shared_input_paths,
+        results_paths_weather_suitability_data,
         "scripts/sim_sensitivity.py",
         "scripts/sim_study.py",
     output:
-        results_files_sim_sensitivity,
+        results_paths_sim_sensitivity,
     shell:
         """
         pixi run python scripts/sim_sensitivity.py -r
@@ -447,13 +447,13 @@ rule sim_sensitivity_results:
 
 rule sim_sensitivity_plots:
     input:
-        shared_input_files,
-        results_files_weather_suitability_data,
+        shared_input_paths,
+        results_paths_weather_suitability_data,
         "scripts/sim_sensitivity_plots.py",
         "scripts/sim_study_plots.py",
-        results_files_sim_sensitivity,
+        results_paths_sim_sensitivity,
     output:
-        plot_files_sim_sensitivity,
+        figure_paths_sim_sensitivity,
     shell:
         """
         pixi run python scripts/sim_sensitivity_plots.py
@@ -462,13 +462,13 @@ rule sim_sensitivity_plots:
 
 rule lazio_frozen_results:
     input:
-        shared_input_files,
-        data_file_lazio_incidence,
-        results_files_weather_suitability_data,
+        shared_input_paths,
+        lazio_incidence_path,
+        results_paths_weather_suitability_data,
         "scripts/lazio_frozen.py",
         "scripts/lazio_outbreak.py",
     output:
-        results_files_lazio_frozen,
+        results_paths_lazio_frozen,
     shell:
         """
         pixi run python scripts/lazio_frozen.py -r
@@ -477,14 +477,14 @@ rule lazio_frozen_results:
 
 rule lazio_frozen_plots:
     input:
-        shared_input_files,
-        results_files_weather_suitability_data,
-        get_results_files_lazio_outbreak(qrt=""),
-        results_files_lazio_frozen,
+        shared_input_paths,
+        results_paths_weather_suitability_data,
+        get_results_paths_lazio_outbreak(qrt=""),
+        results_paths_lazio_frozen,
         "scripts/lazio_frozen_plots.py",
         "scripts/lazio_outbreak_plots.py",
     output:
-        plot_files_lazio_frozen,
+        figure_paths_lazio_frozen,
     shell:
         """
         pixi run python scripts/lazio_frozen_plots.py
@@ -493,12 +493,12 @@ rule lazio_frozen_plots:
 
 rule lazio_epiestim_results:
     input:
-        shared_input_files,
-        data_file_lazio_incidence,
-        results_files_weather_suitability_data,
+        shared_input_paths,
+        lazio_incidence_path,
+        results_paths_weather_suitability_data,
         "scripts/lazio_epiestim.py",
     output:
-        results_files_lazio_epiestim,
+        results_paths_lazio_epiestim,
     shell:
         """
         pixi run python scripts/lazio_epiestim.py -r
@@ -507,14 +507,14 @@ rule lazio_epiestim_results:
 
 rule lazio_epiestim_plots:
     input:
-        shared_input_files,
-        results_files_weather_suitability_data,
-        get_results_files_lazio_outbreak(qrt=""),
-        results_files_lazio_epiestim,
+        shared_input_paths,
+        results_paths_weather_suitability_data,
+        get_results_paths_lazio_outbreak(qrt=""),
+        results_paths_lazio_epiestim,
         "scripts/lazio_epiestim_plots.py",
         "scripts/lazio_outbreak_plots.py",
     output:
-        plot_files_lazio_epiestim,
+        figure_paths_lazio_epiestim,
     shell:
         """
         pixi run python scripts/lazio_epiestim_plots.py
@@ -523,13 +523,13 @@ rule lazio_epiestim_plots:
 
 rule lazio_underreporting_qrt_results:
     input:
-        shared_input_files,
-        data_file_lazio_incidence,
-        results_files_weather_suitability_data,
-        data_file_lazio_reporting_matrix,
+        shared_input_paths,
+        lazio_incidence_path,
+        results_paths_weather_suitability_data,
+        lazio_reporting_matrix_path,
         "scripts/lazio_underreporting_qrt.py",
     output:
-        results_files_lazio_underreporting_qrt,
+        results_paths_lazio_underreporting_qrt,
     shell:
         """
         pixi run python scripts/lazio_underreporting_qrt.py -r
@@ -538,13 +538,13 @@ rule lazio_underreporting_qrt_results:
 
 rule lazio_underreporting_qrt_plots:
     input:
-        shared_input_files,
-        results_files_weather_suitability_data,
-        results_files_lazio_underreporting_qrt,
-        get_results_files_lazio_outbreak(qrt=""),
+        shared_input_paths,
+        results_paths_weather_suitability_data,
+        results_paths_lazio_underreporting_qrt,
+        get_results_paths_lazio_outbreak(qrt=""),
         "scripts/lazio_underreporting_qrt_plots.py",
     output:
-        plot_files_lazio_underreporting_qrt,
+        figure_paths_lazio_underreporting_qrt,
     shell:
         """
         pixi run python scripts/lazio_underreporting_qrt_plots.py
@@ -553,12 +553,12 @@ rule lazio_underreporting_qrt_plots:
 
 rule lazio_underreporting_retro_results:
     input:
-        shared_input_files,
-        data_file_lazio_incidence,
-        results_files_weather_suitability_data,
+        shared_input_paths,
+        lazio_incidence_path,
+        results_paths_weather_suitability_data,
         "scripts/lazio_underreporting_retro.py",
     output:
-        results_files_lazio_underreporting_retro,
+        results_paths_lazio_underreporting_retro,
     shell:
         """
         pixi run python scripts/lazio_underreporting_retro.py -r
@@ -567,14 +567,14 @@ rule lazio_underreporting_retro_results:
 
 rule lazio_underreporting_retro_plots:
     input:
-        shared_input_files,
-        results_files_weather_suitability_data,
-        results_files_lazio_underreporting_retro,
-        get_results_files_lazio_outbreak(qrt=""),
+        shared_input_paths,
+        results_paths_weather_suitability_data,
+        results_paths_lazio_underreporting_retro,
+        get_results_paths_lazio_outbreak(qrt=""),
         "scripts/lazio_underreporting_retro_plots.py",
         "scripts/lazio_underreporting_qrt_plots.py",
     output:
-        plot_files_lazio_underreporting_retro,
+        figure_paths_lazio_underreporting_retro,
     shell:
         """
         pixi run python scripts/lazio_underreporting_retro_plots.py
@@ -583,10 +583,10 @@ rule lazio_underreporting_retro_plots:
 
 rule sim_underreporting_results:
     input:
-        shared_input_files,
+        shared_input_paths,
         "scripts/sim_underreporting.py",
     output:
-        results_files_sim_underreporting,
+        results_paths_sim_underreporting,
     shell:
         """
         pixi run python scripts/sim_underreporting.py -r
@@ -595,11 +595,11 @@ rule sim_underreporting_results:
 
 rule sim_underreporting_plots:
     input:
-        shared_input_files,
-        results_files_sim_underreporting,
+        shared_input_paths,
+        results_paths_sim_underreporting,
         "scripts/sim_underreporting_plots.py",
     output:
-        plot_files_sim_underreporting,
+        figure_paths_sim_underreporting,
     shell:
         """
         pixi run python scripts/sim_underreporting_plots.py
@@ -608,11 +608,11 @@ rule sim_underreporting_plots:
 
 rule sim_underreporting_nowcast_results:
     input:
-        shared_input_files,
+        shared_input_paths,
         "scripts/sim_underreporting.py",
         "scripts/sim_underreporting_nowcast.py",
     output:
-        results_files_sim_underreporting_nowcast,
+        results_paths_sim_underreporting_nowcast,
     shell:
         """
         pixi run python scripts/sim_underreporting_nowcast.py -r
@@ -621,11 +621,11 @@ rule sim_underreporting_nowcast_results:
 
 rule sim_underreporting_nowcast_plots:
     input:
-        shared_input_files,
-        results_files_sim_underreporting_nowcast,
+        shared_input_paths,
+        results_paths_sim_underreporting_nowcast,
         "scripts/sim_underreporting_nowcast_plots.py",
     output:
-        plot_files_sim_underreporting_nowcast,
+        figure_paths_sim_underreporting_nowcast,
     shell:
         """
         pixi run python scripts/sim_underreporting_nowcast_plots.py

@@ -5,12 +5,12 @@ import svgutils.transform as svgt
 
 
 def compile_figure(
-    save_path,
+    output_path,
     panel_paths,
     template_path=None,
-    sz=None,
+    figure_size=None,
     tiling=None,
-    panel_sz=(500, 450),
+    panel_size=(500, 450),
     panel_offset=(0, -40),
     panel_positions=None,
     panel_scalings=None,
@@ -24,20 +24,20 @@ def compile_figure(
 
     Parameters
     ----------
-    save_path : pathlib.Path
+    output_path : pathlib.Path
         Path to save the figure.
     panel_paths : list of pathlib.Path
         Paths to the panels to include in the figure.
     template_path : pathlib.Path, optional
         Path to an SVG template file onto which the panels will be placed. If None, no
         template is used.
-    sz : tuple of int, optional
+    figure_size : tuple of int, optional
         Size of the figure in pixels (width, height). If None, the size is calculated
         based on the number of panels and the panel size.
     tiling : tuple of int, optional
         Number of rows and columns to tile the panels in the figure. If None, the
         number of rows and columns is calculated automatically.
-    panel_sz : tuple of int, optional
+    panel_size : tuple of int, optional
         Size of the panels in pixels (width, height) (default is (500, 450))
     panel_offset : tuple of int, optional
         Offset of the panels from the top-left corner of the figure in pixels (x, y)
@@ -63,72 +63,74 @@ def compile_figure(
     -------
     None
     """
-    no_panels = len(panel_paths)
+    n_panels = len(panel_paths)
     if tiling is None:
-        rows = 1 + (no_panels - 1) // 3
-        cols = int(np.ceil(no_panels / rows))
+        n_rows = 1 + (n_panels - 1) // 3
+        n_columns = int(np.ceil(n_panels / n_rows))
     else:
-        cols, rows = tiling
-    if sz is None:
-        sz = (panel_sz[0] * cols, panel_sz[1] * rows)
+        n_columns, n_rows = tiling
+    if figure_size is None:
+        figure_size = (panel_size[0] * n_columns, panel_size[1] * n_rows)
     if panel_positions is None:
         panel_positions = [
             (
-                panel_offset[0] + panel_sz[0] * (i % cols),
-                panel_offset[1] + panel_sz[1] * (i // cols),
+                panel_offset[0] + panel_size[0] * (i % n_columns),
+                panel_offset[1] + panel_size[1] * (i // n_columns),
             )
-            for i in range(no_panels)
+            for i in range(n_panels)
         ]
     if panel_scalings is None:
-        panel_scalings = [1] * no_panels
+        panel_scalings = [1] * n_panels
     if label_strings is None:
-        label_strings = [chr(65 + i) + "." for i in range(no_panels)]
+        label_strings = [chr(65 + i) + "." for i in range(n_panels)]
     if label_positions is None:
         label_positions = [
             (
-                label_offset[0] + panel_sz[0] * (i % cols),
-                label_offset[1] + panel_sz[1] * (i // cols),
+                label_offset[0] + panel_size[0] * (i % n_columns),
+                label_offset[1] + panel_size[1] * (i // n_columns),
             )
-            for i in range(no_panels)
+            for i in range(n_panels)
         ]
     # create new SVG figure
     if template_path is not None:
         fig = svgt.fromfile(template_path)
     else:
         fig = svgt.SVGFigure()
-        fig.set_size((str(sz[0]) + "px", str(sz[1]) + "px"))
-    # load matpotlib-generated figures
-    panels = []
-    for path in panel_paths:
-        if path is not None:
-            panel = svgt.fromfile(path).getroot()
+        fig.set_size((str(figure_size[0]) + "px", str(figure_size[1]) + "px"))
+    # Load matplotlib-generated figures.
+    panel_elements = []
+    for panel_path in panel_paths:
+        if panel_path is not None:
+            panel = svgt.fromfile(panel_path).getroot()
         else:
             panel = svgt.TextElement(0, 0, "")
-        panels.append(panel)
-    for panel, position, scaling in zip(panels, panel_positions, panel_scalings):
+        panel_elements.append(panel)
+    for panel, position, scaling in zip(
+        panel_elements, panel_positions, panel_scalings, strict=True
+    ):
         panel.moveto(position[0], position[1], scale_x=scaling)
     # add text labels
-    labels = [
+    label_elements = [
         svgt.TextElement(
             position[0], position[1], string, size=label_size, font="Arial"
         )
-        for string, position in zip(label_strings, label_positions)
+        for string, position in zip(label_strings, label_positions, strict=True)
     ]
     # append plots and labels to figure
-    fig.append(panels + labels)
+    fig.append(panel_elements + label_elements)
     # save generated SVG files
-    save_path.parent.mkdir(exist_ok=True, parents=True)
-    fig.save(save_path)
+    output_path.parent.mkdir(exist_ok=True, parents=True)
+    fig.save(output_path)
 
 
 def compile_paper_figures():
     figure_dir = pathlib.Path(__file__).parents[1] / "figures"
     # Panels with twin axes or two-line ylabels overrun the default slot and overlap
     # their neighbours; give those figures a wider panel slot.
-    wide_panel_sz = (520, 450)
+    wide_panel_size = (520, 450)
     # Figure 2
     compile_figure(
-        save_path=figure_dir / "figure_2.svg",
+        output_path=figure_dir / "figure_2.svg",
         panel_paths=[
             figure_dir / "sim_study" / f"{x}.svg"
             for x in [
@@ -138,11 +140,11 @@ def compile_paper_figures():
                 "many_outbreak_decision",
             ]
         ],
-        panel_sz=wide_panel_sz,
+        panel_size=wide_panel_size,
     )
     # Figure 3
     compile_figure(
-        save_path=figure_dir / "figure_3.svg",
+        output_path=figure_dir / "figure_3.svg",
         panel_paths=[
             figure_dir / f"{x}.svg"
             for x in [
@@ -155,26 +157,26 @@ def compile_paper_figures():
     )
     # Figure 4
     compile_figure(
-        save_path=figure_dir / "figure_4.svg",
+        output_path=figure_dir / "figure_4.svg",
         panel_paths=[
             figure_dir / "lazio_outbreak" / f"{x}.svg"
             for x in ["suitability", "rep_no", "additional_case_prob", "decision"]
         ],
-        panel_sz=wide_panel_sz,
+        panel_size=wide_panel_size,
     )
     # Figure 5 (real-time under-reporting nowcast): delay distribution, latest-snapshot true
     # cases, real-time additional-case probability (with the full-outbreak-knowledge benchmark).
     compile_figure(
-        save_path=figure_dir / "figure_5.svg",
+        output_path=figure_dir / "figure_5.svg",
         panel_paths=[
             figure_dir / "lazio_underreporting_qrt" / f"{x}.svg"
             for x in ["delay", "cases", "additional_case_prob"]
         ],
-        panel_sz=wide_panel_sz,
+        panel_size=wide_panel_size,
     )
     # Figure S1
     compile_figure(
-        save_path=figure_dir / "figure_S1.svg",
+        output_path=figure_dir / "figure_S1.svg",
         panel_paths=[
             figure_dir / "sim_sensitivity" / f"{x}.svg"
             for x in [
@@ -186,20 +188,20 @@ def compile_paper_figures():
                 "decay_speed_high",
             ]
         ],
-        panel_sz=wide_panel_sz,
+        panel_size=wide_panel_size,
     )
     # Figure S2
     compile_figure(
-        save_path=figure_dir / "figure_S2.svg",
+        output_path=figure_dir / "figure_S2.svg",
         panel_paths=[
             figure_dir / "lazio_outbreak" / "scaling_factor.svg",
         ],
-        panel_sz=wide_panel_sz,
+        panel_size=wide_panel_size,
     )
     # Figure S3 (Lazio R_t-method comparison): frozen autoregressive (A-C) vs EpiEstim
     # (D-F), each showing R_t, additional-case probability and decision delay.
     compile_figure(
-        save_path=figure_dir / "figure_S3.svg",
+        output_path=figure_dir / "figure_S3.svg",
         panel_paths=[
             figure_dir / "lazio_frozen" / f"{x}.svg"
             for x in ["rep_no", "additional_case_prob", "decision"]
@@ -208,32 +210,32 @@ def compile_paper_figures():
             figure_dir / "lazio_epiestim" / f"{x}.svg"
             for x in ["rep_no", "additional_case_prob", "decision"]
         ],
-        panel_sz=wide_panel_sz,
+        panel_size=wide_panel_size,
     )
     # Figure S4 (retrospective under-reporting — results): latent true cases, additional-case
     # probability, and decision delay — the latter two with the full-outbreak-knowledge benchmark.
     compile_figure(
-        save_path=figure_dir / "figure_S4.svg",
+        output_path=figure_dir / "figure_S4.svg",
         panel_paths=[
             figure_dir / "lazio_underreporting_retro" / f"{x}.svg"
             for x in ["cases", "additional_case_prob", "decision"]
         ],
-        panel_sz=wide_panel_sz,
+        panel_size=wide_panel_size,
     )
     # Figure S5 (retrospective under-reporting — inference diagnostics): suitability / R_t-factor /
     # R_t posteriors from the suitability fit and the R_t posterior from the autoregressive fit,
     # each overlaid with the full-reporting (no under-reporting) estimate.
     compile_figure(
-        save_path=figure_dir / "figure_S5.svg",
+        output_path=figure_dir / "figure_S5.svg",
         panel_paths=[
             figure_dir / "lazio_underreporting_retro" / f"{x}.svg"
             for x in ["suitability", "scaling_factor", "rep_no", "rep_no_ar"]
         ],
-        panel_sz=wide_panel_sz,
+        panel_size=wide_panel_size,
     )
     # Figure S6 (inference test)
     compile_figure(
-        save_path=figure_dir / "figure_S6.svg",
+        output_path=figure_dir / "figure_S6.svg",
         panel_paths=[
             figure_dir / "inference_test" / f"{x}.svg"
             for x in [
@@ -244,26 +246,26 @@ def compile_paper_figures():
                 "decision",
             ]
         ],
-        panel_sz=wide_panel_sz,
+        panel_size=wide_panel_size,
     )
     # Figure S7 (under-reporting simulation study)
     compile_figure(
-        save_path=figure_dir / "figure_S7.svg",
+        output_path=figure_dir / "figure_S7.svg",
         panel_paths=[
             figure_dir / "sim_underreporting" / f"{x}.svg"
             for x in ["cases", "rep_no", "additional_case_prob", "decision"]
         ],
-        panel_sz=wide_panel_sz,
+        panel_size=wide_panel_size,
     )
     # Figure S8 (under + delayed reporting nowcast verification): the onset-to-report delay
     # distribution (A) and the snapshot verification panel (B).
     compile_figure(
-        save_path=figure_dir / "figure_S8.svg",
+        output_path=figure_dir / "figure_S8.svg",
         panel_paths=[
             figure_dir / "sim_underreporting_nowcast" / f"{x}.svg"
             for x in ["delay", "verification"]
         ],
-        panel_sz=wide_panel_sz,
+        panel_size=wide_panel_size,
     )
 
 

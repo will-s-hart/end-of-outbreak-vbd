@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from endoutbreakvbd.utils import get_colors, plot_data_on_twin_ax, set_plot_config
+from endoutbreakvbd.utils import get_colors, plot_incidence_on_twin_ax, set_plot_config
 from scripts.inputs import get_inputs_sim_underreporting_nowcast
 
 
@@ -22,12 +22,12 @@ def make_plots():
     inputs = get_inputs_sim_underreporting_nowcast()
     colors = get_colors()
     _make_delay_plot(inputs)
-    df = pd.read_csv(inputs["results_paths"]["trajectory"])
-    df_probs = pd.read_csv(inputs["results_paths"]["probs"]).set_index("method")
-    day = df["onset_day"].to_numpy()
-    reported = df["reported"].to_numpy()
-    not_yet = df["not_yet"].to_numpy()
-    never = df["never"].to_numpy()
+    trajectory_df = pd.read_csv(inputs["results_paths"]["trajectory"])
+    probs_df = pd.read_csv(inputs["results_paths"]["probs"]).set_index("method")
+    t_vec = trajectory_df["onset_day"].to_numpy()
+    reported_incidence_vec = trajectory_df["reported_incidence"].to_numpy()
+    not_yet_vec = trajectory_df["not_yet"].to_numpy()
+    never_vec = trajectory_df["never"].to_numpy()
     snapshot_day = int(inputs["snapshot_day"])
     t_calc = snapshot_day + 1  # the decision day (start of the day after the snapshot)
 
@@ -37,18 +37,27 @@ def make_plots():
     # summing to the true incidence, coloured grey→orange→purple by the helper's palette) over the
     # inferred true-case band. The band sits behind the bars so the categories stay legible; the
     # band and mean line then show where the model recovers the hidden (later + never) cases.
-    twin_ax = plot_data_on_twin_ax(
+    twin_ax = plot_incidence_on_twin_ax(
         ax,
-        day,
-        [reported, not_yet, never],
-        bar_labels=["Reported (by snapshot)", "Reported later", "Never reported"],
+        t_vec,
+        [reported_incidence_vec, not_yet_vec, never_vec],
+        incidence_labels=["Reported (by snapshot)", "Reported later", "Never reported"],
         alpha=0.7,
-        fitted=(df["cases_mean"], df["cases_lower"], df["cases_upper"]),
-        fitted_color=colors[0],
-        fitted_label="Estimated true",
+        fitted_incidence=(
+            trajectory_df["incidence_mean"],
+            trajectory_df["incidence_lower"],
+            trajectory_df["incidence_upper"],
+        ),
+        fitted_incidence_color=colors[0],
+        fitted_incidence_label="Estimated true",
     )
     twin_ax.set_ylim(
-        0, 1.05 * max((reported + not_yet + never).max(), df["cases_upper"].max())
+        0,
+        1.05
+        * max(
+            (reported_incidence_vec + not_yet_vec + never_vec).max(),
+            trajectory_df["incidence_upper"].max(),
+        ),
     )
 
     ax.axvline(
@@ -61,7 +70,7 @@ def make_plots():
     x0 = t_calc + 0.5
     dodge = (np.arange(len(series)) - (len(series) - 1) / 2) * 0.6
     for (method, color, label), dx in zip(series, dodge):
-        row = df_probs.loc[method]
+        row = probs_df.loc[method]
         prob, lower, upper = row["prob"], row["prob_lower"], row["prob_upper"]
         if np.isnan(lower):
             ax.plot(
