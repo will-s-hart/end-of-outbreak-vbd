@@ -29,7 +29,7 @@ def test_fit_model_qrt_sequence_mode_forwards_per_snapshot(monkeypatch):
             coords={"time": [t], "data_time": np.arange(t)},
         )
 
-    monkeypatch.setattr(qrt, "_fit_model", fake_fit_model)
+    monkeypatch.setattr(qrt, "_fit_single_model", fake_fit_model)
     monkeypatch.setattr(qrt, "tqdm", lambda iterable, **kwargs: iterable)
 
     incidence_snapshots = [np.array([2, 1]), np.array([2, 1, 0, 0])]
@@ -60,14 +60,15 @@ def test_fit_model_qrt_sequence_mode_forwards_per_snapshot(monkeypatch):
 
 def test_fit_autoregressive_model_routes_sequence_through_qrt(monkeypatch):
     # The public entry point forwards a sequence of series into the quasi-real-time sequence path
-    # (the under-reporting nowcast route), reached via _fit_model's deferred import.
+    # (the under-reporting nowcast route). `inference` imports `_fit_model_qrt` directly, so the
+    # name is patched there rather than on the defining module.
     captured = {}
 
     def fake_fit_model_qrt(**kwargs):
         captured.update(kwargs)
         return xr.Dataset({"rep_no_mean": ("time", [1.0])}, coords={"time": [1]})
 
-    monkeypatch.setattr(qrt, "_fit_model_qrt", fake_fit_model_qrt)
+    monkeypatch.setattr(inference, "_fit_model_qrt", fake_fit_model_qrt)
 
     incidence_snapshots = [np.array([2, 1]), np.array([2, 1, 0, 0])]
     inference.fit_autoregressive_model(
@@ -91,7 +92,7 @@ def test_fit_model_qrt_spawns_distinct_child_rng_per_step(monkeypatch):
         t = len(kwargs["incidence"])
         return xr.Dataset({"rep_no_mean": ("time", [float(t)])}, coords={"time": [t]})
 
-    monkeypatch.setattr(qrt, "_fit_model", fake_fit_model)
+    monkeypatch.setattr(qrt, "_fit_single_model", fake_fit_model)
     monkeypatch.setattr(qrt, "tqdm", lambda iterable, **kwargs: iterable)
 
     parent_rng = np.random.default_rng(0)

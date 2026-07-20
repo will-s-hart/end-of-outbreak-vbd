@@ -9,7 +9,7 @@ import scipy.stats
 from matplotlib.patches import Rectangle
 
 from endoutbreakvbd.utils import (
-    dates_to_day_index,
+    dates_to_calendar_day_index,
     discretise_cori,
     get_colors,
     lognormal_params_from_median_percentile_2_5,
@@ -196,11 +196,13 @@ def test_plot_incidence_on_twin_ax_rejects_too_many_stacked_layers():
         plt.close(fig)
 
 
-def test_dates_to_day_index_matches_day_of_year_and_does_not_wrap():
+def test_dates_to_calendar_day_index_matches_day_of_year_and_does_not_wrap():
     dates = pd.to_datetime(["2017-01-01", "2017-12-31", "2018-01-01"])
     # 2017 is not a leap year: 31 Dec is day 365, and the following day continues to 366
     # rather than wrapping back to 1 (which a bare day-of-year would).
-    np.testing.assert_array_equal(dates_to_day_index(dates), np.array([1, 365, 366]))
+    np.testing.assert_array_equal(
+        dates_to_calendar_day_index(dates), np.array([1, 365, 366])
+    )
 
 
 def test_get_colors_returns_non_empty_color_list():

@@ -329,10 +329,12 @@ def calc_decision_delay(
 def _additional_case_prob_sample_shape(
     *, incidence: IntArray, rep_no_func: RepNoFunc
 ) -> tuple[int, ...]:
-    # Short-circuit probabilities do not evaluate R_t, so probe one valid outbreak time to
-    # recover its trailing sample dimensions. Time is the leading axis of vector-valued R_t.
-    rep_no_at_t0 = np.asarray(rep_no_func(np.array([0], dtype=int)))
-    rep_no_sample_shape = rep_no_at_t0.shape[1:] if rep_no_at_t0.ndim else ()
+    # Short-circuit probabilities do not evaluate R_t, so probe `rep_no_func` to recover its
+    # trailing sample dimensions. Time is the leading axis of vector-valued R_t, so an *empty*
+    # time vector exposes the sample shape without asking for any particular outbreak time —
+    # no risk of an out-of-range index, and nothing is evaluated that the caller did not request.
+    rep_no_probe = np.asarray(rep_no_func(np.array([], dtype=int)))
+    rep_no_sample_shape = rep_no_probe.shape[1:] if rep_no_probe.ndim else ()
     return np.broadcast_shapes(incidence.shape[1:], rep_no_sample_shape)
 
 

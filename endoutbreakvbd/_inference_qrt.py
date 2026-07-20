@@ -11,16 +11,16 @@ import xarray as xr
 from joblib import Parallel, delayed, parallel_config
 from tqdm import tqdm
 
+from endoutbreakvbd._inference_core import (
+    _compute_and_check_diagnostics,
+    _fit_single_model,
+    _is_incidence_sequence,
+)
 from endoutbreakvbd._types import (
     FloatArray,
     IncidenceSeriesInput,
     IntArray,
     SerialIntervalInput,
-)
-from endoutbreakvbd.inference import (
-    _compute_and_check_diagnostics,
-    _fit_model,
-    _is_incidence_sequence,
 )
 
 
@@ -41,7 +41,7 @@ def _fit_model_qrt(
 ) -> xr.Dataset:
     # Quasi-real-time loop: refit using only the data available at each successive calculation
     # time and keep that snapshot's decision-day slice. Each snapshot fit reports every day of
-    # its data plus one projected day (`_fit_model`'s fixed convention); the decision day is that
+    # its data plus one projected day (`_fit_single_model`'s fixed convention); the decision day is that
     # projected day (its last time index), so each step keeps `time=[-1]`. This matches a single
     # non-quasi-real-time fit's "one day past the data" convention exactly. Two input shapes:
     #   - a single incidence series -> for day t, fit the data up to day t-1 (`incidence[:t]`)
@@ -92,7 +92,6 @@ def _fit_model_qrt(
     fit_kwargs_shared: dict[str, Any] = {
         "serial_interval_dist_vec": serial_interval_dist_vec,
         "rep_no_vec_func": rep_no_vec_func,
-        "quasi_real_time": False,
         "reporting_prob": reporting_prob,
         "delay_cdf": delay_cdf,
         "step_func": step_func,
@@ -130,7 +129,10 @@ def _fit_model_qrt(
                         n_jobs=-1,
                         return_as="generator",
                         batch_size="auto",
-                    )(delayed(_fit_model_qrt_step)(task, True) for task in fit_tasks),
+                    )(
+                        delayed(_fit_model_qrt_step)(task, isolate=True)
+                        for task in fit_tasks
+                    ),
                     total=len(fit_tasks),
                     desc=desc,
                 )
@@ -138,7 +140,7 @@ def _fit_model_qrt(
     else:
         fit_results = list(
             tqdm(
-                (_fit_model_qrt_step(task, False) for task in fit_tasks),
+                (_fit_model_qrt_step(task, isolate=False) for task in fit_tasks),
                 total=len(fit_tasks),
                 desc=desc,
             )
@@ -186,7 +188,7 @@ def _prepare_qrt_worker() -> None:
 
 
 def _fit_model_qrt_step(
-    task: tuple[int, list[int], dict[str, Any]], isolate: bool
+    task: tuple[int, list[int], dict[str, Any]], *, isolate: bool
 ) -> tuple[int, xr.Dataset]:
     # Fit a single quasi-real-time snapshot and keep only its time-indexed variables (the
     # chain/draw dims survive for the aggregate diagnostics), sliced to this snapshot's
@@ -197,7 +199,7 @@ def _fit_model_qrt_step(
     idx, keep, fit_kwargs = task
     if isolate:
         _prepare_qrt_worker()
-    posterior_current_ds = _fit_model(**fit_kwargs)
+    posterior_current_ds = _fit_single_model(**fit_kwargs)
     posterior_subset_ds = posterior_current_ds[
         [
             var

@@ -220,8 +220,10 @@ def test_calc_additional_case_prob_analytical_scalar_broadcast_probes_early_shap
 
     assert per_sample_prob_vec.shape == (3,)
     np.testing.assert_allclose(per_sample_prob_vec, 1.0)
+    # The shape probe passes an *empty* time vector: it recovers the trailing sample dimensions
+    # without evaluating R_t at any particular outbreak time.
     assert len(calls) == 1
-    np.testing.assert_array_equal(calls[0], np.array([0]))
+    assert calls[0].size == 0
 
 
 def test_calc_additional_case_prob_analytical_all_early_broadcast_probes_once():
@@ -242,8 +244,9 @@ def test_calc_additional_case_prob_analytical_all_early_broadcast_probes_once():
 
     assert per_sample_prob_mat.shape == (2, 3)
     np.testing.assert_allclose(per_sample_prob_mat, np.array([[1.0] * 3, [0.0] * 3]))
+    # Probed once, with an empty time vector (no particular outbreak time is evaluated).
     assert len(calls) == 1
-    np.testing.assert_array_equal(calls[0], np.array([0]))
+    assert calls[0].size == 0
 
 
 def test_calc_additional_case_prob_analytical_broadcast_broadcasts_early_returns():

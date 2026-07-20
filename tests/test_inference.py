@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
+import endoutbreakvbd._inference_core as core
 import endoutbreakvbd._inference_qrt as qrt
 import endoutbreakvbd.inference as inference
 import endoutbreakvbd.rep_no_models as rnm
@@ -30,7 +31,7 @@ def _setup_minimal_pm_for_fit_model(monkeypatch):
     state = {}
 
     monkeypatch.setattr(
-        inference.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
+        core.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
     )
 
     poisson_calls = []
@@ -40,7 +41,7 @@ def _setup_minimal_pm_for_fit_model(monkeypatch):
             {"name": name, "mu": np.array(mu), "observed": np.array(observed)}
         )
 
-    monkeypatch.setattr(inference.pm, "Poisson", fake_poisson)
+    monkeypatch.setattr(core.pm, "Poisson", fake_poisson)
 
     class _FakeTrace:
         def __init__(self, posterior):
@@ -71,7 +72,7 @@ def _setup_minimal_pm_for_fit_model(monkeypatch):
         )
         return _FakeTrace(posterior=posterior)
 
-    monkeypatch.setattr(inference.pm, "sample", fake_sample)
+    monkeypatch.setattr(core.pm, "sample", fake_sample)
 
     return state, poisson_calls
 
@@ -80,14 +81,14 @@ def _setup_pm_rep_no_depends_on_observed_sum(monkeypatch):
     state: dict[str, Any] = {"observed_sum": 0.0}
 
     monkeypatch.setattr(
-        inference.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
+        core.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
     )
 
     def fake_poisson(name, mu, observed):
         del name, mu
         state["observed_sum"] = float(np.sum(observed))
 
-    monkeypatch.setattr(inference.pm, "Poisson", fake_poisson)
+    monkeypatch.setattr(core.pm, "Poisson", fake_poisson)
 
     class _FakeTrace:
         def __init__(self, posterior):
@@ -119,16 +120,16 @@ def _setup_pm_rep_no_depends_on_observed_sum(monkeypatch):
         )
         return _FakeTrace(posterior=posterior)
 
-    monkeypatch.setattr(inference.pm, "sample", fake_sample)
+    monkeypatch.setattr(core.pm, "sample", fake_sample)
 
 
 def _setup_pm_with_time_varying_rep_no(monkeypatch):
     state: dict[str, Any] = {}
 
     monkeypatch.setattr(
-        inference.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
+        core.pm, "Model", lambda coords=None: _DummyModel(state, coords=coords)
     )
-    monkeypatch.setattr(inference.pm, "Poisson", lambda name, mu, observed: None)
+    monkeypatch.setattr(core.pm, "Poisson", lambda name, mu, observed: None)
 
     class _FakeTrace:
         def __init__(self, posterior):
@@ -163,7 +164,7 @@ def _setup_pm_with_time_varying_rep_no(monkeypatch):
         )
         return _FakeTrace(posterior=posterior)
 
-    monkeypatch.setattr(inference.pm, "sample", fake_sample)
+    monkeypatch.setattr(core.pm, "sample", fake_sample)
     return state
 
 
@@ -301,12 +302,12 @@ def test_fit_model_quasi_real_time_excludes_current_day_incidence(monkeypatch):
 def test_is_incidence_sequence_distinguishes_single_series_from_sequence():
     # A single series (1-D array or a flat list of counts) is not a sequence-of-series; a
     # list/tuple of array-likes (or a 2-D array) is.
-    assert not inference._is_incidence_sequence([1, 2, 3])
-    assert not inference._is_incidence_sequence(np.array([1, 2, 3]))
-    assert not inference._is_incidence_sequence([])
-    assert inference._is_incidence_sequence([np.array([1, 2]), np.array([1, 2, 3])])
-    assert inference._is_incidence_sequence([[1, 2], [1, 2, 3]])
-    assert inference._is_incidence_sequence(np.zeros((2, 3)))
+    assert not core._is_incidence_sequence([1, 2, 3])
+    assert not core._is_incidence_sequence(np.array([1, 2, 3]))
+    assert not core._is_incidence_sequence([])
+    assert core._is_incidence_sequence([np.array([1, 2]), np.array([1, 2, 3])])
+    assert core._is_incidence_sequence([[1, 2], [1, 2, 3]])
+    assert core._is_incidence_sequence(np.zeros((2, 3)))
 
 
 def test_fit_model_quasi_real_time_treats_plain_list_as_single_series(monkeypatch):
@@ -688,14 +689,14 @@ def _sample_stats(diverging):
 
 def _patch_stats(monkeypatch, *, rhat_values, ess_values):
     monkeypatch.setattr(
-        inference,
+        core,
         "rhat",
         lambda posterior, var_names: xr.Dataset(
             {var_names: ("time", np.asarray(rhat_values, dtype=float))}
         ),
     )
     monkeypatch.setattr(
-        inference,
+        core,
         "ess",
         lambda posterior, var_names: xr.Dataset(
             {var_names: ("time", np.asarray(ess_values, dtype=float))}
@@ -707,7 +708,7 @@ def test_compute_and_check_diagnostics_good_returns_dict_no_warning(monkeypatch)
     _patch_stats(monkeypatch, rhat_values=[1.001, 1.002], ess_values=[2000.0, 3000.0])
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        diagnostics = inference._compute_and_check_diagnostics(
+        diagnostics = core._compute_and_check_diagnostics(
             _diag_posterior(), _sample_stats([[False, False], [False, False]])
         )
     assert not [
@@ -730,7 +731,7 @@ def test_compute_and_check_diagnostics_good_returns_dict_no_warning(monkeypatch)
 def test_compute_and_check_diagnostics_warns_when_not_raising(monkeypatch):
     _patch_stats(monkeypatch, rhat_values=[1.0, 1.0], ess_values=[500.0, 600.0])
     with pytest.warns(UserWarning, match="min ESS 500.0 < 1000"):
-        diagnostics = inference._compute_and_check_diagnostics(
+        diagnostics = core._compute_and_check_diagnostics(
             _diag_posterior(), _sample_stats([[False, False], [False, False]])
         )
     assert diagnostics["ess_min"] == 500.0
@@ -739,7 +740,7 @@ def test_compute_and_check_diagnostics_warns_when_not_raising(monkeypatch):
 def test_compute_and_check_diagnostics_raises_when_requested(monkeypatch):
     _patch_stats(monkeypatch, rhat_values=[1.02, 1.005], ess_values=[500.0, 2000.0])
     with pytest.raises(RuntimeError, match="min ESS .* max R-hat"):
-        inference._compute_and_check_diagnostics(
+        core._compute_and_check_diagnostics(
             _diag_posterior(),
             _sample_stats([[True, False], [False, False]]),
             raise_on_problems=True,
@@ -749,7 +750,7 @@ def test_compute_and_check_diagnostics_raises_when_requested(monkeypatch):
 def test_compute_and_check_diagnostics_reports_divergences(monkeypatch):
     _patch_stats(monkeypatch, rhat_values=[1.0, 1.0], ess_values=[2000.0, 3000.0])
     with pytest.warns(UserWarning, match="1 divergence"):
-        inference._compute_and_check_diagnostics(
+        core._compute_and_check_diagnostics(
             _diag_posterior(), _sample_stats([[True, False], [False, False]])
         )
 
@@ -758,7 +759,7 @@ def test_compute_and_check_diagnostics_divergences_na_when_no_sample_stats(monke
     _patch_stats(monkeypatch, rhat_values=[1.0, 1.0], ess_values=[2000.0, 3000.0])
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        diagnostics = inference._compute_and_check_diagnostics(_diag_posterior(), None)
+        diagnostics = core._compute_and_check_diagnostics(_diag_posterior(), None)
     assert not [
         warning for warning in caught if "Poor sampling" in str(warning.message)
     ]
