@@ -1,31 +1,29 @@
-import warnings
+"""Public renewal-model fitting API.
+
+The three ``fit_*`` functions differ only in which reproduction-number prior they build (see
+``rep_no_models``); they share the dispatcher below, which routes to the quasi-real-time loop
+in ``_inference_qrt`` or to the single-snapshot engine in ``_inference_core``.
+"""
+
 from collections.abc import Callable, Sequence
 from typing import Any
 
-import arviz_base as azb
 import numpy as np
-import pymc as pm
 import xarray as xr
-from arviz_stats import ess, rhat
 
-from endoutbreakvbd._inference_models import (
-    _build_full_reporting_model,
-    _build_underreporting_model,
-)
+from endoutbreakvbd._inference_core import _fit_single_model, _posterior_summary
+from endoutbreakvbd._inference_qrt import _fit_model_qrt
 from endoutbreakvbd._types import (
     FloatArray,
     IncidenceSeriesInput,
     IntArray,
-    RepNoOutput,
     SerialIntervalInput,
 )
-from endoutbreakvbd.additional_case_prob import calc_additional_case_prob_analytical
 from endoutbreakvbd.rep_no_models import (
     build_ar_rep_no,
     build_known_rep_no,
     build_suitability_rep_no,
 )
-from endoutbreakvbd.utils import rep_no_from_grid
 
 
 def fit_autoregressive_model(
@@ -39,6 +37,9 @@ def fit_autoregressive_model(
     reporting_prob: float | None = None,
     delay_cdf: FloatArray | None = None,
     freeze_from_final_case: bool = False,
+    rng: np.random.Generator | int | None = None,
+    thin: int = 1,
+    step_func: Callable[[], Any] | None = None,
     parallel: bool = True,
     compute_diagnostics: bool = True,
     raise_on_poor_diagnostics: bool = False,
@@ -59,9 +60,10 @@ def fit_autoregressive_model(
 
     Parameters
     ----------
-    incidence : IncidenceSeriesInput
-        Observed incidence time series. When ``reporting_prob`` is supplied, the series
-        must start on the index-case day and its first value must be positive.
+    incidence : IncidenceSeriesInput or Sequence[IncidenceSeriesInput]
+        Observed incidence time series, or (with ``quasi_real_time=True``) a sequence of
+        snapshots. When ``reporting_prob`` is supplied, the series must start on the
+        index-case day and its first value must be positive.
     serial_interval_dist_vec : SerialIntervalInput
         Discretised serial interval distribution (probability mass per day).
     prior_median : float, optional
@@ -80,13 +82,32 @@ def fit_autoregressive_model(
         length.
     reporting_prob : float, optional
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
-        latent true-case vector instead of the full-reporting model.
+        latent true-case vector instead of the full-reporting model. This also **changes the
+        sampler**: the discrete latent cannot be sampled by nutpie, so PyMC's compound
+        NUTS + Metropolis is used, with more draws by default (``draws=4000``, ``tune=2000``
+        rather than ``1000``/``1000``) because the latent block is the mixing bottleneck.
+        Override via ``draws`` / ``tune`` / ``chains``.
+
+        On a non-quasi-real-time fit the latent case history is inferred from the *whole*
+        series, so the reported probability at day ``t`` is conditioned on data after ``t`` as
+        well as before it — a retrospective quantity, not a real-time one. (The reproduction
+        number is retrospective on both the full- and under-reporting paths.)
     delay_cdf : FloatArray, optional
         Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
         (nowcasting) to the under-reporting model.
     freeze_from_final_case : bool
         If True, hold the reproduction number fixed at its final-case-day posterior
         samples after the final observed case.
+    rng : np.random.Generator or int, optional
+        Seed for the sampler. A ``Generator`` is consumed in place, so successive fits sharing
+        one generator draw different seeds. Under ``quasi_real_time`` a child generator is
+        spawned per snapshot, making results independent of execution order.
+    thin : int
+        Keep every ``thin``th posterior draw. Applied after sampling.
+    step_func : Callable[[], Any], optional
+        Zero-argument factory returning an explicit PyMC step method. Not supported together
+        with ``reporting_prob`` (under-reporting fits rely on PyMC assigning the latent's
+        Metropolis step automatically).
     parallel : bool
         If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
         with joblib. No effect on a single (non-quasi-real-time) fit.
@@ -94,7 +115,9 @@ def fit_autoregressive_model(
         If True, compute convergence diagnostics, attach them to the returned
         dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
     raise_on_poor_diagnostics : bool
-        If True, raise (instead of warning) when sampling diagnostics are poor.
+        If True, raise (instead of warning) when sampling diagnostics are poor. Only the
+        reproduction-number diagnostics can raise; the discrete latent case block is
+        warn-only, since it mixes slowly by construction.
     **kwargs : Any
         Additional keyword arguments forwarded to the sampler.
 
@@ -117,6 +140,9 @@ def fit_autoregressive_model(
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
         freeze_from_final_case=freeze_from_final_case,
+        rng=rng,
+        thin=thin,
+        step_func=step_func,
         parallel=parallel,
         compute_diagnostics=compute_diagnostics,
         raise_on_poor_diagnostics=raise_on_poor_diagnostics,
@@ -137,6 +163,9 @@ def fit_suitability_model(
     quasi_real_time: bool = False,
     reporting_prob: float | None = None,
     delay_cdf: FloatArray | None = None,
+    rng: np.random.Generator | int | None = None,
+    thin: int = 1,
+    step_func: Callable[[], Any] | None = None,
     parallel: bool = True,
     compute_diagnostics: bool = True,
     raise_on_poor_diagnostics: bool = False,
@@ -157,17 +186,20 @@ def fit_suitability_model(
 
     Parameters
     ----------
-    incidence : IncidenceSeriesInput
-        Observed incidence time series. When ``reporting_prob`` is supplied, the series
-        must start on the index-case day and its first value must be positive.
+    incidence : IncidenceSeriesInput or Sequence[IncidenceSeriesInput]
+        Observed incidence time series, or (with ``quasi_real_time=True``) a sequence of
+        snapshots. When ``reporting_prob`` is supplied, the series must start on the
+        index-case day and its first value must be positive.
     serial_interval_dist_vec : SerialIntervalInput
         Discretised serial interval distribution (probability mass per day).
     suitability_mean_vec : list[float] or FloatArray
-        Prior mean suitability over the full reproduction-number inference horizon.
-        For incidence length ``N`` and serial-interval length ``S``, this is at least
-        ``N + 1`` for full reporting (and can extend to one serial interval past a
-        later final case), and ``N + S`` for under-reporting. For a snapshot sequence,
-        size it for the longest snapshot.
+        Prior mean suitability over the full reproduction-number inference horizon. For
+        incidence length ``N``, serial-interval length ``S`` and last non-zero incidence day
+        ``t_final_case``, the required length is ``max(N + 1, t_final_case + S + 1)`` for full
+        reporting, and ``N + S`` for under-reporting. Note the full-reporting requirement
+        depends on *where* the last case sits, not just on ``N``: a series padded with trailing
+        zeros needs less than one ending on a case. Too short a vector raises, reporting the
+        required horizon. For a snapshot sequence, size it for the longest snapshot.
     suitability_std : float, optional
         Stationary standard deviation of the suitability deviations. Defaults to
         ``DEFAULTS.suitability_std``.
@@ -190,10 +222,29 @@ def fit_suitability_model(
         length.
     reporting_prob : float, optional
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
-        latent true-case vector instead of the full-reporting model.
+        latent true-case vector instead of the full-reporting model. This also **changes the
+        sampler**: the discrete latent cannot be sampled by nutpie, so PyMC's compound
+        NUTS + Metropolis is used, with more draws by default (``draws=4000``, ``tune=2000``
+        rather than ``1000``/``1000``) because the latent block is the mixing bottleneck.
+        Override via ``draws`` / ``tune`` / ``chains``.
+
+        On a non-quasi-real-time fit the latent case history is inferred from the *whole*
+        series, so the reported probability at day ``t`` is conditioned on data after ``t`` as
+        well as before it — a retrospective quantity, not a real-time one. (The reproduction
+        number is retrospective on both the full- and under-reporting paths.)
     delay_cdf : FloatArray, optional
         Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
         (nowcasting) to the under-reporting model.
+    rng : np.random.Generator or int, optional
+        Seed for the sampler. A ``Generator`` is consumed in place, so successive fits sharing
+        one generator draw different seeds. Under ``quasi_real_time`` a child generator is
+        spawned per snapshot, making results independent of execution order.
+    thin : int
+        Keep every ``thin``th posterior draw. Applied after sampling.
+    step_func : Callable[[], Any], optional
+        Zero-argument factory returning an explicit PyMC step method. Not supported together
+        with ``reporting_prob`` (under-reporting fits rely on PyMC assigning the latent's
+        Metropolis step automatically).
     parallel : bool
         If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
         with joblib. No effect on a single (non-quasi-real-time) fit.
@@ -201,7 +252,9 @@ def fit_suitability_model(
         If True, compute convergence diagnostics, attach them to the returned
         dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
     raise_on_poor_diagnostics : bool
-        If True, raise (instead of warning) when sampling diagnostics are poor.
+        If True, raise (instead of warning) when sampling diagnostics are poor. Only the
+        reproduction-number diagnostics can raise; the discrete latent case block is
+        warn-only, since it mixes slowly by construction.
     **kwargs : Any
         Additional keyword arguments forwarded to the sampler.
 
@@ -227,6 +280,9 @@ def fit_suitability_model(
         quasi_real_time=quasi_real_time,
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
+        rng=rng,
+        thin=thin,
+        step_func=step_func,
         parallel=parallel,
         compute_diagnostics=compute_diagnostics,
         raise_on_poor_diagnostics=raise_on_poor_diagnostics,
@@ -251,6 +307,9 @@ def fit_known_rep_no_model(
     quasi_real_time: bool = False,
     reporting_prob: float | None = None,
     delay_cdf: FloatArray | None = None,
+    rng: np.random.Generator | int | None = None,
+    thin: int = 1,
+    step_func: Callable[[], Any] | None = None,
     parallel: bool = True,
     compute_diagnostics: bool = True,
     raise_on_poor_diagnostics: bool = False,
@@ -275,9 +334,10 @@ def fit_known_rep_no_model(
 
     Parameters
     ----------
-    incidence : IncidenceSeriesInput
-        Observed incidence time series. When ``reporting_prob`` is supplied, the series
-        must start on the index-case day and its first value must be positive.
+    incidence : IncidenceSeriesInput or Sequence[IncidenceSeriesInput]
+        Observed incidence time series, or (with ``quasi_real_time=True``) a sequence of
+        snapshots. When ``reporting_prob`` is supplied, the series must start on the
+        index-case day and its first value must be positive.
     serial_interval_dist_vec : SerialIntervalInput
         Discretised serial interval distribution (probability mass per day).
     rep_no_func : Callable[[IntArray], FloatArray]
@@ -290,19 +350,40 @@ def fit_known_rep_no_model(
         length.
     reporting_prob : float, optional
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
-        latent true-case vector instead of the full-reporting model.
+        latent true-case vector instead of the full-reporting model. This also **changes the
+        sampler**: the discrete latent cannot be sampled by nutpie, so PyMC's compound
+        NUTS + Metropolis is used, with more draws by default (``draws=4000``, ``tune=2000``
+        rather than ``1000``/``1000``) because the latent block is the mixing bottleneck.
+        Override via ``draws`` / ``tune`` / ``chains``.
+
+        On a non-quasi-real-time fit the latent case history is inferred from the *whole*
+        series, so the reported probability at day ``t`` is conditioned on data after ``t`` as
+        well as before it — a retrospective quantity, not a real-time one.
     delay_cdf : FloatArray, optional
         Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
         (nowcasting) to the under-reporting model.
+    rng : np.random.Generator or int, optional
+        Seed for the sampler. A ``Generator`` is consumed in place, so successive fits sharing
+        one generator draw different seeds. Under ``quasi_real_time`` a child generator is
+        spawned per snapshot, making results independent of execution order.
+    thin : int
+        Keep every ``thin``th posterior draw. Applied after sampling.
+    step_func : Callable[[], Any], optional
+        Zero-argument factory returning an explicit PyMC step method. Not supported together
+        with ``reporting_prob`` (under-reporting fits rely on PyMC assigning the latent's
+        Metropolis step automatically).
     parallel : bool
         If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
         with joblib. No effect on a single (non-quasi-real-time) fit.
     compute_diagnostics : bool
         If True, compute convergence diagnostics, attach them to the returned dataset's
-        ``attrs["diagnostics"]``, and warn on poor sampling. Reproduction-number diagnostics
-        are degenerate here (it is fixed), but any latent variables are still checked.
+        ``attrs["diagnostics"]``, and warn on poor sampling.
     raise_on_poor_diagnostics : bool
-        If True, raise (instead of warning) when sampling diagnostics are poor.
+        Has **no effect on this path**. The only variable it can raise on is the reproduction
+        number, which is constant here, so its R-hat and ESS are degenerate (ESS simply equals
+        the draw count) and the check can neither pass nor fail meaningfully. Latent-variable
+        diagnostics are still computed and reported in ``attrs["diagnostics"]``, but are
+        warn-only.
     **kwargs : Any
         Additional keyword arguments forwarded to the sampler.
 
@@ -320,71 +401,14 @@ def fit_known_rep_no_model(
         quasi_real_time=quasi_real_time,
         reporting_prob=reporting_prob,
         delay_cdf=delay_cdf,
+        rng=rng,
+        thin=thin,
+        step_func=step_func,
         parallel=parallel,
         compute_diagnostics=compute_diagnostics,
         raise_on_poor_diagnostics=raise_on_poor_diagnostics,
         **kwargs,
     )
-
-
-def _compute_and_check_diagnostics(
-    posterior_ds: xr.Dataset,
-    sample_stats_ds: xr.Dataset | None,
-    *,
-    raise_on_problems: bool = False,
-    var_name: str = "rep_no",
-    ess_min_threshold: float = 1000,
-    rhat_max_threshold: float = 1.01,
-) -> dict[str, float]:
-    # Summarise convergence diagnostics for `var_name` and warn (or raise) on poor
-    # sampling. Divergences are N/A (NaN) when sample_stats_ds is None, as for the
-    # quasi-real-time aggregate of many separate fits.
-    # Subset to the single variable first: arviz's var-name resolution mis-handles an
-    # exact name when the dataset also carries derived vars that share it as a prefix
-    # (e.g. `incidence` alongside `incidence_mean`) together with time-only summaries.
-    posterior_var_ds = posterior_ds[[var_name]]
-    rhat_da = rhat(posterior_var_ds, var_names=var_name)[var_name]
-    ess_da = ess(posterior_var_ds, var_names=var_name)[var_name]
-    n_diverging = (
-        np.nan if sample_stats_ds is None else float(sample_stats_ds["diverging"].sum())
-    )
-    diagnostics = {
-        "rhat_mean": rhat_da.mean().item(),
-        "rhat_median": rhat_da.median().item(),
-        "rhat_max": rhat_da.max().item(),
-        "ess_mean": ess_da.mean().item(),
-        "ess_median": ess_da.median().item(),
-        "ess_min": ess_da.min().item(),
-        "n_diverging": n_diverging,
-    }
-    problems = []
-    if diagnostics["ess_min"] < ess_min_threshold:
-        problems.append(f"min ESS {diagnostics['ess_min']:.1f} < {ess_min_threshold}")
-    if diagnostics["rhat_max"] > rhat_max_threshold:
-        problems.append(
-            f"max R-hat {diagnostics['rhat_max']:.4f} > {rhat_max_threshold}"
-        )
-    if not np.isnan(n_diverging) and n_diverging > 0:
-        problems.append(f"{int(n_diverging)} divergence(s)")
-    if problems:
-        message = "Poor sampling diagnostics: " + "; ".join(problems)
-        if raise_on_problems:
-            raise RuntimeError(message)
-        warnings.warn(message, stacklevel=2)
-    return diagnostics
-
-
-def _is_incidence_sequence(incidence: Any) -> bool:
-    # Distinguish a *sequence of incidence series* (one series per calculation time) from a
-    # *single* incidence series. A single series is a 1-D array or a flat list of counts; a
-    # sequence is a list/tuple whose elements are themselves array-like, or a 2-D array. Keying
-    # off the container type alone would misread a single series passed as a plain list (e.g.
-    # ``[1, 2, 3]``) as several one-element series.
-    if isinstance(incidence, np.ndarray):
-        return incidence.ndim >= 2
-    if isinstance(incidence, (list, tuple)):
-        return len(incidence) > 0 and all(np.ndim(v) >= 1 for v in incidence)
-    return False
 
 
 def _fit_model(
@@ -404,30 +428,26 @@ def _fit_model(
     raise_on_poor_diagnostics: bool = False,
     **kwargs_sample: Any,
 ) -> xr.Dataset:
-    # Core model fit. The additional-case probability is always reported over every day of the
-    # incidence series plus one projected day past the last datapoint (`0 .. t_data_stop`), the
-    # final entry being the "probability of further cases given everything observed" — the
-    # decision-relevant current-day risk. Reproduction numbers are inferred over a horizon that
-    # covers this projection (see `_get_t_rep_no_stop`) and the returned time-indexed
-    # variables are sliced to those days. Under-reporting incidence variables retain their distinct
-    # data-only axis. A scalar `reporting_prob` (optionally with a `delay_cdf` for right-truncation)
-    # dispatches to the under-reporting offshoot; otherwise the full-reporting renewal model is
-    # fit.
-    underreporting_fit = reporting_prob is not None
-    if underreporting_fit and step_func is not None:
+    # Reject the argument combinations neither fitting path can honour, then dispatch:
+    # `quasi_real_time` refits one snapshot per calculation time (`_inference_qrt`), otherwise a
+    # single snapshot is fit directly (`_inference_core`). Validating here rather than in the
+    # engines keeps the checks in one place, since the quasi-real-time loop forwards these
+    # arguments to the single-fit engine unchanged.
+    if reporting_prob is not None and step_func is not None:
         raise ValueError(
             "step_func is not supported with reporting_prob; under-reporting fits "
             "use PyMC's automatically assigned compound sampler"
         )
-    if quasi_real_time:
-        if freeze_from_final_case:
+    if freeze_from_final_case:
+        if quasi_real_time:
             raise NotImplementedError(
                 "freeze_from_final_case is not supported with quasi_real_time=True"
             )
-        # Deferred import: `_inference_qrt` imports `_fit_model` (it refits one snapshot per
-        # calculation time), so a top-level import here would cycle.
-        from endoutbreakvbd._inference_qrt import _fit_model_qrt
-
+        if reporting_prob is not None:
+            raise NotImplementedError(
+                "freeze_from_final_case is not supported with reporting_prob"
+            )
+    if quasi_real_time:
         return _fit_model_qrt(
             incidence=incidence,
             serial_interval_dist_vec=serial_interval_dist_vec,
@@ -442,196 +462,17 @@ def _fit_model(
             raise_on_poor_diagnostics=raise_on_poor_diagnostics,
             **kwargs_sample,
         )
-
-    if _is_incidence_sequence(incidence):
-        raise ValueError("a sequence of incidence series requires quasi_real_time=True")
-    incidence_vec = np.asarray(incidence)
-    serial_interval_dist_vec = np.asarray(serial_interval_dist_vec)
-    t_data_stop = len(incidence_vec)
-    # Report over every observed day plus one projected day past the data (the current-day risk).
-    t_calc_vec = np.arange(t_data_stop + 1)
-    t_rep_no_stop = _get_t_rep_no_stop(
-        incidence_vec=incidence_vec,
-        serial_interval_max=len(serial_interval_dist_vec),
-        t_calc_vec=t_calc_vec,
-        underreporting_fit=underreporting_fit,
+    return _fit_single_model(
+        incidence=incidence,
+        serial_interval_dist_vec=serial_interval_dist_vec,
+        rep_no_vec_func=rep_no_vec_func,
+        step_func=step_func,
+        thin=thin,
+        rng=rng,
+        reporting_prob=reporting_prob,
+        delay_cdf=delay_cdf,
+        freeze_from_final_case=freeze_from_final_case,
+        compute_diagnostics=compute_diagnostics,
+        raise_on_poor_diagnostics=raise_on_poor_diagnostics,
+        **kwargs_sample,
     )
-
-    # Resolve the sampler kwargs once, here, so there is a single place to change them:
-    # nutpie NUTS (with low_rank mass-matrix adaptation) is used only on the full-reporting
-    # path. The under-reporting offshoot carries a discrete latent, which nutpie cannot sample,
-    # so it falls back to PyMC's native compound NUTS + Metropolis (assigned automatically by
-    # pm.sample); low_rank adaptation is a nutpie feature and is unavailable there. The
-    # Metropolis-sampled latent true-case block mixes far more slowly than the NUTS reproduction
-    # number, so the under-reporting path draws more (its ESS bottleneck is the latent block).
-    if underreporting_fit:
-        kwargs_sample = {"draws": 4000, "tune": 2000, "chains": 4, **kwargs_sample}
-    else:
-        kwargs_sample = {
-            "nuts_sampler": "nutpie",
-            "nuts": {"adaptation": "low_rank"},
-            "draws": 1000,
-            "tune": 1000,
-            "chains": 4,
-            **kwargs_sample,
-        }
-    if rng is not None:
-        kwargs_sample = {**kwargs_sample, "random_seed": rng}
-
-    # Constructing the PyMC model is the only path-specific step; everything below is shared.
-    if underreporting_fit:
-        if freeze_from_final_case:
-            raise NotImplementedError(
-                "freeze_from_final_case is not supported with reporting_prob"
-            )
-        model = _build_underreporting_model(
-            incidence_vec=incidence_vec,
-            serial_interval_dist_vec=serial_interval_dist_vec,
-            rep_no_vec_func=rep_no_vec_func,
-            reporting_prob=reporting_prob,
-            delay_cdf=delay_cdf,
-            t_rep_no_stop=t_rep_no_stop,
-        )
-    else:
-        model = _build_full_reporting_model(
-            incidence_vec=incidence_vec,
-            serial_interval_dist_vec=serial_interval_dist_vec,
-            rep_no_vec_func=rep_no_vec_func,
-            t_rep_no_stop=t_rep_no_stop,
-        )
-
-    with model:
-        # Under-reporting fits use PyMC's automatically assigned compound sampler and reject
-        # step_func above, so an explicit step here is necessarily for full reporting.
-        if step_func is not None:
-            kwargs_sample = {"step": step_func(), **kwargs_sample}
-        trace = pm.sample(**kwargs_sample)
-
-    sample_stats_ds = (
-        trace.sample_stats
-        if compute_diagnostics and "diverging" in trace.sample_stats.data_vars
-        else None
-    )
-    if thin > 1:
-        trace = trace.isel(draw=slice(0, None, thin))
-        trace = trace.assign_coords(draw=np.arange(len(trace.posterior.draw)))
-    posterior_ds = azb.convert_to_dataset(trace.posterior)
-
-    if freeze_from_final_case:
-        # Hold R_t after the final case fixed at its final-case-day posterior samples
-        t_final_case = _get_t_final_case(incidence_vec)
-        rep_no_frozen_da = posterior_ds["rep_no"].isel(time=t_final_case)
-        posterior_ds = posterior_ds.assign(
-            rep_no=posterior_ds["rep_no"].where(
-                posterior_ds["time"] <= t_final_case, rep_no_frozen_da
-            )
-        )
-
-    # Posterior summaries for R_t (and, for the offshoot, the latent true incidence). The incidence
-    # variables retain their data-only `data_time` axis; R_t and projected risk use `time`.
-    summary_vars = ["rep_no", "incidence"] if underreporting_fit else ["rep_no"]
-    posterior_ds = posterior_ds.assign(
-        {
-            f"{var}_{stat}": _posterior_summary(posterior_ds[var], stat)
-            for var in summary_vars
-            for stat in ("mean", "lower", "upper")
-        }
-    )
-
-    # Additional-case probability at the calculation times. For the offshoot each draw
-    # supplies its own latent true incidence, aligned with its R_t; for full reporting the fixed
-    # incidence is pushed through the posterior R_t (sample dimensions averaged over).
-    rep_no_grid = posterior_ds["rep_no"].transpose("time", ...).values
-
-    def rep_no_post_func(t: int | IntArray) -> RepNoOutput:
-        return rep_no_from_grid(t, rep_no_grid=rep_no_grid, periodic=False)
-
-    if underreporting_fit:
-        # Each draw supplies its own latent true incidence, aligned (across chain/draw) with its
-        # R_t. Incidence stops at the data boundary; the analytical calculation constructs its
-        # own zero-valued future trajectory when integrating over possible additional cases.
-        incidence_for_prob = np.rint(
-            posterior_ds["incidence"].transpose("data_time", ...).values
-        ).astype(int)
-    else:
-        incidence_for_prob = incidence_vec
-
-    # Keep the per-sample probabilities (additional_dims="broadcast") so we can report the
-    # posterior mean and a credible interval, not just the mean.
-    prob_sample_mat = np.asarray(
-        calc_additional_case_prob_analytical(
-            incidence=incidence_for_prob,
-            rep_no_func=rep_no_post_func,
-            serial_interval_dist_vec=serial_interval_dist_vec,
-            t_calc=t_calc_vec,
-            additional_dims="broadcast",
-        )
-    ).reshape(len(t_calc_vec), -1)
-    posterior_ds = posterior_ds.isel(time=t_calc_vec)
-    posterior_ds = posterior_ds.assign(
-        additional_case_prob=(("time",), prob_sample_mat.mean(axis=1)),
-        additional_case_prob_lower=(
-            ("time",),
-            np.quantile(prob_sample_mat, 0.025, axis=1),
-        ),
-        additional_case_prob_upper=(
-            ("time",),
-            np.quantile(prob_sample_mat, 0.975, axis=1),
-        ),
-    )
-
-    if compute_diagnostics:
-        diagnostics = _compute_and_check_diagnostics(
-            posterior_ds,
-            sample_stats_ds,
-            raise_on_problems=raise_on_poor_diagnostics,
-        )
-        if underreporting_fit:
-            # The discrete Metropolis-sampled true-case block may mix slowly, so warn (never
-            # raise) on its diagnostics and report the median mixing summaries.
-            incidence_diagnostics = _compute_and_check_diagnostics(
-                posterior_ds, None, var_name="incidence", raise_on_problems=False
-            )
-            diagnostics.update(
-                {
-                    f"incidence_{key}": incidence_diagnostics[key]
-                    for key in ("rhat_max", "ess_min", "ess_median")
-                }
-            )
-        posterior_ds.attrs["diagnostics"] = diagnostics
-    return posterior_ds
-
-
-def _posterior_summary(data_array: xr.DataArray, stat: str) -> xr.DataArray:
-    # Posterior mean / 2.5% / 97.5% summary over the chain and draw dimensions.
-    if stat == "mean":
-        return data_array.mean(dim=["chain", "draw"])
-    quantile = 0.025 if stat == "lower" else 0.975
-    return data_array.quantile(quantile, dim=["chain", "draw"]).drop_vars("quantile")
-
-
-def _get_t_final_case(incidence_vec: IntArray) -> int:
-    # Outbreak day of the last observed case (0 if there are none).
-    positive_incidence_idx_vec = np.nonzero(incidence_vec)[0]
-    return int(positive_incidence_idx_vec[-1]) if positive_incidence_idx_vec.size else 0
-
-
-def _get_t_rep_no_stop(
-    *,
-    incidence_vec: IntArray,
-    serial_interval_max: int,
-    t_calc_vec: IntArray,
-    underreporting_fit: bool,
-) -> int:
-    # Horizon to which R_t must be inferred so the additional-case projection (which needs R_t
-    # up to a source case plus the serial interval) is covered — never short of the latest
-    # calculation time. The two paths differ in which case is the last possible source:
-    #   full reporting: the last *observed* case, so project a serial interval past it;
-    #   under-reporting: the last *true* (latent) case can sit anywhere in the observed window,
-    #     so project a serial interval past *all* data (carrying any seasonal R_t decline).
-    t_data_stop = len(incidence_vec)
-    if underreporting_fit:
-        base = t_data_stop + serial_interval_max
-    else:
-        base = _get_t_final_case(incidence_vec) + serial_interval_max + 1
-    return max(t_data_stop, base, int(np.max(t_calc_vec)) + 1)

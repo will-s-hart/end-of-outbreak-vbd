@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from endoutbreakvbd.utils import (
-    dates_to_day_index,
+    dates_to_calendar_day_index,
     get_colors,
     month_start_xticks,
     plot_incidence_on_twin_ax,
@@ -63,23 +63,23 @@ def _make_delay_plot(inputs):
 
 def _make_cases_plot(inputs, colors):
     trajectory_df = _read_case_trajectory(inputs)
-    day_index_vec = dates_to_day_index(trajectory_df["date"])
+    calendar_day_index_vec = dates_to_calendar_day_index(trajectory_df["date"])
     fig, ax = plt.subplots()
     ax.bar(
-        day_index_vec,
+        calendar_day_index_vec,
         trajectory_df["reported_incidence"],
         color="tab:gray",
         alpha=0.5,
         label="Reported",
     )
     ax.plot(
-        day_index_vec,
+        calendar_day_index_vec,
         trajectory_df["incidence_mean"],
         color=colors[0],
         label="Estimated true\n(suitability-based)",
     )
     ax.fill_between(
-        day_index_vec,
+        calendar_day_index_vec,
         trajectory_df["incidence_lower"],
         trajectory_df["incidence_upper"],
         color=colors[0],
@@ -114,18 +114,18 @@ def _make_prob_plot(
     # Observed reported cases (by onset) as a twin-axis underlay, matching the main Lazio panels.
     plot_incidence_on_twin_ax(
         ax,
-        dates_to_day_index(trajectory_df["date"]),
+        dates_to_calendar_day_index(trajectory_df["date"]),
         trajectory_df["reported_incidence"].to_numpy(),
     )
-    day_index_vectors = []
+    calendar_day_index_vectors = []
     for results_df, color, label, full_key in [
         (suitability_df, colors[0], "Suitability-based", "suitability"),
         (autoregressive_df, colors[1], "Autoregressive", "autoregressive"),
     ]:
-        day_index_vec = dates_to_day_index(results_df["date"])
-        day_index_vectors.append(day_index_vec)
+        calendar_day_index_vec = dates_to_calendar_day_index(results_df["date"])
+        calendar_day_index_vectors.append(calendar_day_index_vec)
         ax.plot(
-            day_index_vec,
+            calendar_day_index_vec,
             results_df["additional_case_prob"],
             color=color,
             label=label,
@@ -133,19 +133,19 @@ def _make_prob_plot(
         # Dashed overlay: the retrospective full-reporting fit, i.e. the probability if the whole
         # outbreak (all future onsets, full reporting) were known.
         full_reporting_df = pd.read_csv(inputs["full_reporting_paths"][full_key])
-        full_reporting_day_index_vec = dates_to_day_index(
+        full_reporting_calendar_day_index_vec = dates_to_calendar_day_index(
             full_reporting_outbreak_start_date
             + pd.to_timedelta(full_reporting_df["day_of_outbreak"], unit="D")
         )
         ax.plot(
-            full_reporting_day_index_vec,
+            full_reporting_calendar_day_index_vec,
             full_reporting_df["additional_case_prob"],
             color=color,
             linestyle="dashed",
             label=f"{label}\n(full reporting)",
         )
     # Decision markers follow the main Lazio outbreak colours: C3 (blood), C4 (45-day rule).
-    marker_day_index_vals = [
+    marker_calendar_day_index_vals = [
         decisions["blood_resumed_anzio"]["doy"],
         decisions["45_day_rule"]["doy"],
     ]
@@ -165,8 +165,11 @@ def _make_prob_plot(
     # snapshot grid starting 30 Sep this is 1 Oct, whose month tick then shows) to just past the
     # later marker; the estimate may run on into a flat post-outbreak tail, which is clipped.
     ax.set_xlim(
-        min(day_index_vec.min() for day_index_vec in day_index_vectors),
-        max(marker_day_index_vals) + 6,
+        min(
+            calendar_day_index_vec.min()
+            for calendar_day_index_vec in calendar_day_index_vectors
+        ),
+        max(marker_calendar_day_index_vals) + 6,
     )
     month_start_xticks(ax)
     ax.set_xlabel("Date (2017)")

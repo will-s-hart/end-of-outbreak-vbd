@@ -6,6 +6,7 @@ import pymc as pm
 import pytest
 import xarray as xr
 
+import endoutbreakvbd._inference_core as core
 import endoutbreakvbd._inference_models as im
 import endoutbreakvbd.inference as inference
 from endoutbreakvbd.rep_no_models import build_ar_rep_no, build_known_rep_no
@@ -107,7 +108,7 @@ def test_get_t_rep_no_stop_full_vs_underreporting():
     )  # t_data_stop=10, last case idx 1
     t_calc_vec = np.array([0, 5])
     assert (
-        inference._get_t_rep_no_stop(
+        core._get_t_rep_no_stop(
             incidence_vec=incidence_vec,
             serial_interval_max=4,
             t_calc_vec=t_calc_vec,
@@ -116,7 +117,7 @@ def test_get_t_rep_no_stop_full_vs_underreporting():
         == 14
     )
     assert (
-        inference._get_t_rep_no_stop(
+        core._get_t_rep_no_stop(
             incidence_vec=incidence_vec,
             serial_interval_max=4,
             t_calc_vec=t_calc_vec,
@@ -126,7 +127,7 @@ def test_get_t_rep_no_stop_full_vs_underreporting():
     )
     # Never short of the latest calculation time.
     assert (
-        inference._get_t_rep_no_stop(
+        core._get_t_rep_no_stop(
             incidence_vec=np.ones(3, dtype=int),
             serial_interval_max=2,
             t_calc_vec=np.array([0, 20]),
@@ -139,7 +140,7 @@ def test_get_t_rep_no_stop_full_vs_underreporting():
 def test_build_underreporting_model_structure():
     observed_incidence_vec = np.array([2, 1, 1, 0, 0])
     serial_interval_dist_vec = np.array([0.4, 0.3, 0.2, 0.1])
-    model = inference._build_underreporting_model(
+    model = core._build_underreporting_model(
         incidence_vec=observed_incidence_vec,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=build_ar_rep_no(),
@@ -175,7 +176,7 @@ def test_underreporting_model_p1_collapses_latent_to_zero():
     # forced to zero (cases == observed). Checked via the model logp being maximal at U=0.
     observed_incidence_vec = np.array([2, 1, 1, 0, 0])
     serial_interval_dist_vec = np.array([0.4, 0.3, 0.2, 0.1])
-    model = inference._build_underreporting_model(
+    model = core._build_underreporting_model(
         incidence_vec=observed_incidence_vec,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=build_ar_rep_no(),
@@ -197,7 +198,7 @@ def test_underreporting_model_rejects_zero_index_case():
     observed_incidence_vec = np.array([0, 3, 1, 0])
     serial_interval_dist_vec = np.array([0.6, 0.4])
     with pytest.raises(ValueError, match="starting with at least one index case"):
-        inference._build_underreporting_model(
+        core._build_underreporting_model(
             incidence_vec=observed_incidence_vec,
             serial_interval_dist_vec=serial_interval_dist_vec,
             rep_no_vec_func=build_ar_rep_no(),
@@ -237,8 +238,8 @@ def test_fit_model_dispatches_to_underreporting_offshoot(monkeypatch):
             "full-reporting model should not be built for the offshoot"
         )
 
-    monkeypatch.setattr(inference, "_build_underreporting_model", fake_build)
-    monkeypatch.setattr(inference, "_build_full_reporting_model", fake_build_full)
+    monkeypatch.setattr(core, "_build_underreporting_model", fake_build)
+    monkeypatch.setattr(core, "_build_full_reporting_model", fake_build_full)
 
     def fake_sample(**kwargs):
         captured["sample_kwargs"] = kwargs
@@ -262,7 +263,7 @@ def test_fit_model_dispatches_to_underreporting_offshoot(monkeypatch):
         )
         return _FakeTrace(posterior)
 
-    monkeypatch.setattr(inference.pm, "sample", fake_sample)
+    monkeypatch.setattr(core.pm, "sample", fake_sample)
 
     def fake_prob(
         *, incidence, rep_no_func, serial_interval_dist_vec, t_calc, additional_dims
@@ -271,7 +272,7 @@ def test_fit_model_dispatches_to_underreporting_offshoot(monkeypatch):
         captured["additional_dims"] = additional_dims
         return np.full(np.atleast_1d(t_calc).size, 0.3)
 
-    monkeypatch.setattr(inference, "calc_additional_case_prob_analytical", fake_prob)
+    monkeypatch.setattr(core, "calc_additional_case_prob_analytical", fake_prob)
 
     out = inference._fit_model(
         incidence=observed_incidence_vec,

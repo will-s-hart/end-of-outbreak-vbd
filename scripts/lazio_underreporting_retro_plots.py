@@ -16,7 +16,7 @@ import pandas as pd
 
 from endoutbreakvbd import calc_decision_delay
 from endoutbreakvbd.utils import (
-    dates_to_day_index,
+    dates_to_calendar_day_index,
     get_colors,
     month_start_xticks,
     plot_incidence_on_twin_ax,
@@ -116,9 +116,11 @@ def _make_estimate_plots(inputs, colors):
         inputs["results_paths"]["autoregressive_p60"], parse_dates=["date"]
     )
     # Both fits run on the same reported series, so they share the under-reporting calendar axis.
-    day_index_vec = dates_to_day_index(suitability_df["date"])
+    calendar_day_index_vec = dates_to_calendar_day_index(suitability_df["date"])
     reported_incidence_vec = suitability_df["reported_incidence"].to_numpy()
-    suitability_prior_vec = inputs["suitability_mean_vec"][: len(day_index_vec)]
+    suitability_prior_vec = inputs["suitability_mean_vec"][
+        : len(calendar_day_index_vec)
+    ]
 
     # Full-reporting (no under-reporting) posteriors for comparison: the retrospective
     # lazio_outbreak fits, mapped onto the same calendar axis.
@@ -130,24 +132,24 @@ def _make_estimate_plots(inputs, colors):
         inputs["full_reporting_paths"]["autoregressive"]
     )
 
-    def _full_reporting_day_index_vec(full_reporting_df):
-        return dates_to_day_index(
+    def _full_reporting_calendar_day_index_vec(full_reporting_df):
+        return dates_to_calendar_day_index(
             full_reporting_outbreak_start_date
             + pd.to_timedelta(full_reporting_df["day_of_outbreak"], unit="D")
         )
 
-    full_reporting_suitability_day_index_vec = _full_reporting_day_index_vec(
-        full_reporting_suitability_df
+    full_reporting_suitability_calendar_day_index_vec = (
+        _full_reporting_calendar_day_index_vec(full_reporting_suitability_df)
     )
-    full_reporting_autoregressive_day_index_vec = _full_reporting_day_index_vec(
-        full_reporting_autoregressive_df
+    full_reporting_autoregressive_calendar_day_index_vec = (
+        _full_reporting_calendar_day_index_vec(full_reporting_autoregressive_df)
     )
-    common_horizon = min(
-        day_index_vec.max(),
-        full_reporting_suitability_day_index_vec.max(),
-        full_reporting_autoregressive_day_index_vec.max(),
+    common_calendar_day_index_max = min(
+        calendar_day_index_vec.max(),
+        full_reporting_suitability_calendar_day_index_vec.max(),
+        full_reporting_autoregressive_calendar_day_index_vec.max(),
     )
-    plot_mask = day_index_vec <= common_horizon
+    plot_mask = calendar_day_index_vec <= common_calendar_day_index_max
 
     # Under-reporting uses the model colour (suitability / autoregressive), matching the
     # probability and decision panels; the full-reporting benchmark is a dashed pink line with a
@@ -157,39 +159,39 @@ def _make_estimate_plots(inputs, colors):
         ax,
         results_df,
         full_reporting_df,
-        full_reporting_day_index_vec,
+        full_reporting_calendar_day_index_vec,
         column,
         color,
         *,
         prior_vec=None,
     ):
         plot_incidence_on_twin_ax(
-            ax, day_index_vec[plot_mask], reported_incidence_vec[plot_mask]
+            ax, calendar_day_index_vec[plot_mask], reported_incidence_vec[plot_mask]
         )
         # Draw both credible-interval bands first, then every mean line on top, so no line is
         # dimmed by an overlapping band.
         ax.fill_between(
-            day_index_vec[plot_mask],
+            calendar_day_index_vec[plot_mask],
             results_df.loc[plot_mask, f"{column}_lower"],
             results_df.loc[plot_mask, f"{column}_upper"],
             color=color,
             alpha=0.2,
         )
         ax.fill_between(
-            full_reporting_day_index_vec,
+            full_reporting_calendar_day_index_vec,
             full_reporting_df[f"{column}_lower"],
             full_reporting_df[f"{column}_upper"],
             color="tab:pink",
             alpha=0.2,
         )
         ax.plot(
-            day_index_vec[plot_mask],
+            calendar_day_index_vec[plot_mask],
             results_df.loc[plot_mask, f"{column}_mean"],
             color=color,
             label="Under-reporting",
         )
         ax.plot(
-            full_reporting_day_index_vec,
+            full_reporting_calendar_day_index_vec,
             full_reporting_df[f"{column}_mean"],
             color="tab:pink",
             linestyle="dashed",
@@ -197,13 +199,13 @@ def _make_estimate_plots(inputs, colors):
         )
         if prior_vec is not None:
             ax.plot(
-                day_index_vec[plot_mask],
+                calendar_day_index_vec[plot_mask],
                 prior_vec[plot_mask],
                 color="black",
                 linestyle="dotted",
                 label="Seasonal prior",
             )
-        ax.set_xlim(day_index_vec.min(), common_horizon)
+        ax.set_xlim(calendar_day_index_vec.min(), common_calendar_day_index_max)
         month_start_xticks(ax)
         ax.set_xlabel("Date (2017)")
 
@@ -212,7 +214,7 @@ def _make_estimate_plots(inputs, colors):
         ax,
         suitability_df,
         full_reporting_suitability_df,
-        full_reporting_suitability_day_index_vec,
+        full_reporting_suitability_calendar_day_index_vec,
         "suitability",
         colors[0],
         prior_vec=suitability_prior_vec,
@@ -226,7 +228,7 @@ def _make_estimate_plots(inputs, colors):
     for (
         results_df,
         full_reporting_df,
-        full_reporting_day_index_vec,
+        full_reporting_calendar_day_index_vec,
         column,
         ylabel,
         fig_key,
@@ -235,7 +237,7 @@ def _make_estimate_plots(inputs, colors):
         (
             suitability_df,
             full_reporting_suitability_df,
-            full_reporting_suitability_day_index_vec,
+            full_reporting_suitability_calendar_day_index_vec,
             "rep_no_factor",
             "Reproduction number scaling factor",
             "rep_no_factor",
@@ -244,7 +246,7 @@ def _make_estimate_plots(inputs, colors):
         (
             suitability_df,
             full_reporting_suitability_df,
-            full_reporting_suitability_day_index_vec,
+            full_reporting_suitability_calendar_day_index_vec,
             "reproduction_number",
             "Time-dependent reproduction number\n(suitability-based model)",
             "rep_no",
@@ -253,7 +255,7 @@ def _make_estimate_plots(inputs, colors):
         (
             autoregressive_df,
             full_reporting_autoregressive_df,
-            full_reporting_autoregressive_day_index_vec,
+            full_reporting_autoregressive_calendar_day_index_vec,
             "reproduction_number",
             "Time-dependent reproduction number\n(autoregressive model)",
             "rep_no_ar",
@@ -265,7 +267,7 @@ def _make_estimate_plots(inputs, colors):
             ax,
             results_df,
             full_reporting_df,
-            full_reporting_day_index_vec,
+            full_reporting_calendar_day_index_vec,
             column,
             color,
         )

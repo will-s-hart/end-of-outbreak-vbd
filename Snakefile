@@ -1,3 +1,5 @@
+import glob
+
 lazio_incidence_path = "data/lazio_chik_2017.csv"
 lazio_reporting_matrix_path = "data/lazio_chik_2017_reporting_matrix.csv"
 suitability_grid_path = "data/tegar_suitability_grid.csv"
@@ -220,18 +222,9 @@ figure_paths = (
     + figure_paths_sim_underreporting_nowcast
 )
 
-package_paths = [
-    f"endoutbreakvbd/{name}.py"
-    for name in [
-        "__init__",
-        "_types",
-        "additional_case_prob",
-        "inference",
-        "model",
-        "rep_no_models",
-        "utils",
-    ]
-]
+# Globbed rather than listed by hand: every package module is an input to every analysis, and
+# an omission here silently stops results being rebuilt when that module changes.
+package_paths = sorted(glob.glob("endoutbreakvbd/*.py"))
 # Every analysis/plot script also imports parameter assembly from scripts/inputs.py.
 shared_input_paths = package_paths + ["scripts/inputs.py"]
 

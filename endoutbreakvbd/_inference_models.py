@@ -8,6 +8,11 @@ from numpy.typing import ArrayLike
 
 from endoutbreakvbd._types import FloatArray, IntArray
 
+# Added to every Poisson rate in the under-reporting model so `mu` stays strictly positive where
+# it would otherwise be exactly zero — day 0 / no sources (force of infection 0), or a reporting
+# probability of exactly 0 or 1. Small enough to leave the likelihood otherwise untouched.
+_POISSON_MU_FLOOR = 1e-12
+
 
 def _renewal_convolution_matrix(
     serial_interval_dist_vec: ArrayLike, n_days: int
@@ -183,10 +188,9 @@ def _build_underreporting_model(
                 [index_col, observed_incidence_after_index_vec + value]
             )
             mu = rep_no_data * pt.dot(conv_mat, incidence)
-            # +1e-12 keeps the Poisson mu > 0 where FOI is 0 (day 0 / no sources) or pi == 1.
             return pm.logp(
                 pm.Poisson.dist(
-                    mu=(1 - reporting_prob_after_index_vec) * mu[1:] + 1e-12
+                    mu=(1 - reporting_prob_after_index_vec) * mu[1:] + _POISSON_MU_FLOOR
                 ),
                 value,
             )
@@ -221,7 +225,7 @@ def _build_underreporting_model(
         mu_vec = rep_no_data * pt.dot(conv_mat, incidence_data)
         pm.Poisson(
             "obs",
-            mu=reporting_prob_after_index_vec * mu_vec[1:] + 1e-12,
+            mu=reporting_prob_after_index_vec * mu_vec[1:] + _POISSON_MU_FLOOR,
             observed=observed_incidence_vec[1:],
         )
     return model

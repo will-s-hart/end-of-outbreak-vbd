@@ -17,16 +17,19 @@ def make_plots():
         inputs["results_paths"]["suitability"],
         inputs["results_paths"]["epiestim"],
     ]
+    calendar_kwargs = {
+        "calendar_day_index_vec": inputs["calendar_day_index_vec"],
+        "incidence_vec": inputs["incidence_vec"],
+        "calendar_day_index_max": inputs["calendar_day_index_max"],
+    }
     _make_rep_no_plot(
-        doy_vec=inputs["doy_vec"],
-        incidence_vec=inputs["incidence_vec"],
+        **calendar_kwargs,
         model_names=model_names,
         results_paths=results_paths,
         fig_path=inputs["fig_paths"]["rep_no"],
     )
     _make_additional_case_prob_plot(
-        doy_vec=inputs["doy_vec"],
-        incidence_vec=inputs["incidence_vec"],
+        **calendar_kwargs,
         model_names=model_names,
         existing_decisions=inputs["existing_decisions"],
         results_paths=results_paths,

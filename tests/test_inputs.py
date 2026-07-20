@@ -177,14 +177,14 @@ def test_get_inputs_lazio_outbreak_consistency(monkeypatch):
 
     # The fit reports one projected day past the data, so the day axis and suitability prior run
     # one day longer than the incidence.
-    assert len(out["doy_vec"]) == len(out["incidence_vec"]) + 1
+    assert len(out["calendar_day_index_vec"]) == len(out["incidence_vec"]) + 1
     assert len(out["suitability_mean_vec"]) == len(out["incidence_vec"]) + 1
 
     decision_keys = {"blood_resumed_rome", "blood_resumed_anzio", "45_day_rule"}
     assert set(out["existing_decisions"].keys()) == decision_keys
 
     for val in out["existing_decisions"].values():
-        assert {"doy", "t", "days_after_final_case"}.issubset(val.keys())
+        assert {"calendar_day_index", "t", "days_after_final_case"}.issubset(val.keys())
         assert isinstance(val["days_after_final_case"], (int, np.integer))
 
 
@@ -193,7 +193,7 @@ def test_get_inputs_lazio_frozen_structure(monkeypatch):
 
     out = inputs.get_inputs_lazio_frozen()
 
-    assert len(out["doy_vec"]) == len(out["incidence_vec"]) + 1
+    assert len(out["calendar_day_index_vec"]) == len(out["incidence_vec"]) + 1
     assert set(out["existing_decisions"].keys()) == {
         "blood_resumed_rome",
         "blood_resumed_anzio",
@@ -344,7 +344,7 @@ def test_get_inputs_lazio_epiestim_structure(monkeypatch):
 
     out = inputs.get_inputs_lazio_epiestim()
 
-    assert len(out["doy_vec"]) == len(out["incidence_vec"]) + 1
+    assert len(out["calendar_day_index_vec"]) == len(out["incidence_vec"]) + 1
     assert set(out["existing_decisions"].keys()) == {
         "blood_resumed_rome",
         "blood_resumed_anzio",

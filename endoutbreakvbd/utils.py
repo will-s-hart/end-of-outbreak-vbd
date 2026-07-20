@@ -332,15 +332,16 @@ def month_start_xticks(ax: Axes, year: int = 2017, interval_months: int = 1) -> 
     ax.set_xticklabels(labels, rotation=0)
 
 
-def dates_to_day_index(
+def dates_to_calendar_day_index(
     dates: pd.Series | pd.DatetimeIndex, year: int = 2017
 ) -> NDArray[np.int64]:
     """
-    Convert calendar dates to a continuous day index anchored at the start of ``year``.
+    Convert calendar dates to a continuous calendar day index anchored at the start of ``year``.
 
     Within ``year`` this equals the day of year (1 January → 1). Unlike a bare day-of-year,
-    it does not wrap when a window crosses into the next year, so it stays monotonic across
-    the year boundary and pairs with ``month_start_xticks`` for a continuous calendar x-axis.
+    it does not wrap when a window crosses into the next year (31 December 2017 → 365,
+    1 January 2018 → 366), so it stays monotonic across the year boundary and pairs with
+    ``month_start_xticks`` for a continuous calendar x-axis.
 
     Parameters
     ----------
@@ -352,7 +353,7 @@ def dates_to_day_index(
     Returns
     -------
     NDArray[np.int64]
-        Continuous day index for each date.
+        Continuous calendar day index for each date.
     """
     return (pd.DatetimeIndex(dates) - pd.Timestamp(f"{year}-01-01")).days.to_numpy() + 1
 

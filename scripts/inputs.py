@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 
 from endoutbreakvbd.rep_no_models import DEFAULTS
 from endoutbreakvbd.utils import (
+    dates_to_calendar_day_index,
     discretise_cori,
     fit_discretised_gamma,
     rep_no_from_grid,
@@ -17,6 +18,20 @@ from endoutbreakvbd.utils import (
 
 # Shared risk-threshold grid for the decision-delay-vs-threshold plots.
 RISK_THRESHOLD_PCT_GRID = np.linspace(0.1, 10, 101)
+
+# Zero-report days appended after the final reported case, shared by the full-reporting and
+# under-reporting Lazio analyses so their decision-delay curves span the same range and can be
+# overlaid. The additional-case probability is only reported over the series, so this padding
+# caps the largest decision delay an analysis can resolve: `calc_decision_delay` returns NaN
+# (and the threshold curve simply stops) for any threshold the risk has not fallen below by the
+# end of the series. 60 days clears the 45-day relaxation rule with margin.
+PADDING_DAYS_AFTER_FINAL_CASE = 60
+
+# Right-hand limit for calendar-axis panels (31 December). The padded series runs a few days into
+# 2018, but the x-axis is labelled for 2017 and the post-outbreak risk is negligible well before
+# the year end. Decision-delay panels are indexed by risk threshold rather than date, so they are
+# unaffected and keep the full `PADDING_DAYS_AFTER_FINAL_CASE` range.
+CALENDAR_DAY_INDEX_MAX = 365
 
 
 def get_inputs_schematic() -> dict[str, Any]:
@@ -396,48 +411,36 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
 
     outbreak_df = _get_lazio_outbreak_df()
     outbreak_start_date = outbreak_df.index[0]
-    doy_start = outbreak_df["doy"].to_numpy()[0]
-    incidence_vec = np.append(
-        outbreak_df["cases"].to_numpy(),
-        np.zeros(len(serial_interval_dist_vec) + 1, dtype=int),
+    doy_start = int(outbreak_df["doy"].to_numpy()[0])
+    incidence_vec = _pad_incidence_after_final_case(
+        outbreak_df["cases"].to_numpy(), len(serial_interval_dist_vec)
     )
     # Every fit (quasi-real-time or not) reports one projected day past the data (the current-day
     # risk), so the day axis and suitability prior extend one day beyond the incidence.
     n_output_times = len(incidence_vec) + 1
-    doy_vec = (np.arange(doy_start, doy_start + n_output_times) - 1) % 365 + 1
-
-    suitability_df = _get_2017_suitability_df()
-    suitability_mean_vec = (
-        suitability_df["suitability_smoothed_lagged"]
-        .loc[suitability_df["doy"].isin(doy_vec)]
-        .to_numpy()
+    # Continuous day index (not day-of-year): the padded series runs past 31 December, and a
+    # wrapped day-of-year axis would send the plotted curves back to the start of the year.
+    calendar_day_index_vec = dates_to_calendar_day_index(
+        outbreak_start_date + pd.to_timedelta(np.arange(n_output_times), unit="D")
     )
+    suitability_mean_vec = _get_suitability_mean_vec(doy_start, n_output_times)
 
-    t_final_case = np.nonzero(incidence_vec)[0][-1]
-    doy_final_case = doy_start + t_final_case
-    blood_resumed_rome_date = pd.Timestamp("2017-11-17")
-    blood_resumed_anzio_date = pd.Timestamp("2017-12-01")
-    doy_blood_resumed_rome = blood_resumed_rome_date.dayofyear
-    doy_blood_resumed_anzio = blood_resumed_anzio_date.dayofyear
+    t_final_case = int(np.nonzero(incidence_vec)[0][-1])
+    final_case_date = outbreak_start_date + pd.Timedelta(days=t_final_case)
     existing_decisions = {
-        "blood_resumed_rome": {
-            "decision_date": blood_resumed_rome_date,
-            "doy": doy_blood_resumed_rome,
-            "t": doy_blood_resumed_rome - doy_start,
-            "days_after_final_case": doy_blood_resumed_rome - doy_final_case,
-        },
-        "blood_resumed_anzio": {
-            "decision_date": blood_resumed_anzio_date,
-            "doy": doy_blood_resumed_anzio,
-            "t": doy_blood_resumed_anzio - doy_start,
-            "days_after_final_case": doy_blood_resumed_anzio - doy_final_case,
-        },
-        "45_day_rule": {
-            "decision_date": outbreak_start_date + pd.Timedelta(days=t_final_case + 45),
-            "doy": doy_final_case + 45,
-            "t": t_final_case + 45,
-            "days_after_final_case": 45,
-        },
+        name: {
+            "decision_date": decision_date,
+            "calendar_day_index": int(
+                dates_to_calendar_day_index(pd.DatetimeIndex([decision_date]))[0]
+            ),
+            "t": int((decision_date - outbreak_start_date).days),
+            "days_after_final_case": int((decision_date - final_case_date).days),
+        }
+        for name, decision_date in [
+            ("blood_resumed_rome", pd.Timestamp("2017-11-17")),
+            ("blood_resumed_anzio", pd.Timestamp("2017-12-01")),
+            ("45_day_rule", final_case_date + pd.Timedelta(days=45)),
+        ]
     }
 
     analysis_label = "lazio_outbreak" + ("_qrt" if quasi_real_time else "")
@@ -465,7 +468,8 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
         "outbreak_start_date": outbreak_start_date,
         "t_final_case": t_final_case,
         "serial_interval_dist_vec": serial_interval_dist_vec,
-        "doy_vec": doy_vec,
+        "calendar_day_index_vec": calendar_day_index_vec,
+        "calendar_day_index_max": CALENDAR_DAY_INDEX_MAX,
         "incidence_vec": incidence_vec,
         "suitability_mean_vec": suitability_mean_vec,
         "existing_decisions": existing_decisions,
@@ -652,34 +656,22 @@ def get_inputs_lazio_underreporting_retro() -> dict[str, Any]:
     serial_interval_max_days = len(serial_interval_dist_vec)
 
     # Retrospective under-reporting fit over the full reported outbreak with a constant per-day
-    # reporting probability and *no* delay/right-truncation. The incidence is padded with a serial
-    # interval (+1) of zero-report days, exactly like the main Lazio analysis, so the additional-
-    # case probability is reported over the post-outbreak tail (declining to ~0, spanning the
-    # relaxation-decision dates). The under-reporting model then projects R_t a further serial
-    # interval beyond the padded data, so `suitability_mean_vec` is extended to match.
+    # reporting probability and *no* delay/right-truncation. The incidence is padded with zero-
+    # report days on the same `PADDING_DAYS_AFTER_FINAL_CASE` rule as the main Lazio analysis, so
+    # the additional-case probability is reported over the post-outbreak tail (declining to ~0,
+    # spanning the relaxation-decision dates) and the two analyses' decision-delay curves cover
+    # the same range. The under-reporting model then projects R_t a further serial interval beyond
+    # the padded data, so `suitability_mean_vec` is extended to match.
     outbreak_df = _get_lazio_outbreak_df()
     outbreak_start_date = outbreak_df.index[0]
     doy_start = int(outbreak_df["doy"].to_numpy()[0])
-    reported_incidence_vec = outbreak_df["cases"].to_numpy()
-    t_final_reported_case = int(np.nonzero(reported_incidence_vec)[0][-1])
-    # Pad with zero-report days out to ~10 days past the 45-day relaxation rule (final case + 45),
-    # so the post-outbreak probability decline and both decision markers are visible; never
-    # shorter than the serial-interval projection convention used by the main Lazio analysis.
-    n_padding_days = max(
-        serial_interval_max_days + 1,
-        t_final_reported_case + 55 - (len(reported_incidence_vec) - 1),
+    incidence_vec = _pad_incidence_after_final_case(
+        outbreak_df["cases"].to_numpy(), serial_interval_max_days
     )
-    incidence_vec = np.append(
-        reported_incidence_vec, np.zeros(n_padding_days, dtype=int)
-    ).astype(int)
     n_data_times = len(incidence_vec)
-
-    n_suitability_times = n_data_times + serial_interval_max_days
-    doy_vec = (np.arange(doy_start, doy_start + n_suitability_times) - 1) % 365 + 1
-    suitability_by_doy_series = _get_2017_suitability_df().set_index("doy")[
-        "suitability_smoothed_lagged"
-    ]
-    suitability_mean_vec = suitability_by_doy_series.loc[doy_vec].to_numpy()
+    suitability_mean_vec = _get_suitability_mean_vec(
+        doy_start, n_data_times + serial_interval_max_days
+    )
 
     # The additional-case probability is reported for every day of the series plus one projected
     # day past the data (the current-day risk); the decision-delay panels index it by day-of-
@@ -728,6 +720,7 @@ def get_inputs_lazio_underreporting_retro() -> dict[str, Any]:
         "suitability_mean_vec": suitability_mean_vec,
         "t_calc_vec": t_calc_vec,
         "decision_date_vec": decision_date_vec,
+        "calendar_day_index_max": CALENDAR_DAY_INDEX_MAX,
         "reporting_prob": reporting_prob,
         "existing_decisions": existing_decisions,
         "t_final_case": t_final_case,
@@ -900,6 +893,37 @@ def _get_2017_suitability_df() -> pd.DataFrame:
     )
     df["doy"] = pd.DatetimeIndex(df.index).day_of_year
     return df
+
+
+def _pad_incidence_after_final_case(
+    reported_incidence_vec: NDArray[np.int64], serial_interval_max_days: int
+) -> NDArray[np.int64]:
+    # Append zero-report days so the series runs to `PADDING_DAYS_AFTER_FINAL_CASE` past the final
+    # reported case, never shorter than the one-serial-interval projection used throughout.
+    t_final_case = int(np.nonzero(reported_incidence_vec)[0][-1])
+    n_padding_days = max(
+        serial_interval_max_days + 1,
+        t_final_case
+        + PADDING_DAYS_AFTER_FINAL_CASE
+        - (len(reported_incidence_vec) - 1),
+    )
+    return np.append(
+        reported_incidence_vec, np.zeros(n_padding_days, dtype=int)
+    ).astype(int)
+
+
+def _get_suitability_mean_vec(doy_start: int, n_times: int) -> NDArray[np.float64]:
+    # Seasonal suitability prior for `n_times` days starting from day-of-year `doy_start`.
+    # Looked up by label so the values stay in `doy_vec` order: a window running past 31 December
+    # wraps back onto the start of the 2017 profile, which a boolean `isin` filter would silently
+    # reorder into calendar order instead (placing the January values at the front).
+    doy_vec = (np.arange(doy_start, doy_start + n_times) - 1) % 365 + 1
+    return (
+        _get_2017_suitability_df()
+        .set_index("doy")["suitability_smoothed_lagged"]
+        .loc[doy_vec]
+        .to_numpy()
+    )
 
 
 def _get_serial_interval_dist_vec() -> NDArray[np.float64]:
