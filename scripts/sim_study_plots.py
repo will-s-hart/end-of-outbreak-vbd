@@ -176,7 +176,7 @@ def _make_many_outbreak_decision_plot(
     results_path,
     risk_threshold_pct_vals,
     cmap_names=("Blues", "Oranges", "Greens", "Purples"),
-    marker_colors=("blue", "red", "green", "purple"),
+    example_marker_color="red",
     example_outbreak_idx=None,
     x_limits=None,
     y_limits=None,
@@ -206,11 +206,10 @@ def _make_many_outbreak_decision_plot(
 
     fig, ax = plt.subplots()
     legend_handles = []
-    for marker_offset, risk_threshold_pct, cmap_name, marker_color in zip(
+    for marker_offset, risk_threshold_pct, cmap_name in zip(
         marker_offset_vec,
         risk_threshold_pct_vals,
         cmap_names[:n_thresholds],
-        marker_colors[:n_thresholds],
         strict=True,
     ):
         cmap = matplotlib.colormaps[cmap_name]
@@ -257,7 +256,7 @@ def _make_many_outbreak_decision_plot(
                 example_outbreak_final_case_bin_centre,
                 example_outbreak_delay,
                 marker="x",
-                color=marker_color,
+                color=example_marker_color,
                 linewidth=2,
             )
     ax.set_xlabel("Week of last observed case")

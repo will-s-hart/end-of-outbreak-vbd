@@ -3627,7 +3627,7 @@ z
    <text style="font-weight: 700; font-size: 14px; font-family: 'Arial', sans-serif; text-anchor: middle; fill: #ffffff" x="236.34" y="374.617266" transform="rotate(-0 236.34 374.617266)">C. Input 3: seasonal time-dependent reproduction number</text>
   </g>
   <g id="text_38">
-   <text style="font-weight: 700; font-size: 14px; font-family: 'Arial', sans-serif; text-anchor: middle; fill: #ffffff" x="699.66" y="374.617266" transform="rotate(-0 699.66 374.617266)">D. Output: probability of additional cases</text>
+   <text style="font-weight: 700; font-size: 14px; font-family: 'Arial', sans-serif; text-anchor: middle; fill: #ffffff" x="699.66" y="374.617266" transform="rotate(-0 699.66 374.617266)">D. Output: risk of additional cases</text>
   </g>
  </g>
  <defs>

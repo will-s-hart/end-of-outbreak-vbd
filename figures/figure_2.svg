@@ -2118,12 +2118,12 @@
     <g clip-path="url(#p3b908480bb)"/>
    </g>
    <g id="line2d_118">
-    <path d="M 408.530769 326.386667  " clip-path="url(#p3b908480bb)" style="fill: none; stroke: #0000ff; stroke-width: 2; stroke-linecap: square"/>
+    <path d="M 408.530769 326.386667  " clip-path="url(#p3b908480bb)" style="fill: none; stroke: #ff0000; stroke-width: 2; stroke-linecap: square"/>
     <defs>
-     <path id="md5990965b7" d="M -4 4  L 4 -4  M -4 -4  L 4 4  " style="stroke: #0000ff"/>
+     <path id="md5990965b7" d="M -4 4  L 4 -4  M -4 -4  L 4 4  " style="stroke: #ff0000"/>
     </defs>
     <g clip-path="url(#p3b908480bb)">
-     <use xlink:href="#md5990965b7" x="408.530769" y="326.386667" style="fill: #0000ff; stroke: #0000ff"/>
+     <use xlink:href="#md5990965b7" x="408.530769" y="326.386667" style="fill: #ff0000; stroke: #ff0000"/>
     </g>
    </g>
    <g id="line2d_119">
