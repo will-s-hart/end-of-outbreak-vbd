@@ -96,7 +96,7 @@ def make_plots():
     ax.set_xlim(0, t_calc + 5)
     ax.set_ylim(0, 1.01)
     ax.set_xlabel("Day of outbreak")
-    ax.set_ylabel("Probability of additional cases")
+    ax.set_ylabel("Risk of additional cases")
 
     # One combined legend (probability markers + snapshot from the primary axis, reporting-status
     # bars + inferred-cases band from the twin axis).

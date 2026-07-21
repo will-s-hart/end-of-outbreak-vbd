@@ -119,7 +119,7 @@ def make_plots():
     )
     ax.set_xlabel("Day of outbreak")
     ax.set_ylim(0, 1.01)
-    ax.set_ylabel("Probability of additional cases")
+    ax.set_ylabel("Risk of additional cases")
     ax.legend(loc="upper right")
     fig.savefig(inputs["fig_paths"]["additional_case_prob"])
 

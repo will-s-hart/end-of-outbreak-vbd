@@ -101,7 +101,7 @@ def _make_prob_plot(
     inputs,
     colors,
     *,
-    ylabel="Probability of additional cases",
+    ylabel="Risk of additional cases",
 ):
     suitability_df = pd.read_csv(
         inputs["results_paths"]["suitability_p60"], parse_dates=["date"]

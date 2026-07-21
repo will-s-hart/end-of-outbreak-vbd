@@ -375,7 +375,7 @@ def _populate_panel_d(
     ax.set_xlim(x_lower, DOY_MAX)
     ax.set_ylim(0, y_upper)
     ax.set_xlabel("Date")
-    ax.set_ylabel("Probability of additional\ncases on/after date")
+    ax.set_ylabel("Risk of additional\ncases on/after date")
     ax.set_yticks([])
 
     ax.text(

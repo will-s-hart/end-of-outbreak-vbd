@@ -168,7 +168,7 @@ def _make_additional_case_prob_plot(
         )
     _clip_calendar_axis(ax, calendar_day_index_max)
     ax.set_ylim(0, 1.01)
-    ax.set_ylabel("Probability of additional cases")
+    ax.set_ylabel("Risk of additional cases")
     ax.legend(loc="upper left", bbox_to_anchor=(0, 0.89))
     if fig_path is not None:
         fig.savefig(fig_path)
