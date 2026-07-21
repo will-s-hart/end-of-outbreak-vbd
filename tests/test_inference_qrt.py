@@ -237,6 +237,40 @@ def test_fit_model_qrt_warns_once_after_aggregating_snapshots(monkeypatch):
         )
 
 
+def test_fit_model_qrt_can_raise_on_poor_incidence_diagnostics(monkeypatch):
+    def fake_fit_model(**kwargs):
+        t = len(kwargs["incidence"])
+        return core._SingleFitResult(
+            posterior_ds=xr.Dataset(
+                {"rep_no_mean": ("time", [float(t)])}, coords={"time": [t]}
+            ),
+            rep_no_diagnostics=core._DiagnosticComponents(
+                rhat_values=np.array([1.0]),
+                ess_values=np.array([2000.0]),
+                n_diverging=0.0,
+            ),
+            incidence_diagnostics=core._DiagnosticComponents(
+                rhat_values=np.array([1.0]),
+                ess_values=np.array([500.0]),
+                n_diverging=np.nan,
+            ),
+        )
+
+    monkeypatch.setattr(qrt, "_fit_single_model_result", fake_fit_model)
+    monkeypatch.setattr(qrt, "tqdm", lambda iterable, **kwargs: iterable)
+
+    with pytest.raises(RuntimeError, match="min ESS 500.0 < 1000"):
+        qrt._fit_model_qrt(
+            incidence=[np.array([1]), np.array([1, 0])],
+            serial_interval_dist_vec=np.array([1.0]),
+            rep_no_vec_func=lambda t_stop: np.ones(t_stop),
+            reporting_prob=0.6,
+            compute_diagnostics=True,
+            raise_on_poor_diagnostics=True,
+            parallel=False,
+        )
+
+
 def test_fit_model_qrt_serial_matches_parallel():
     # A small real under-reporting nowcast fit must give identical results whether the snapshots
     # are fitted serially or across joblib worker processes: the spawned child RNGs make the

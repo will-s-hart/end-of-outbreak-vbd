@@ -282,10 +282,11 @@ def _finalize_single_fit_result(
         raise_on_problems=raise_on_poor_diagnostics,
     )
     if result.incidence_diagnostics is not None:
-        # The discrete Metropolis-sampled true-case block may mix slowly, so warn (never
-        # raise) on its diagnostics and report the median mixing summaries.
+        # Apply the same caller-selected warning/raising policy to the discrete
+        # Metropolis-sampled true-case block, and report its mixing summaries separately.
         incidence_diagnostics = _summarize_and_check_diagnostics(
-            result.incidence_diagnostics, raise_on_problems=False
+            result.incidence_diagnostics,
+            raise_on_problems=raise_on_poor_diagnostics,
         )
         diagnostics.update(
             {

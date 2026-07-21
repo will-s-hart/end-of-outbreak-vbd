@@ -10,6 +10,7 @@ import xarray as xr
 import endoutbreakvbd._inference_core as core
 import endoutbreakvbd._inference_models as im
 import endoutbreakvbd.inference as inference
+import scripts.lazio_underreporting_retro as lazio_underreporting_retro
 from endoutbreakvbd.rep_no_models import build_ar_rep_no, build_known_rep_no
 from scripts.lazio_underreporting_qrt import _posterior_trajectory_frame
 from scripts.lazio_underreporting_qrt_plots import _make_cases_plot
@@ -28,6 +29,45 @@ class _CtxModel:
 class _FakeTrace:
     def __init__(self, posterior):
         self.posterior = posterior
+
+
+def test_lazio_underreporting_retro_raises_on_poor_diagnostics(monkeypatch):
+    calls = []
+    inputs = {
+        "incidence_vec": np.array([1, 0]),
+        "serial_interval_dist_vec": np.array([1.0]),
+        "outbreak_start_date": pd.Timestamp("2017-01-01"),
+        "reporting_prob": 0.6,
+        "suitability_mean_vec": np.ones(3),
+        "results_paths": {
+            "suitability_p60": "suitability.csv",
+            "suitability_p60_diagnostics": "suitability_diagnostics.csv",
+            "autoregressive_p60": "autoregressive.csv",
+            "autoregressive_p60_diagnostics": "autoregressive_diagnostics.csv",
+        },
+    }
+
+    def fake_fit(**kwargs):
+        calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        lazio_underreporting_retro,
+        "get_inputs_lazio_underreporting_retro",
+        lambda: inputs,
+    )
+    monkeypatch.setattr(lazio_underreporting_retro, "fit_suitability_model", fake_fit)
+    monkeypatch.setattr(lazio_underreporting_retro, "fit_autoregressive_model", fake_fit)
+    monkeypatch.setattr(lazio_underreporting_retro, "_write_results", lambda *a, **k: None)
+    monkeypatch.setattr(
+        lazio_underreporting_retro, "_write_diagnostics", lambda *a, **k: None
+    )
+
+    lazio_underreporting_retro.run_analyses()
+
+    assert len(calls) == 2
+    assert all(call["compute_diagnostics"] is True for call in calls)
+    assert all(call["raise_on_poor_diagnostics"] is True for call in calls)
 
 
 def test_convolution_matrix_matches_renewal_foi():
