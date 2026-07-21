@@ -917,16 +917,16 @@ L -3 -0
    </g>
    <g id="line2d_118">
     <path d="M 408.530769 326.386667 
-" clip-path="url(#p45654efcb1)" style="fill: none; stroke: #0000ff; stroke-width: 2; stroke-linecap: square"/>
+" clip-path="url(#p45654efcb1)" style="fill: none; stroke: #ff0000; stroke-width: 2; stroke-linecap: square"/>
     <defs>
      <path id="ma123a2144b" d="M -4 4 
 L 4 -4 
 M -4 -4 
 L 4 4 
-" style="stroke: #0000ff"/>
+" style="stroke: #ff0000"/>
     </defs>
     <g clip-path="url(#p45654efcb1)">
-     <use xlink:href="#ma123a2144b" x="408.530769" y="326.386667" style="fill: #0000ff; stroke: #0000ff"/>
+     <use xlink:href="#ma123a2144b" x="408.530769" y="326.386667" style="fill: #ff0000; stroke: #ff0000"/>
     </g>
    </g>
    <g id="line2d_119">

@@ -28,7 +28,7 @@ PANEL_TITLES = {
     "A": "A. Input 1: disease incidence time series",
     "B": "B. Input 2: serial interval distribution",
     "C": "C. Input 3: seasonal time-dependent reproduction number",
-    "D": "D. Output: probability of additional cases",
+    "D": "D. Output: risk of additional cases",
 }
 
 FIGURE_WIDTH = 13.0
