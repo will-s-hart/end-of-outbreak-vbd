@@ -73,7 +73,9 @@ def calc_additional_case_prob_analytical(
     incidence : IncidenceSeriesInput
         Observed incidence time series. May carry trailing sample dimensions (time is the
         leading axis), e.g. posterior draws of the inferred true incidence, which are aligned
-        with any sample dimensions returned by ``rep_no_func``.
+        with any sample dimensions returned by ``rep_no_func``. Sampled histories must either
+        all be zero or share one index-case time; sample-specific importation times are not
+        supported.
     rep_no_func : RepNoFunc
         Function returning the reproduction number at a given time (day). May return
         additional dimensions (e.g. posterior samples).
@@ -99,6 +101,7 @@ def calc_additional_case_prob_analytical(
     reduce = additional_dims == "average"
     incidence = np.asarray(incidence)
     serial_interval_dist_vec = np.asarray(serial_interval_dist_vec)
+    _validate_shared_incidence_index_time(incidence)
 
     if np.isscalar(t_calc):
         prob_result = _calc_additional_case_prob_analytical_scalar(
@@ -140,6 +143,31 @@ def calc_additional_case_prob_analytical(
         ]
     broadcast_prob_results = np.broadcast_arrays(*prob_results)
     return np.stack(broadcast_prob_results, axis=0)
+
+
+def _validate_shared_incidence_index_time(incidence: IntArray) -> None:
+    # A sampled incidence array represents aligned draws of one outbreak. The analytical
+    # short-circuits (notably t_calc=0) return a single value before evaluating the sample-wise
+    # renewal calculation, so every draw must agree on whether and when that outbreak begins.
+    # Supporting sample-specific importations would require sample-specific short-circuit logic
+    # throughout; reject that unsupported interpretation explicitly instead.
+    if incidence.ndim <= 1:
+        return
+    incidence_sample_mat = incidence.reshape(incidence.shape[0], -1)
+    positive_incidence_mat = incidence_sample_mat != 0
+    has_index_case_vec = positive_incidence_mat.any(axis=0)
+    if not has_index_case_vec.any():
+        return
+    if not has_index_case_vec.all():
+        raise ValueError(
+            "sampled incidence histories must either all be zero or all contain "
+            "an index case at the same time"
+        )
+    index_time_vec = positive_incidence_mat.argmax(axis=0)
+    if np.any(index_time_vec != index_time_vec[0]):
+        raise ValueError(
+            "sampled incidence histories must have the same index-case time"
+        )
 
 
 @overload

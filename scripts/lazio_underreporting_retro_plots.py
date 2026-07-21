@@ -37,27 +37,30 @@ def _make_incidence_plot(inputs, colors):
         inputs["results_paths"]["suitability_p60"], parse_dates=["date"]
     )
     calendar_day_index_vec = dates_to_calendar_day_index(suitability_df["date"])
+    plot_mask = calendar_day_index_vec <= inputs["calendar_day_index_max"]
+    plot_calendar_day_index_vec = calendar_day_index_vec[plot_mask]
     fig, ax = plt.subplots()
     ax.bar(
-        calendar_day_index_vec,
-        suitability_df["reported_incidence"],
+        plot_calendar_day_index_vec,
+        suitability_df.loc[plot_mask, "reported_incidence"],
         color="tab:gray",
         alpha=0.5,
         label="Reported",
     )
     ax.plot(
-        calendar_day_index_vec,
-        suitability_df["incidence_mean"],
+        plot_calendar_day_index_vec,
+        suitability_df.loc[plot_mask, "incidence_mean"],
         color=colors[0],
         label="Estimated true\n(suitability-based)",
     )
     ax.fill_between(
-        calendar_day_index_vec,
-        suitability_df["incidence_lower"],
-        suitability_df["incidence_upper"],
+        plot_calendar_day_index_vec,
+        suitability_df.loc[plot_mask, "incidence_lower"],
+        suitability_df.loc[plot_mask, "incidence_upper"],
         color=colors[0],
         alpha=0.3,
     )
+    ax.set_xlim(plot_calendar_day_index_vec.min(), inputs["calendar_day_index_max"])
     month_start_xticks(ax)
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, None)
@@ -242,6 +245,7 @@ def _make_parameter_estimate_plots(inputs, colors):
         _get_full_reporting_calendar_day_index(full_reporting_autoregressive_df)
     )
     common_calendar_day_index_max = min(
+        inputs["calendar_day_index_max"],
         calendar_day_index_vec.max(),
         full_reporting_suitability_calendar_day_index_vec.max(),
         full_reporting_autoregressive_calendar_day_index_vec.max(),
