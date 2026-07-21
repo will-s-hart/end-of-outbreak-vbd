@@ -349,7 +349,8 @@ def test_fit_model_dispatches_to_underreporting_offshoot(monkeypatch):
     # No explicit step is attached; pm.sample assigns the latent's Metropolis step itself.
     assert "step" not in captured["sample_kwargs"]
     assert "nuts_sampler" not in captured["sample_kwargs"]
-    assert captured["sample_kwargs"]["draws"] == 4000
+    assert captured["sample_kwargs"]["draws"] == 8000
+    assert captured["sample_kwargs"]["tune"] == 2000
     # The probability uses only the unpadded latent-derived case array (data_time, chain, draw).
     assert np.issubdtype(captured["prob_incidence"].dtype, np.integer)
     assert captured["prob_incidence"].shape == (len(observed_incidence_vec), 1, 3)
