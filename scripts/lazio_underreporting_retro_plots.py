@@ -133,7 +133,7 @@ def _make_additional_case_prob_plot(inputs, colors):
     month_start_xticks(ax)
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, 1.01)
-    ax.set_ylabel("Probability of additional cases")
+    ax.set_ylabel("Risk of additional cases")
     ax.legend(loc="upper left", bbox_to_anchor=(0, 0.89))
     fig.savefig(inputs["fig_paths"]["additional_case_prob"])
     return fig, ax

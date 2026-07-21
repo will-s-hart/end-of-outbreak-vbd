@@ -3380,7 +3380,7 @@ L 884.52 551.298462
    </g>
    <g id="matplotlib.axis_8">
     <g id="text_32">
-     <text style="font-size: 16px; font-family: 'Arial', sans-serif" transform="translate(512.219219 569.52375) rotate(-90)">Probability of additional</text>
+     <text style="font-size: 16px; font-family: 'Arial', sans-serif" transform="translate(512.219219 569.52375) rotate(-90)">Risk of additional</text>
      <text style="font-size: 16px; font-family: 'Arial', sans-serif" transform="translate(529.633594 554.8475) rotate(-90)">cases on/after date</text>
     </g>
    </g>

@@ -96,7 +96,7 @@ def _make_additional_case_prob_plot(*, incidence_vec, results_path, fig_path=Non
     )
     if not is_nontrivial_outbreak:
         ax.set_xlim(0, ax.get_xlim()[1])
-    ax.set_ylabel("Probability of additional cases")
+    ax.set_ylabel("Risk of additional cases")
     ax.legend()
     if fig_path is not None:
         fig.savefig(fig_path)
@@ -165,7 +165,7 @@ def _make_many_outbreak_example_plot(
     month_start_xticks(ax)
     ax.set_xlabel("Date")
     ax.set_ylim(0, 1.01)
-    ax.set_ylabel("Probability of additional cases")
+    ax.set_ylabel("Risk of additional cases")
     if fig_path is not None:
         fig.savefig(fig_path)
     return fig, ax
