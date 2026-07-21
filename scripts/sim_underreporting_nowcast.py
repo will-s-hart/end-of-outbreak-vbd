@@ -76,6 +76,8 @@ def run_analyses():
         rng=rng,
         compute_diagnostics=True,
         raise_on_poor_diagnostics=False,
+        draws=4000,
+        tune=2000,
     )
     # Under-reporting offshoot with R fixed to the truth (isolates the reporting inference).
     imperfect_true_r_posterior_ds = fit_known_rep_no_model(
@@ -86,6 +88,8 @@ def run_analyses():
         delay_cdf=delay_cdf,
         rng=rng,
         compute_diagnostics=False,
+        draws=4000,
+        tune=2000,
     )
     # Naive analysis with R inferred: reported-by-D treated as complete.
     naive_est_r_posterior_ds = fit_autoregressive_model(

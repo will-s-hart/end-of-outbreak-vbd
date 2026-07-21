@@ -60,6 +60,10 @@ def run_analyses(
             "parallel": parallel,
             "compute_diagnostics": True,
             "raise_on_poor_diagnostics": False,
+            # Keep the multi-hour delayed analysis at its existing sampling budget for now,
+            # rather than inheriting the larger general under-reporting default.
+            "draws": 4000,
+            "tune": 2000,
         }
         if model == "suitability":
             posterior_ds = fit_suitability_model(
@@ -95,6 +99,8 @@ def _run_trajectory(inputs, rng):
         delay_cdf=inputs["delay"]["cdf"],
         rng=rng,
         compute_diagnostics=False,
+        draws=4000,
+        tune=2000,
     )
     onset_day = posterior_ds["time"].values
     date_vec = inputs["outbreak_start_date"] + pd.to_timedelta(onset_day, unit="D")
