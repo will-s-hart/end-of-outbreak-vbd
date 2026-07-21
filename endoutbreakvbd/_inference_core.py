@@ -9,6 +9,7 @@ directly, instead of importing back into the public module.
 
 import warnings
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import arviz_base as azb
@@ -32,53 +33,18 @@ from endoutbreakvbd.additional_case_prob import calc_additional_case_prob_analyt
 from endoutbreakvbd.utils import rep_no_from_grid
 
 
-def _compute_and_check_diagnostics(
-    posterior_ds: xr.Dataset,
-    sample_stats_ds: xr.Dataset | None,
-    *,
-    raise_on_problems: bool = False,
-    var_name: str = "rep_no",
-    ess_min_threshold: float = 1000,
-    rhat_max_threshold: float = 1.01,
-) -> dict[str, float]:
-    # Summarise convergence diagnostics for `var_name` and warn (or raise) on poor
-    # sampling. Divergences are N/A (NaN) when sample_stats_ds is None, as for the
-    # quasi-real-time aggregate of many separate fits.
-    # Subset to the single variable first: passing the full dataset raises a spurious
-    # KeyError ("var names ... are not present") in arviz_stats 1.2.0 when the dataset also
-    # carries derived variables sharing `var_name` as a prefix (e.g. `incidence` alongside
-    # `incidence_mean`). `filter_vars=None` is already arviz's exact-match mode and is the
-    # one that fails; "like"/"regex" raise outright, so the single-variable subset is the fix.
-    posterior_var_ds = posterior_ds[[var_name]]
-    rhat_da = rhat(posterior_var_ds, var_names=var_name)[var_name]
-    ess_da = ess(posterior_var_ds, var_names=var_name)[var_name]
-    n_diverging = (
-        np.nan if sample_stats_ds is None else float(sample_stats_ds["diverging"].sum())
-    )
-    diagnostics = {
-        "rhat_mean": rhat_da.mean().item(),
-        "rhat_median": rhat_da.median().item(),
-        "rhat_max": rhat_da.max().item(),
-        "ess_mean": ess_da.mean().item(),
-        "ess_median": ess_da.median().item(),
-        "ess_min": ess_da.min().item(),
-        "n_diverging": n_diverging,
-    }
-    problems = []
-    if diagnostics["ess_min"] < ess_min_threshold:
-        problems.append(f"min ESS {diagnostics['ess_min']:.1f} < {ess_min_threshold}")
-    if diagnostics["rhat_max"] > rhat_max_threshold:
-        problems.append(
-            f"max R-hat {diagnostics['rhat_max']:.4f} > {rhat_max_threshold}"
-        )
-    if not np.isnan(n_diverging) and n_diverging > 0:
-        problems.append(f"{int(n_diverging)} divergence(s)")
-    if problems:
-        message = "Poor sampling diagnostics: " + "; ".join(problems)
-        if raise_on_problems:
-            raise RuntimeError(message)
-        warnings.warn(message, stacklevel=2)
-    return diagnostics
+@dataclass(frozen=True)
+class _DiagnosticComponents:
+    rhat_values: FloatArray
+    ess_values: FloatArray
+    n_diverging: float
+
+
+@dataclass(frozen=True)
+class _SingleFitResult:
+    posterior_ds: xr.Dataset
+    rep_no_diagnostics: _DiagnosticComponents | None
+    incidence_diagnostics: _DiagnosticComponents | None
 
 
 def _is_incidence_sequence(incidence: Any) -> bool:
@@ -109,6 +75,40 @@ def _fit_single_model(
     raise_on_poor_diagnostics: bool = False,
     **kwargs_sample: Any,
 ) -> xr.Dataset:
+    # Public-module-facing wrapper: a single fit applies diagnostics immediately, whereas QRT
+    # calls `_fit_single_model_result` directly and combines its raw components across snapshots.
+    return _finalize_single_fit_result(
+        _fit_single_model_result(
+            incidence=incidence,
+            serial_interval_dist_vec=serial_interval_dist_vec,
+            rep_no_vec_func=rep_no_vec_func,
+            step_func=step_func,
+            thin=thin,
+            rng=rng,
+            reporting_prob=reporting_prob,
+            delay_cdf=delay_cdf,
+            freeze_from_final_case=freeze_from_final_case,
+            compute_diagnostics=compute_diagnostics,
+            **kwargs_sample,
+        ),
+        raise_on_poor_diagnostics=raise_on_poor_diagnostics,
+    )
+
+
+def _fit_single_model_result(
+    *,
+    incidence: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
+    serial_interval_dist_vec: SerialIntervalInput,
+    rep_no_vec_func: Callable[[int], Any],
+    step_func: Callable[[], Any] | None = None,
+    thin: int = 1,
+    rng: np.random.Generator | int | None = None,
+    reporting_prob: float | None = None,
+    delay_cdf: FloatArray | None = None,
+    freeze_from_final_case: bool = False,
+    compute_diagnostics: bool = False,
+    **kwargs_sample: Any,
+) -> _SingleFitResult:
     # Fit one incidence snapshot. The additional-case probability is always reported over every day
     # of the incidence series plus one projected day past the last datapoint (`0 .. t_data_stop`),
     # the final entry being the "probability of further cases given everything observed" — the
@@ -208,6 +208,7 @@ def _fit_single_model(
             for stat in ("mean", "lower", "upper")
         }
     )
+    posterior_diagnostic_ds = posterior_ds
 
     # Additional-case probability at the calculation times. For the offshoot each draw
     # supplies its own latent true incidence, aligned with its R_t; for full reporting the fixed
@@ -251,25 +252,48 @@ def _fit_single_model(
         ),
     )
 
-    if compute_diagnostics:
-        diagnostics = _compute_and_check_diagnostics(
-            posterior_ds,
-            sample_stats_ds,
-            raise_on_problems=raise_on_poor_diagnostics,
+    rep_no_diagnostics = (
+        _compute_diagnostic_components(posterior_diagnostic_ds, sample_stats_ds)
+        if compute_diagnostics
+        else None
+    )
+    incidence_diagnostics = (
+        _compute_diagnostic_components(
+            posterior_diagnostic_ds, None, var_name="incidence"
         )
-        if underreporting_fit:
-            # The discrete Metropolis-sampled true-case block may mix slowly, so warn (never
-            # raise) on its diagnostics and report the median mixing summaries.
-            incidence_diagnostics = _compute_and_check_diagnostics(
-                posterior_ds, None, var_name="incidence", raise_on_problems=False
-            )
-            diagnostics.update(
-                {
-                    f"incidence_{key}": incidence_diagnostics[key]
-                    for key in ("rhat_max", "ess_min", "ess_median")
-                }
-            )
-        posterior_ds.attrs["diagnostics"] = diagnostics
+        if compute_diagnostics and underreporting_fit
+        else None
+    )
+    return _SingleFitResult(
+        posterior_ds=posterior_ds,
+        rep_no_diagnostics=rep_no_diagnostics,
+        incidence_diagnostics=incidence_diagnostics,
+    )
+
+
+def _finalize_single_fit_result(
+    result: _SingleFitResult, *, raise_on_poor_diagnostics: bool
+) -> xr.Dataset:
+    posterior_ds = result.posterior_ds
+    if result.rep_no_diagnostics is None:
+        return posterior_ds
+    diagnostics = _summarize_and_check_diagnostics(
+        result.rep_no_diagnostics,
+        raise_on_problems=raise_on_poor_diagnostics,
+    )
+    if result.incidence_diagnostics is not None:
+        # The discrete Metropolis-sampled true-case block may mix slowly, so warn (never
+        # raise) on its diagnostics and report the median mixing summaries.
+        incidence_diagnostics = _summarize_and_check_diagnostics(
+            result.incidence_diagnostics, raise_on_problems=False
+        )
+        diagnostics.update(
+            {
+                f"incidence_{key}": incidence_diagnostics[key]
+                for key in ("rhat_max", "ess_min", "ess_median")
+            }
+        )
+    posterior_ds.attrs["diagnostics"] = diagnostics
     return posterior_ds
 
 
@@ -306,3 +330,120 @@ def _get_t_rep_no_stop(
     else:
         base = _get_t_final_case(incidence_vec) + serial_interval_max + 1
     return max(t_data_stop, base, int(np.max(t_calc_vec)) + 1)
+
+
+def _compute_and_check_diagnostics(
+    posterior_ds: xr.Dataset,
+    sample_stats_ds: xr.Dataset | None,
+    *,
+    raise_on_problems: bool = False,
+    var_name: str = "rep_no",
+    ess_min_threshold: float = 1000,
+    rhat_max_threshold: float = 1.01,
+) -> dict[str, float]:
+    # Convenience wrapper retained for a single supplied posterior dataset.
+    return _summarize_and_check_diagnostics(
+        _compute_diagnostic_components(
+            posterior_ds, sample_stats_ds, var_name=var_name
+        ),
+        raise_on_problems=raise_on_problems,
+        ess_min_threshold=ess_min_threshold,
+        rhat_max_threshold=rhat_max_threshold,
+    )
+
+
+def _compute_diagnostic_components(
+    posterior_ds: xr.Dataset,
+    sample_stats_ds: xr.Dataset | None,
+    *,
+    var_name: str = "rep_no",
+) -> _DiagnosticComponents:
+    # Subset to the single variable first: passing the full dataset raises a spurious
+    # KeyError ("var names ... are not present") in arviz_stats 1.2.0 when the dataset also
+    # carries derived variables sharing `var_name` as a prefix (e.g. `incidence` alongside
+    # `incidence_mean`). `filter_vars=None` is already arviz's exact-match mode and is the
+    # one that fails; "like"/"regex" raise outright, so the single-variable subset is the fix.
+    posterior_var_ds = posterior_ds[[var_name]]
+    rhat_da = rhat(posterior_var_ds, var_names=var_name)[var_name]
+    ess_da = ess(posterior_var_ds, var_names=var_name)[var_name]
+    n_diverging = (
+        np.nan if sample_stats_ds is None else float(sample_stats_ds["diverging"].sum())
+    )
+    return _DiagnosticComponents(
+        rhat_values=np.asarray(rhat_da, dtype=float).ravel(),
+        ess_values=np.asarray(ess_da, dtype=float).ravel(),
+        n_diverging=n_diverging,
+    )
+
+
+def _combine_diagnostic_components(
+    components: Sequence[_DiagnosticComponents],
+) -> _DiagnosticComponents:
+    if not components:
+        raise ValueError("at least one set of diagnostic components is required")
+    n_diverging_values = np.array(
+        [component.n_diverging for component in components], dtype=float
+    )
+    n_diverging = (
+        float(n_diverging_values.sum())
+        if np.all(np.isfinite(n_diverging_values))
+        else np.nan
+    )
+    return _DiagnosticComponents(
+        rhat_values=np.concatenate(
+            [component.rhat_values for component in components]
+        ),
+        ess_values=np.concatenate([component.ess_values for component in components]),
+        n_diverging=n_diverging,
+    )
+
+
+def _summarize_and_check_diagnostics(
+    components: _DiagnosticComponents,
+    *,
+    raise_on_problems: bool = False,
+    ess_min_threshold: float = 1000,
+    rhat_max_threshold: float = 1.01,
+) -> dict[str, float]:
+    # Summarise convergence diagnostics and apply the warning/raising policy once. Keeping
+    # extraction separate lets QRT combine every independently fitted snapshot first.
+    n_diverging = components.n_diverging
+    diagnostics = {
+        "rhat_mean": _diagnostic_stat(components.rhat_values, "mean"),
+        "rhat_median": _diagnostic_stat(components.rhat_values, "median"),
+        "rhat_max": _diagnostic_stat(components.rhat_values, "max"),
+        "ess_mean": _diagnostic_stat(components.ess_values, "mean"),
+        "ess_median": _diagnostic_stat(components.ess_values, "median"),
+        "ess_min": _diagnostic_stat(components.ess_values, "min"),
+        "n_diverging": n_diverging,
+    }
+    problems = []
+    if diagnostics["ess_min"] < ess_min_threshold:
+        problems.append(f"min ESS {diagnostics['ess_min']:.1f} < {ess_min_threshold}")
+    if diagnostics["rhat_max"] > rhat_max_threshold:
+        problems.append(
+            f"max R-hat {diagnostics['rhat_max']:.4f} > {rhat_max_threshold}"
+        )
+    if not np.isnan(n_diverging) and n_diverging > 0:
+        problems.append(f"{int(n_diverging)} divergence(s)")
+    if problems:
+        message = "Poor sampling diagnostics: " + "; ".join(problems)
+        if raise_on_problems:
+            raise RuntimeError(message)
+        warnings.warn(message, stacklevel=2)
+    return diagnostics
+
+
+def _diagnostic_stat(values: FloatArray, stat: str) -> float:
+    non_nan_values = values[~np.isnan(values)]
+    if non_nan_values.size == 0:
+        return np.nan
+    if stat == "mean":
+        return float(np.mean(non_nan_values))
+    if stat == "median":
+        return float(np.median(non_nan_values))
+    if stat == "max":
+        return float(np.max(non_nan_values))
+    if stat == "min":
+        return float(np.min(non_nan_values))
+    raise ValueError(f"unknown diagnostic statistic: {stat}")

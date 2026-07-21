@@ -12,9 +12,11 @@ from joblib import Parallel, delayed, parallel_config
 from tqdm import tqdm
 
 from endoutbreakvbd._inference_core import (
-    _compute_and_check_diagnostics,
-    _fit_single_model,
+    _combine_diagnostic_components,
+    _DiagnosticComponents,
+    _fit_single_model_result,
     _is_incidence_sequence,
+    _summarize_and_check_diagnostics,
 )
 from endoutbreakvbd._types import (
     FloatArray,
@@ -53,7 +55,9 @@ def _fit_model_qrt(
     #     under-reporting nowcast). Each series' reporting as-of day is its own last day (see
     #     `_reporting_prob_vec`) and its decision day is one later.
     # Latent-case histories use a per-snapshot `data_time` axis and are omitted from the aggregate;
-    # only variables describing the retained decision days are concatenated on `time`.
+    # only variables describing the retained decision days are concatenated on `time`. When
+    # requested, diagnostics are nevertheless extracted from every R_t and latent-incidence value
+    # in each complete snapshot fit before that projection, then aggregated once in the parent.
     # The per-snapshot fits are independent, so with `parallel` they are run across processes via
     # joblib (mirroring calc_additional_case_prob_simulation); each fit then samples chains
     # sequentially (cores=1) so joblib, not pm.sample, owns the parallelism.
@@ -96,6 +100,7 @@ def _fit_model_qrt(
         "delay_cdf": delay_cdf,
         "step_func": step_func,
         "thin": thin,
+        "compute_diagnostics": compute_diagnostics,
         **extra_kwargs,
         **kwargs_sample,
     }
@@ -147,14 +152,89 @@ def _fit_model_qrt(
         )
 
     posterior_datasets: list[xr.Dataset | None] = [None] * len(fit_tasks)
-    for idx, posterior_subset_ds in fit_results:
+    rep_no_diagnostic_components: list[_DiagnosticComponents | None] = [None] * len(
+        fit_tasks
+    )
+    incidence_diagnostic_components: list[_DiagnosticComponents | None] = [None] * len(
+        fit_tasks
+    )
+    for (
+        idx,
+        posterior_subset_ds,
+        rep_no_components,
+        incidence_components,
+    ) in fit_results:
         posterior_datasets[idx] = posterior_subset_ds
+        rep_no_diagnostic_components[idx] = rep_no_components
+        incidence_diagnostic_components[idx] = incidence_components
     posterior_ds = xr.concat(posterior_datasets, dim="time")
     if compute_diagnostics:
-        posterior_ds.attrs["diagnostics"] = _compute_and_check_diagnostics(
-            posterior_ds, None, raise_on_problems=raise_on_poor_diagnostics
+        rep_no_components = [
+            component
+            for component in rep_no_diagnostic_components
+            if component is not None
+        ]
+        if len(rep_no_components) != len(fit_tasks):
+            raise RuntimeError("a QRT snapshot did not return reproduction-number diagnostics")
+        diagnostics = _summarize_and_check_diagnostics(
+            _combine_diagnostic_components(rep_no_components),
+            raise_on_problems=raise_on_poor_diagnostics,
         )
+        if reporting_prob is not None:
+            incidence_components = [
+                component
+                for component in incidence_diagnostic_components
+                if component is not None
+            ]
+            if len(incidence_components) != len(fit_tasks):
+                raise RuntimeError(
+                    "an under-reporting QRT snapshot did not return incidence diagnostics"
+                )
+            incidence_diagnostics = _summarize_and_check_diagnostics(
+                _combine_diagnostic_components(incidence_components),
+                raise_on_problems=False,
+            )
+            diagnostics.update(
+                {
+                    f"incidence_{key}": incidence_diagnostics[key]
+                    for key in ("rhat_max", "ess_min", "ess_median")
+                }
+            )
+        posterior_ds.attrs["diagnostics"] = diagnostics
     return posterior_ds
+
+
+def _fit_model_qrt_step(
+    task: tuple[int, list[int], dict[str, Any]], *, isolate: bool
+) -> tuple[
+    int,
+    xr.Dataset,
+    _DiagnosticComponents | None,
+    _DiagnosticComponents | None,
+]:
+    # Fit a single quasi-real-time snapshot, extract diagnostics from its complete result, then
+    # keep only time-indexed variables at this snapshot's decision-day position(s) `keep` (see
+    # `_fit_model_qrt`). Per-snapshot latent-case histories use `data_time` and are intentionally
+    # omitted from the returned aggregate because their lengths differ by snapshot. `isolate` is
+    # True in a joblib worker, where the PyTensor compile dir must be made per-process.
+    idx, keep, fit_kwargs = task
+    if isolate:
+        _prepare_qrt_worker()
+    fit_result = _fit_single_model_result(**fit_kwargs)
+    posterior_current_ds = fit_result.posterior_ds
+    posterior_subset_ds = posterior_current_ds[
+        [
+            var
+            for var in posterior_current_ds.data_vars
+            if "time" in posterior_current_ds[var].dims
+        ]
+    ].isel(time=keep)
+    return (
+        idx,
+        cast(xr.Dataset, posterior_subset_ds),
+        fit_result.rep_no_diagnostics,
+        fit_result.incidence_diagnostics,
+    )
 
 
 # Guards the one-time per-worker environment setup below.
@@ -185,26 +265,3 @@ def _prepare_qrt_worker() -> None:
     # under base_compiledir across runs.
     atexit.register(shutil.rmtree, worker_compiledir, ignore_errors=True)
     _WORKER_ENV_READY = True
-
-
-def _fit_model_qrt_step(
-    task: tuple[int, list[int], dict[str, Any]], *, isolate: bool
-) -> tuple[int, xr.Dataset]:
-    # Fit a single quasi-real-time snapshot and keep only its time-indexed variables (the
-    # chain/draw dims survive for the aggregate diagnostics), sliced to this snapshot's
-    # decision-day position(s) `keep` (see `_fit_model_qrt`). Per-snapshot latent-case histories
-    # use `data_time` and are intentionally omitted: their lengths differ by snapshot and they do
-    # not describe the projected decision day. `isolate` is True when running in a joblib worker
-    # process, where the PyTensor compile dir must be made per-process.
-    idx, keep, fit_kwargs = task
-    if isolate:
-        _prepare_qrt_worker()
-    posterior_current_ds = _fit_single_model(**fit_kwargs)
-    posterior_subset_ds = posterior_current_ds[
-        [
-            var
-            for var in posterior_current_ds.data_vars
-            if "time" in posterior_current_ds[var].dims
-        ]
-    ].isel(time=keep)
-    return idx, cast(xr.Dataset, posterior_subset_ds)

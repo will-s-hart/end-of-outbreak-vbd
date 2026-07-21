@@ -290,6 +290,56 @@ def test_calc_additional_case_prob_analytical_all_zero_incidence_returns_zero():
     assert prob == 0
 
 
+def test_calc_additional_case_prob_sampled_histories_share_later_index_time():
+    incidence_mat = np.array([[0, 0], [1, 2], [0, 0]])
+
+    prob_vec: FloatArray = acp.calc_additional_case_prob_analytical(
+        incidence=incidence_mat,
+        rep_no_func=lambda t: 0.0,
+        serial_interval_dist_vec=[1.0],
+        t_calc=0,
+        additional_dims="broadcast",
+    )
+
+    np.testing.assert_array_equal(prob_vec, np.ones(2))
+
+
+def test_calc_additional_case_prob_sampled_histories_all_zero():
+    prob_vec: FloatArray = acp.calc_additional_case_prob_analytical(
+        incidence=np.zeros((3, 2), dtype=int),
+        rep_no_func=lambda t: 0.0,
+        serial_interval_dist_vec=[1.0],
+        t_calc=0,
+        additional_dims="broadcast",
+    )
+
+    np.testing.assert_array_equal(prob_vec, np.zeros(2))
+
+
+def test_calc_additional_case_prob_rejects_different_sampled_index_times():
+    incidence_mat = np.array([[1, 0], [0, 1], [0, 0]])
+
+    with pytest.raises(ValueError, match="same index-case time"):
+        acp.calc_additional_case_prob_analytical(
+            incidence=incidence_mat,
+            rep_no_func=lambda t: 0.0,
+            serial_interval_dist_vec=[1.0],
+            t_calc=0,
+        )
+
+
+def test_calc_additional_case_prob_rejects_mixed_empty_sampled_histories():
+    incidence_mat = np.array([[1, 0], [0, 0], [0, 0]])
+
+    with pytest.raises(ValueError, match="either all be zero or all contain"):
+        acp.calc_additional_case_prob_analytical(
+            incidence=incidence_mat,
+            rep_no_func=lambda t: 0.0,
+            serial_interval_dist_vec=[1.0],
+            t_calc=0,
+        )
+
+
 def test_calc_additional_case_prob_simulation_parallel_false_deterministic_zero_prob(
     rng,
 ):

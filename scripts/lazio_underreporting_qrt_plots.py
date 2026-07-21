@@ -64,27 +64,30 @@ def _make_delay_plot(inputs):
 def _make_cases_plot(inputs, colors):
     trajectory_df = _read_case_trajectory(inputs)
     calendar_day_index_vec = dates_to_calendar_day_index(trajectory_df["date"])
+    plot_mask = calendar_day_index_vec <= inputs["calendar_day_index_max"]
+    plot_calendar_day_index_vec = calendar_day_index_vec[plot_mask]
     fig, ax = plt.subplots()
     ax.bar(
-        calendar_day_index_vec,
-        trajectory_df["reported_incidence"],
+        plot_calendar_day_index_vec,
+        trajectory_df.loc[plot_mask, "reported_incidence"],
         color="tab:gray",
         alpha=0.5,
         label="Reported",
     )
     ax.plot(
-        calendar_day_index_vec,
-        trajectory_df["incidence_mean"],
+        plot_calendar_day_index_vec,
+        trajectory_df.loc[plot_mask, "incidence_mean"],
         color=colors[0],
         label="Estimated true\n(suitability-based)",
     )
     ax.fill_between(
-        calendar_day_index_vec,
-        trajectory_df["incidence_lower"],
-        trajectory_df["incidence_upper"],
+        plot_calendar_day_index_vec,
+        trajectory_df.loc[plot_mask, "incidence_lower"],
+        trajectory_df.loc[plot_mask, "incidence_upper"],
         color=colors[0],
         alpha=0.3,
     )
+    ax.set_xlim(plot_calendar_day_index_vec.min(), inputs["calendar_day_index_max"])
     month_start_xticks(ax)
     ax.set_xlabel("Date (2017)")
     ax.set_ylim(0, None)

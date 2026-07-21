@@ -11,7 +11,11 @@ from typing import Any
 import numpy as np
 import xarray as xr
 
-from endoutbreakvbd._inference_core import _fit_single_model, _posterior_summary
+from endoutbreakvbd._inference_core import (
+    _fit_single_model,
+    _is_incidence_sequence,
+    _posterior_summary,
+)
 from endoutbreakvbd._inference_qrt import _fit_model_qrt
 from endoutbreakvbd._types import (
     FloatArray,
@@ -63,7 +67,9 @@ def fit_autoregressive_model(
     incidence : IncidenceSeriesInput or Sequence[IncidenceSeriesInput]
         Observed incidence time series, or (with ``quasi_real_time=True``) a sequence of
         snapshots. When ``reporting_prob`` is supplied, the series must start on the
-        index-case day and its first value must be positive.
+        index-case day and its first value must be positive. With both ``quasi_real_time``
+        and ``delay_cdf``, a historical snapshot sequence is required because a single final
+        series cannot reconstruct earlier reporting states.
     serial_interval_dist_vec : SerialIntervalInput
         Discretised serial interval distribution (probability mass per day).
     prior_median : float, optional
@@ -79,7 +85,7 @@ def fit_autoregressive_model(
         If True, refit using only the data available up to each successive time point.
         ``incidence`` may then also be a *sequence* of snapshots; each snapshot
         must start on outbreak day 0, and its calculation time is inferred from its
-        length.
+        length. Supplying ``delay_cdf`` requires this snapshot form.
     reporting_prob : float, optional
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
         latent true-case vector instead of the full-reporting model. This also **changes the
@@ -93,8 +99,10 @@ def fit_autoregressive_model(
         well as before it — a retrospective quantity, not a real-time one. (The reproduction
         number is retrospective on both the full- and under-reporting paths.)
     delay_cdf : FloatArray, optional
-        Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
-        (nowcasting) to the under-reporting model.
+        Onset-to-report delay CDF; requires ``reporting_prob`` and adds right-truncation
+        (nowcasting) to the under-reporting model. After the fixed index case, a day with
+        effective reporting probability zero must have zero reported cases and contributes no
+        reported-case likelihood.
     freeze_from_final_case : bool
         If True, hold the reproduction number fixed at its final-case-day posterior
         samples after the final observed case.
@@ -113,7 +121,10 @@ def fit_autoregressive_model(
         with joblib. No effect on a single (non-quasi-real-time) fit.
     compute_diagnostics : bool
         If True, compute convergence diagnostics, attach them to the returned
-        dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
+        dataset's ``attrs["diagnostics"]``, and warn on poor sampling. Under
+        ``quasi_real_time``, diagnostics aggregate every fitted reproduction-number value
+        (and every fitted latent-incidence value for under-reporting) across all snapshots,
+        before retaining only their decision-day outputs.
     raise_on_poor_diagnostics : bool
         If True, raise (instead of warning) when sampling diagnostics are poor. Only the
         reproduction-number diagnostics can raise; the discrete latent case block is
@@ -189,7 +200,9 @@ def fit_suitability_model(
     incidence : IncidenceSeriesInput or Sequence[IncidenceSeriesInput]
         Observed incidence time series, or (with ``quasi_real_time=True``) a sequence of
         snapshots. When ``reporting_prob`` is supplied, the series must start on the
-        index-case day and its first value must be positive.
+        index-case day and its first value must be positive. With both ``quasi_real_time``
+        and ``delay_cdf``, a historical snapshot sequence is required because a single final
+        series cannot reconstruct earlier reporting states.
     serial_interval_dist_vec : SerialIntervalInput
         Discretised serial interval distribution (probability mass per day).
     suitability_mean_vec : list[float] or FloatArray
@@ -219,7 +232,7 @@ def fit_suitability_model(
         If True, refit using only the data available up to each successive time point.
         ``incidence`` may then also be a *sequence* of snapshots; each snapshot
         must start on outbreak day 0, and its calculation time is inferred from its
-        length.
+        length. Supplying ``delay_cdf`` requires this snapshot form.
     reporting_prob : float, optional
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
         latent true-case vector instead of the full-reporting model. This also **changes the
@@ -233,8 +246,10 @@ def fit_suitability_model(
         well as before it — a retrospective quantity, not a real-time one. (The reproduction
         number is retrospective on both the full- and under-reporting paths.)
     delay_cdf : FloatArray, optional
-        Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
-        (nowcasting) to the under-reporting model.
+        Onset-to-report delay CDF; requires ``reporting_prob`` and adds right-truncation
+        (nowcasting) to the under-reporting model. After the fixed index case, a day with
+        effective reporting probability zero must have zero reported cases and contributes no
+        reported-case likelihood.
     rng : np.random.Generator or int, optional
         Seed for the sampler. A ``Generator`` is consumed in place, so successive fits sharing
         one generator draw different seeds. Under ``quasi_real_time`` a child generator is
@@ -250,7 +265,10 @@ def fit_suitability_model(
         with joblib. No effect on a single (non-quasi-real-time) fit.
     compute_diagnostics : bool
         If True, compute convergence diagnostics, attach them to the returned
-        dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
+        dataset's ``attrs["diagnostics"]``, and warn on poor sampling. Under
+        ``quasi_real_time``, diagnostics aggregate every fitted reproduction-number value
+        (and every fitted latent-incidence value for under-reporting) across all snapshots,
+        before retaining only their decision-day outputs.
     raise_on_poor_diagnostics : bool
         If True, raise (instead of warning) when sampling diagnostics are poor. Only the
         reproduction-number diagnostics can raise; the discrete latent case block is
@@ -337,7 +355,9 @@ def fit_known_rep_no_model(
     incidence : IncidenceSeriesInput or Sequence[IncidenceSeriesInput]
         Observed incidence time series, or (with ``quasi_real_time=True``) a sequence of
         snapshots. When ``reporting_prob`` is supplied, the series must start on the
-        index-case day and its first value must be positive.
+        index-case day and its first value must be positive. With both ``quasi_real_time``
+        and ``delay_cdf``, a historical snapshot sequence is required because a single final
+        series cannot reconstruct earlier reporting states.
     serial_interval_dist_vec : SerialIntervalInput
         Discretised serial interval distribution (probability mass per day).
     rep_no_func : Callable[[IntArray], FloatArray]
@@ -347,7 +367,7 @@ def fit_known_rep_no_model(
         If True, refit using only the data available up to each successive time point.
         ``incidence`` may then also be a *sequence* of snapshots; each snapshot
         must start on outbreak day 0, and its calculation time is inferred from its
-        length.
+        length. Supplying ``delay_cdf`` requires this snapshot form.
     reporting_prob : float, optional
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
         latent true-case vector instead of the full-reporting model. This also **changes the
@@ -360,8 +380,10 @@ def fit_known_rep_no_model(
         series, so the reported probability at day ``t`` is conditioned on data after ``t`` as
         well as before it — a retrospective quantity, not a real-time one.
     delay_cdf : FloatArray, optional
-        Onset-to-report delay CDF; combined with ``reporting_prob`` it adds right-truncation
-        (nowcasting) to the under-reporting model.
+        Onset-to-report delay CDF; requires ``reporting_prob`` and adds right-truncation
+        (nowcasting) to the under-reporting model. After the fixed index case, a day with
+        effective reporting probability zero must have zero reported cases and contributes no
+        reported-case likelihood.
     rng : np.random.Generator or int, optional
         Seed for the sampler. A ``Generator`` is consumed in place, so successive fits sharing
         one generator draw different seeds. Under ``quasi_real_time`` a child generator is
@@ -377,7 +399,10 @@ def fit_known_rep_no_model(
         with joblib. No effect on a single (non-quasi-real-time) fit.
     compute_diagnostics : bool
         If True, compute convergence diagnostics, attach them to the returned dataset's
-        ``attrs["diagnostics"]``, and warn on poor sampling.
+        ``attrs["diagnostics"]``, and warn on poor sampling. Under ``quasi_real_time``,
+        diagnostics aggregate every fitted reproduction-number value (and every fitted
+        latent-incidence value for under-reporting) across all snapshots, before retaining
+        only their decision-day outputs.
     raise_on_poor_diagnostics : bool
         Has **no effect on this path**. The only variable it can raise on is the reproduction
         number, which is constant here, so its R-hat and ESS are degenerate (ESS simply equals
@@ -433,6 +458,15 @@ def _fit_model(
     # single snapshot is fit directly (`_inference_core`). Validating here rather than in the
     # engines keeps the checks in one place, since the quasi-real-time loop forwards these
     # arguments to the single-fit engine unchanged.
+    if delay_cdf is not None:
+        if reporting_prob is None:
+            raise ValueError("delay_cdf requires reporting_prob")
+        if quasi_real_time and not _is_incidence_sequence(incidence):
+            raise ValueError(
+                "delay_cdf with quasi_real_time=True requires a sequence of historical "
+                "incidence snapshots; a single final series cannot reconstruct past "
+                "reporting states"
+            )
     if reporting_prob is not None and step_func is not None:
         raise ValueError(
             "step_func is not supported with reporting_prob; under-reporting fits "

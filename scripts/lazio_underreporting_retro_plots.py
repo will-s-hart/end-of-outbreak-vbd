@@ -145,6 +145,7 @@ def _make_estimate_plots(inputs, colors):
         _full_reporting_calendar_day_index_vec(full_reporting_autoregressive_df)
     )
     common_calendar_day_index_max = min(
+        inputs["calendar_day_index_max"],
         calendar_day_index_vec.max(),
         full_reporting_suitability_calendar_day_index_vec.max(),
         full_reporting_autoregressive_calendar_day_index_vec.max(),

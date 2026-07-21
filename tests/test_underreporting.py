@@ -1,5 +1,6 @@
 # Note that AI tools were used to generate tests
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -11,7 +12,9 @@ import endoutbreakvbd._inference_models as im
 import endoutbreakvbd.inference as inference
 from endoutbreakvbd.rep_no_models import build_ar_rep_no, build_known_rep_no
 from scripts.lazio_underreporting_qrt import _posterior_trajectory_frame
+from scripts.lazio_underreporting_qrt_plots import _make_cases_plot
 from scripts.lazio_underreporting_retro import _write_results
+from scripts.lazio_underreporting_retro_plots import _make_estimate_plots
 
 
 class _CtxModel:
@@ -75,6 +78,16 @@ def test_reporting_prob_vec_truncates_recent_onsets():
     np.testing.assert_allclose(vec, 0.5 * np.array([1.0, 0.7, 0.4, 0.0]))
     # Non-decreasing from recent (last) to old (first) onset.
     assert np.all(np.diff(vec[::-1]) >= 0)
+
+
+def test_initial_unobserved_mu_is_finite_and_caps_only_initialization():
+    initial_mu_vec = im._initial_unobserved_mu_vec(
+        observed_incidence_vec=np.array([0, 2, 4]),
+        reporting_prob_vec=np.array([0.0, 1e-9, 0.5]),
+    )
+
+    np.testing.assert_allclose(initial_mu_vec, np.array([1e-3, 200.0, 4.0]))
+    assert np.all(np.isfinite(initial_mu_vec))
 
 
 @pytest.mark.parametrize("reporting_prob", [0.0, -0.1, 1.1, np.nan, np.inf])
@@ -169,6 +182,36 @@ def test_build_underreporting_model_structure():
     assert {"incidence", "obs", "unobserved"}.issubset(
         {v.name for v in model.basic_RVs + model.deterministics}
     )
+
+
+def test_underreporting_model_masks_zero_reporting_probability_observation():
+    observed_incidence_vec = np.array([1, 1, 0, 0])
+    model = core._build_underreporting_model(
+        incidence_vec=observed_incidence_vec,
+        serial_interval_dist_vec=np.array([0.6, 0.4]),
+        rep_no_vec_func=build_ar_rep_no(),
+        reporting_prob=0.6,
+        delay_cdf=np.array([0.0, 0.5, 1.0]),
+        t_rep_no_stop=6,
+    )
+
+    obs_rv = model["obs"]
+    observed_values = model.rvs_to_values[obs_rv].eval()
+    # The most recent onset day has F(0)=0 and is omitted; earlier positive-probability
+    # observations remain in the likelihood.
+    np.testing.assert_array_equal(observed_values, np.array([1.0, 0.0]))
+
+
+def test_underreporting_model_rejects_case_when_reporting_probability_is_zero():
+    with pytest.raises(ValueError, match="effective reporting probability is zero"):
+        core._build_underreporting_model(
+            incidence_vec=np.array([1, 1, 0, 1]),
+            serial_interval_dist_vec=np.array([0.6, 0.4]),
+            rep_no_vec_func=build_ar_rep_no(),
+            reporting_prob=0.6,
+            delay_cdf=np.array([0.0, 0.5, 1.0]),
+            t_rep_no_stop=6,
+        )
 
 
 def test_underreporting_model_p1_collapses_latent_to_zero():
@@ -402,6 +445,101 @@ def test_qrt_trajectory_reindexes_incidence_to_projected_time():
     assert result["additional_case_prob"].iloc[-1] == pytest.approx(0.1)
 
 
+def test_underreporting_retro_date_plots_stop_at_end_of_2017(tmp_path):
+    dates = pd.date_range("2017-12-30", periods=4)
+    interval_columns = {
+        f"{name}_{stat}": np.full(4, value)
+        for name, value in [
+            ("suitability", 0.5),
+            ("rep_no_factor", 1.0),
+            ("reproduction_number", 0.8),
+        ]
+        for stat in ("mean", "lower", "upper")
+    }
+    suitability_df = pd.DataFrame(
+        {
+            "date": dates,
+            "reported_incidence": [1, 0, 0, 0],
+            "incidence_mean": [1.0, 0.5, 0.25, 0.1],
+            "incidence_lower": [1.0, 0.0, 0.0, 0.0],
+            "incidence_upper": [1.0, 1.0, 1.0, 1.0],
+            **interval_columns,
+        }
+    )
+    autoregressive_df = suitability_df[
+        [
+            "date",
+            "reported_incidence",
+            "reproduction_number_mean",
+            "reproduction_number_lower",
+            "reproduction_number_upper",
+        ]
+    ]
+    full_suitability_df = suitability_df[
+        [
+            "suitability_mean",
+            "suitability_lower",
+            "suitability_upper",
+            "rep_no_factor_mean",
+            "rep_no_factor_lower",
+            "rep_no_factor_upper",
+            "reproduction_number_mean",
+            "reproduction_number_lower",
+            "reproduction_number_upper",
+        ]
+    ].assign(day_of_outbreak=np.arange(4))
+    full_autoregressive_df = autoregressive_df[
+        [
+            "reproduction_number_mean",
+            "reproduction_number_lower",
+            "reproduction_number_upper",
+        ]
+    ].assign(day_of_outbreak=np.arange(4))
+
+    results_paths = {
+        "suitability_p60": tmp_path / "suitability.csv",
+        "autoregressive_p60": tmp_path / "autoregressive.csv",
+    }
+    full_reporting_paths = {
+        "suitability": tmp_path / "full_suitability.csv",
+        "autoregressive": tmp_path / "full_autoregressive.csv",
+    }
+    suitability_df.to_csv(results_paths["suitability_p60"], index=False)
+    autoregressive_df.to_csv(results_paths["autoregressive_p60"], index=False)
+    full_suitability_df.to_csv(full_reporting_paths["suitability"], index=False)
+    full_autoregressive_df.to_csv(
+        full_reporting_paths["autoregressive"], index=False
+    )
+    fig_paths = {
+        name: tmp_path / f"{name}.svg"
+        for name in ("incidence", "suitability", "rep_no_factor", "rep_no", "rep_no_ar")
+    }
+    inputs = {
+        "results_paths": results_paths,
+        "full_reporting_paths": full_reporting_paths,
+        "full_reporting_outbreak_start_date": dates[0],
+        "calendar_day_index_max": 365,
+        "suitability_mean_vec": np.full(4, 0.5),
+        "fig_paths": fig_paths,
+    }
+
+    incidence_fig, incidence_ax = _make_cases_plot(inputs, ["tab:blue"])
+    figure_ids_before_parameters = set(plt.get_fignums())
+    _make_estimate_plots(inputs, ["tab:blue", "tab:orange"])
+    parameter_figures = [
+        plt.figure(fig_id)
+        for fig_id in set(plt.get_fignums()) - figure_ids_before_parameters
+    ]
+
+    assert incidence_ax.get_xlim()[1] == 365
+    assert np.max(incidence_ax.lines[0].get_xdata()) == 365
+    assert len(parameter_figures) == 4
+    assert all(fig.axes[0].get_xlim()[1] == 365 for fig in parameter_figures)
+    plt.close(incidence_fig)
+    for fig in parameter_figures:
+        plt.close(fig)
+
+
 @pytest.mark.parametrize("quasi_real_time", [False, True])
 def test_fit_model_rejects_step_func_with_underreporting(quasi_real_time):
     with pytest.raises(
@@ -415,3 +553,51 @@ def test_fit_model_rejects_step_func_with_underreporting(quasi_real_time):
             reporting_prob=0.6,
             step_func=lambda: object(),
         )
+
+
+@pytest.mark.parametrize("quasi_real_time", [False, True])
+def test_fit_model_rejects_delay_cdf_without_reporting_prob(quasi_real_time):
+    with pytest.raises(ValueError, match="delay_cdf requires reporting_prob"):
+        inference._fit_model(
+            incidence=np.array([1, 0]),
+            serial_interval_dist_vec=np.array([1.0]),
+            rep_no_vec_func=lambda t: np.ones(t),
+            quasi_real_time=quasi_real_time,
+            delay_cdf=np.array([0.0, 1.0]),
+        )
+
+
+def test_fit_model_rejects_delayed_qrt_from_single_final_series():
+    with pytest.raises(ValueError, match="sequence of historical incidence snapshots"):
+        inference._fit_model(
+            incidence=np.array([1, 0, 0]),
+            serial_interval_dist_vec=np.array([1.0]),
+            rep_no_vec_func=lambda t: np.ones(t),
+            quasi_real_time=True,
+            reporting_prob=0.6,
+            delay_cdf=np.array([0.0, 1.0]),
+        )
+
+
+def test_fit_model_accepts_delayed_qrt_snapshot_sequence(monkeypatch):
+    captured = {}
+
+    def fake_fit_model_qrt(**kwargs):
+        captured.update(kwargs)
+        return xr.Dataset()
+
+    monkeypatch.setattr(inference, "_fit_model_qrt", fake_fit_model_qrt)
+    snapshots = [np.array([1, 0]), np.array([1, 0, 0])]
+    delay_cdf = np.array([0.0, 1.0])
+
+    inference._fit_model(
+        incidence=snapshots,
+        serial_interval_dist_vec=np.array([1.0]),
+        rep_no_vec_func=lambda t: np.ones(t),
+        quasi_real_time=True,
+        reporting_prob=0.6,
+        delay_cdf=delay_cdf,
+    )
+
+    assert captured["incidence"] is snapshots
+    np.testing.assert_array_equal(captured["delay_cdf"], delay_cdf)
