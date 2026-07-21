@@ -192,7 +192,7 @@ def _fit_model_qrt(
                 )
             incidence_diagnostics = _summarize_and_check_diagnostics(
                 _combine_diagnostic_components(incidence_components),
-                raise_on_problems=False,
+                raise_on_problems=raise_on_poor_diagnostics,
             )
             diagnostics.update(
                 {

@@ -764,3 +764,25 @@ def test_compute_and_check_diagnostics_divergences_na_when_no_sample_stats(monke
         warning for warning in caught if "Poor sampling" in str(warning.message)
     ]
     assert np.isnan(diagnostics["n_diverging"])
+
+
+def test_finalize_single_fit_result_raises_on_poor_incidence_diagnostics():
+    result = core._SingleFitResult(
+        posterior_ds=xr.Dataset(),
+        rep_no_diagnostics=core._DiagnosticComponents(
+            rhat_values=np.array([1.0]),
+            ess_values=np.array([2000.0]),
+            n_diverging=0.0,
+        ),
+        incidence_diagnostics=core._DiagnosticComponents(
+            rhat_values=np.array([1.0]),
+            ess_values=np.array([500.0]),
+            n_diverging=np.nan,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="min ESS 500.0 < 1000"):
+        core._finalize_single_fit_result(
+            result,
+            raise_on_poor_diagnostics=True,
+        )

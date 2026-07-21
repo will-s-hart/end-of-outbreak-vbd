@@ -41,7 +41,7 @@ def run_analyses(sampler_kwargs=None):
         reporting_prob=reporting_prob,
         rng=rng,
         compute_diagnostics=True,
-        raise_on_poor_diagnostics=False,
+        raise_on_poor_diagnostics=True,
         **sampler_kwargs,
     )
     _write_results(
@@ -62,7 +62,7 @@ def run_analyses(sampler_kwargs=None):
         reporting_prob=reporting_prob,
         rng=rng,
         compute_diagnostics=True,
-        raise_on_poor_diagnostics=False,
+        raise_on_poor_diagnostics=True,
         **sampler_kwargs,
     )
     _write_results(

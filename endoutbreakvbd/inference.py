@@ -126,9 +126,8 @@ def fit_autoregressive_model(
         (and every fitted latent-incidence value for under-reporting) across all snapshots,
         before retaining only their decision-day outputs.
     raise_on_poor_diagnostics : bool
-        If True, raise (instead of warning) when sampling diagnostics are poor. Only the
-        reproduction-number diagnostics can raise; the discrete latent case block is
-        warn-only, since it mixes slowly by construction.
+        If True, raise (instead of warning) when reproduction-number or latent-incidence
+        sampling diagnostics are poor.
     **kwargs : Any
         Additional keyword arguments forwarded to the sampler.
 
@@ -270,9 +269,8 @@ def fit_suitability_model(
         (and every fitted latent-incidence value for under-reporting) across all snapshots,
         before retaining only their decision-day outputs.
     raise_on_poor_diagnostics : bool
-        If True, raise (instead of warning) when sampling diagnostics are poor. Only the
-        reproduction-number diagnostics can raise; the discrete latent case block is
-        warn-only, since it mixes slowly by construction.
+        If True, raise (instead of warning) when reproduction-number or latent-incidence
+        sampling diagnostics are poor.
     **kwargs : Any
         Additional keyword arguments forwarded to the sampler.
 
@@ -404,11 +402,9 @@ def fit_known_rep_no_model(
         latent-incidence value for under-reporting) across all snapshots, before retaining
         only their decision-day outputs.
     raise_on_poor_diagnostics : bool
-        Has **no effect on this path**. The only variable it can raise on is the reproduction
-        number, which is constant here, so its R-hat and ESS are degenerate (ESS simply equals
-        the draw count) and the check can neither pass nor fail meaningfully. Latent-variable
-        diagnostics are still computed and reported in ``attrs["diagnostics"]``, but are
-        warn-only.
+        If True, raise (instead of warning) when latent-incidence sampling diagnostics are
+        poor. Reproduction-number diagnostics are degenerate on this path because the
+        reproduction number is fixed (its ESS simply equals the draw count).
     **kwargs : Any
         Additional keyword arguments forwarded to the sampler.
 
