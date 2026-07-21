@@ -90,7 +90,7 @@ def fit_autoregressive_model(
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
         latent true-case vector instead of the full-reporting model. This also **changes the
         sampler**: the discrete latent cannot be sampled by nutpie, so PyMC's compound
-        NUTS + Metropolis is used, with more draws by default (``draws=4000``, ``tune=2000``
+        NUTS + Metropolis is used, with more draws by default (``draws=8000``, ``tune=2000``
         rather than ``1000``/``1000``) because the latent block is the mixing bottleneck.
         Override via ``draws`` / ``tune`` / ``chains``.
 
@@ -237,7 +237,7 @@ def fit_suitability_model(
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
         latent true-case vector instead of the full-reporting model. This also **changes the
         sampler**: the discrete latent cannot be sampled by nutpie, so PyMC's compound
-        NUTS + Metropolis is used, with more draws by default (``draws=4000``, ``tune=2000``
+        NUTS + Metropolis is used, with more draws by default (``draws=8000``, ``tune=2000``
         rather than ``1000``/``1000``) because the latent block is the mixing bottleneck.
         Override via ``draws`` / ``tune`` / ``chains``.
 
@@ -372,7 +372,7 @@ def fit_known_rep_no_model(
         Case-reporting probability. If given, the under-reporting offshoot is fit with a
         latent true-case vector instead of the full-reporting model. This also **changes the
         sampler**: the discrete latent cannot be sampled by nutpie, so PyMC's compound
-        NUTS + Metropolis is used, with more draws by default (``draws=4000``, ``tune=2000``
+        NUTS + Metropolis is used, with more draws by default (``draws=8000``, ``tune=2000``
         rather than ``1000``/``1000``) because the latent block is the mixing bottleneck.
         Override via ``draws`` / ``tune`` / ``chains``.
 

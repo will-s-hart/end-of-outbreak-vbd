@@ -140,7 +140,7 @@ def _fit_single_model_result(
     # Metropolis-sampled latent true-case block mixes far more slowly than the NUTS reproduction
     # number, so the under-reporting path draws more (its ESS bottleneck is the latent block).
     if underreporting_fit:
-        kwargs_sample = {"draws": 4000, "tune": 2000, "chains": 4, **kwargs_sample}
+        kwargs_sample = {"draws": 8000, "tune": 2000, "chains": 4, **kwargs_sample}
     else:
         kwargs_sample = {
             "nuts_sampler": "nutpie",
