@@ -215,6 +215,26 @@ def test_underreporting_model_rejects_case_when_reporting_probability_is_zero():
         )
 
 
+def test_underreporting_model_all_days_masked_still_builds_finite_logp():
+    # Corner of the delayed nowcast: a short snapshot whose only non-index day has F(0)=0, so
+    # every reported-case day is masked out and `obs` carries no observations. The model must
+    # still build and yield a finite logp (the latent renewal density alone), rather than fail
+    # on an empty likelihood — future refactors could regress this via empty-array indexing.
+    model = core._build_underreporting_model(
+        incidence_vec=np.array([2, 0]),
+        serial_interval_dist_vec=np.array([1.0]),
+        rep_no_vec_func=build_ar_rep_no(),
+        reporting_prob=0.6,
+        delay_cdf=np.array(
+            [0.0, 1.0]
+        ),  # F(0) = 0 -> the single post-index day has pi = 0
+        t_rep_no_stop=4,
+    )
+    obs_observed = model.rvs_to_values[model["obs"]].eval()
+    assert obs_observed.shape == (0,)
+    assert np.isfinite(model.compile_logp(sum=True)(model.initial_point()))
+
+
 def test_underreporting_model_p1_collapses_latent_to_zero():
     # With reporting_prob=1 (no delay), no cases are unreported, so the latent U is
     # forced to zero (cases == observed). Checked via the model logp being maximal at U=0.
@@ -463,9 +483,7 @@ def test_underreporting_retro_date_plots_stop_at_end_of_2017(tmp_path):
     suitability_df.to_csv(results_paths["suitability_p60"], index=False)
     autoregressive_df.to_csv(results_paths["autoregressive_p60"], index=False)
     full_suitability_df.to_csv(full_reporting_paths["suitability"], index=False)
-    full_autoregressive_df.to_csv(
-        full_reporting_paths["autoregressive"], index=False
-    )
+    full_autoregressive_df.to_csv(full_reporting_paths["autoregressive"], index=False)
     fig_paths = {
         name: tmp_path / f"{name}.svg"
         for name in ("incidence", "suitability", "rep_no_factor", "rep_no", "rep_no_ar")
