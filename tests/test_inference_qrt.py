@@ -176,9 +176,10 @@ def test_fit_model_qrt_aggregates_all_snapshot_diagnostics(monkeypatch):
     assert diagnostics["n_diverging"] == 3.0
     np.testing.assert_allclose(diagnostics["incidence_rhat_max"], 1.006)
     assert diagnostics["incidence_ess_min"] == 2200.0
-    assert len(
-        [warning for warning in caught if "Poor sampling" in str(warning.message)]
-    ) == 1
+    assert (
+        len([warning for warning in caught if "Poor sampling" in str(warning.message)])
+        == 1
+    )
     assert set(diagnostics) == {
         "rhat_mean",
         "rhat_median",

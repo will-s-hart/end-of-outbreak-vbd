@@ -58,8 +58,12 @@ def test_lazio_underreporting_retro_raises_on_poor_diagnostics(monkeypatch):
         lambda: inputs,
     )
     monkeypatch.setattr(lazio_underreporting_retro, "fit_suitability_model", fake_fit)
-    monkeypatch.setattr(lazio_underreporting_retro, "fit_autoregressive_model", fake_fit)
-    monkeypatch.setattr(lazio_underreporting_retro, "_write_results", lambda *a, **k: None)
+    monkeypatch.setattr(
+        lazio_underreporting_retro, "fit_autoregressive_model", fake_fit
+    )
+    monkeypatch.setattr(
+        lazio_underreporting_retro, "_write_results", lambda *a, **k: None
+    )
     monkeypatch.setattr(
         lazio_underreporting_retro, "_write_diagnostics", lambda *a, **k: None
     )
