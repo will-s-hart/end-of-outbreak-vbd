@@ -1,252 +1,50 @@
-import warnings
-from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Any, cast
+"""Public renewal-model fitting API.
 
-import arviz_base as azb
+The three ``fit_*`` functions differ only in which reproduction-number prior they build (see
+``rep_no_models``); they share the dispatcher below, which routes to the quasi-real-time loop
+in ``_inference_qrt`` or to the single-snapshot engine in ``_inference_core``.
+"""
+
+from collections.abc import Callable, Sequence
+from typing import Any
+
 import numpy as np
-import pymc as pm
 import xarray as xr
-from arviz_stats import ess, rhat
-from tqdm import tqdm
 
+from endoutbreakvbd._inference_core import (
+    _fit_single_model,
+    _is_incidence_sequence,
+    _posterior_summary,
+)
+from endoutbreakvbd._inference_qrt import _fit_model_qrt
 from endoutbreakvbd._types import (
     FloatArray,
     IncidenceSeriesInput,
     IntArray,
-    RepNoOutput,
     SerialIntervalInput,
 )
-from endoutbreakvbd.additional_case_prob import calc_additional_case_prob_analytical
-from endoutbreakvbd.utils import (
-    lognormal_params_from_median_percentile_2_5,
-    rep_no_from_grid,
+from endoutbreakvbd.rep_no_models import (
+    build_ar_rep_no,
+    build_known_rep_no,
+    build_suitability_rep_no,
 )
-
-
-@dataclass(frozen=True)
-class Defaults:
-    """Default prior medians, percentiles, and AR hyperparameters for model fitting."""
-
-    rep_no_prior_median: float = 1.0
-    rep_no_prior_percentile_2_5: float = 0.2
-    log_rep_no_rho: float | list[float] = 0.975
-    suitability_std: float = 0.05
-    suitability_rho: float = 0.975
-    rep_no_factor_prior_median: float = 1.0
-    rep_no_factor_prior_percentile_2_5: float = 0.2
-    log_rep_no_factor_rho: float = 0.975
-
-
-DEFAULTS = Defaults()
-
-
-def _compute_check_diagnostics(
-    posterior: xr.Dataset,
-    sample_stats: xr.Dataset | None,
-    *,
-    raise_on_problems: bool = False,
-    var_name: str = "rep_no",
-    ess_min_threshold: float = 1000,
-    rhat_max_threshold: float = 1.01,
-) -> dict[str, float]:
-    # Summarise convergence diagnostics for `var_name` and warn (or raise) on poor
-    # sampling. Divergences are N/A (NaN) when sample_stats is None, as for the
-    # quasi-real-time aggregate of many separate fits.
-    rhat_vals = rhat(posterior, var_names=var_name)[var_name]
-    ess_vals = ess(posterior, var_names=var_name)[var_name]
-    n_diverging = (
-        np.nan if sample_stats is None else float(sample_stats["diverging"].sum())
-    )
-    diagnostics = {
-        "rhat_mean": rhat_vals.mean().item(),
-        "rhat_median": rhat_vals.median().item(),
-        "rhat_max": rhat_vals.max().item(),
-        "ess_mean": ess_vals.mean().item(),
-        "ess_median": ess_vals.median().item(),
-        "ess_min": ess_vals.min().item(),
-        "n_diverging": n_diverging,
-    }
-    problems = []
-    if diagnostics["ess_min"] < ess_min_threshold:
-        problems.append(f"min ESS {diagnostics['ess_min']:.1f} < {ess_min_threshold}")
-    if diagnostics["rhat_max"] > rhat_max_threshold:
-        problems.append(
-            f"max R-hat {diagnostics['rhat_max']:.4f} > {rhat_max_threshold}"
-        )
-    if not np.isnan(n_diverging) and n_diverging > 0:
-        problems.append(f"{int(n_diverging)} divergence(s)")
-    if problems:
-        message = "Poor sampling diagnostics: " + "; ".join(problems)
-        if raise_on_problems:
-            raise RuntimeError(message)
-        warnings.warn(message, stacklevel=2)
-    return diagnostics
-
-
-def _fit_model(
-    *,
-    incidence_vec: IncidenceSeriesInput,
-    serial_interval_dist_vec: SerialIntervalInput,
-    rep_no_vec_func: Callable[[int], Any],
-    quasi_real_time: bool,
-    t_infer_to: int | None = None,
-    step_func: Callable[[], Any] | None = None,
-    thin: int = 1,
-    rng: np.random.Generator | int | None = None,
-    freeze_from_final_case: bool = False,
-    compute_diagnostics: bool = False,
-    raise_on_poor_diagnostics: bool = False,
-    **kwargs_sample: Any,
-) -> xr.Dataset:
-    # Core model fit: build the PyMC model, sample, and derive R_t summaries and
-    # additional-case probabilities.
-    kwargs_sample = {
-        "nuts_sampler": "nutpie",
-        "nuts": {"adaptation": "low_rank"},
-        "draws": 1000,
-        "tune": 1000,
-        "chains": 4,
-        **kwargs_sample,
-    }
-    if rng is not None:
-        kwargs_sample = {**kwargs_sample, "random_seed": rng}
-    t_data_to = len(incidence_vec)
-    t_infer_to = t_infer_to or t_data_to
-    if t_infer_to < t_data_to:
-        incidence_vec = incidence_vec[:t_infer_to]
-        t_data_to = t_infer_to
-
-    if quasi_real_time:
-        if freeze_from_final_case:
-            raise NotImplementedError(
-                "freeze_from_final_case is not supported with quasi_real_time=True"
-            )
-        if len(incidence_vec) < 2:
-            raise ValueError(
-                "quasi_real_time inference requires at least 2 time points"
-            )
-        posterior_list = []
-        for t in tqdm(
-            range(1, len(incidence_vec)),
-            desc="Inferring R_t using data up to each time",
-        ):
-            ds_posterior_curr = _fit_model(
-                incidence_vec=incidence_vec[:t],
-                serial_interval_dist_vec=serial_interval_dist_vec,
-                rep_no_vec_func=rep_no_vec_func,
-                quasi_real_time=False,
-                t_infer_to=np.minimum(t + len(serial_interval_dist_vec), t_infer_to),
-                step_func=step_func,
-                thin=thin,
-                rng=rng,
-                **{"quiet": True, "progressbar": False, **kwargs_sample},
-            )
-            posterior_list.append(
-                ds_posterior_curr[
-                    [
-                        var
-                        for var in ds_posterior_curr.data_vars
-                        if "time" in ds_posterior_curr[var].dims
-                    ]
-                ].isel(time=([0, 1] if t == 1 else [t]))
-            )
-        posterior = xr.concat(posterior_list, dim="time")
-        if compute_diagnostics:
-            posterior.attrs["diagnostics"] = _compute_check_diagnostics(
-                posterior, None, raise_on_problems=raise_on_poor_diagnostics
-            )
-        return posterior
-
-    serial_interval_dist_vec_ext = np.concatenate(
-        [
-            serial_interval_dist_vec,
-            np.zeros(np.maximum(t_data_to - 1 - len(serial_interval_dist_vec), 0)),
-        ]
-    )
-
-    incidence_vec_local = np.zeros(t_data_to)
-    incidence_vec_local[1:] = incidence_vec[1:]
-
-    foi_vec = np.zeros(t_data_to)
-    for t in range(1, t_data_to):
-        foi_vec[t] = np.sum(incidence_vec[:t][::-1] * serial_interval_dist_vec_ext[:t])
-
-    nonzero_foi_idx = foi_vec > 0
-    if np.any(incidence_vec_local[~nonzero_foi_idx]):
-        raise ValueError(
-            "Local incidence cannot be greater than zero when force of infection is 0."
-        )
-
-    t_vec = np.arange(t_infer_to)
-
-    with pm.Model(coords={"time": t_vec}):
-        rep_no_vec = rep_no_vec_func(t_infer_to)
-
-        expected_incidence_local = rep_no_vec[:t_data_to] * foi_vec
-
-        pm.Poisson(
-            "likelihood",
-            mu=expected_incidence_local[nonzero_foi_idx],
-            observed=incidence_vec_local[nonzero_foi_idx],
-        )
-        if step_func is not None:
-            kwargs_sample["step"] = step_func()
-
-        trace = pm.sample(**kwargs_sample)
-    sample_stats = trace.sample_stats if compute_diagnostics else None
-    if thin > 1:
-        trace = trace.isel(draw=slice(0, None, thin))
-        trace = trace.assign_coords(draw=np.arange(len(trace.posterior.draw)))
-    ds_posterior = azb.convert_to_dataset(trace.posterior)
-    if freeze_from_final_case:
-        # Hold R_t after the final case fixed at its final-case-day posterior samples
-        t_final_case = int(np.nonzero(np.asarray(incidence_vec))[0][-1])
-        rep_no_frozen = ds_posterior["rep_no"].isel(time=t_final_case)
-        ds_posterior = ds_posterior.assign(
-            rep_no=ds_posterior["rep_no"].where(
-                ds_posterior["time"] <= t_final_case, rep_no_frozen
-            )
-        )
-    # Extract summary stats
-    ds_posterior = ds_posterior.assign(
-        rep_no_mean=ds_posterior["rep_no"].mean(dim=["chain", "draw"]),
-        rep_no_lower=ds_posterior["rep_no"]
-        .quantile(0.025, dim=["chain", "draw"])
-        .drop_vars("quantile"),
-        rep_no_upper=ds_posterior["rep_no"]
-        .quantile(0.975, dim=["chain", "draw"])
-        .drop_vars("quantile"),
-    )
-    # Compute daily probability of additional cases
-    rep_no_mat = ds_posterior["rep_no"].transpose("time", ...).values
-
-    def rep_no_post_func(t: int | IntArray) -> RepNoOutput:
-        return rep_no_from_grid(t, rep_no_grid=rep_no_mat, periodic=False)
-
-    prob_vec = calc_additional_case_prob_analytical(
-        incidence_vec=incidence_vec,
-        rep_no_func=rep_no_post_func,
-        serial_interval_dist_vec=serial_interval_dist_vec,
-        t_calc=t_vec,
-    )
-    ds_posterior = ds_posterior.assign(additional_case_prob=(("time",), prob_vec))
-    if compute_diagnostics:
-        ds_posterior.attrs["diagnostics"] = _compute_check_diagnostics(
-            ds_posterior, sample_stats, raise_on_problems=raise_on_poor_diagnostics
-        )
-    return ds_posterior
 
 
 def fit_autoregressive_model(
     *,
-    incidence_vec: IncidenceSeriesInput,
+    incidence: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
     serial_interval_dist_vec: SerialIntervalInput,
     prior_median: float | None = None,
     prior_percentile_2_5: float | None = None,
     rho: float | list[float] | None = None,
     quasi_real_time: bool = False,
+    reporting_prob: float | None = None,
+    delay_cdf: FloatArray | None = None,
     freeze_from_final_case: bool = False,
+    rng: np.random.Generator | int | None = None,
+    thin: int = 1,
+    step_func: Callable[[], Any] | None = None,
+    parallel: bool = True,
     compute_diagnostics: bool = True,
     raise_on_poor_diagnostics: bool = False,
     **kwargs: Any,
@@ -255,10 +53,23 @@ def fit_autoregressive_model(
     Fit the autoregressive renewal model to an incidence time series, inferring a
     time-varying reproduction number.
 
+    For a single incidence series of length ``N``, the returned time axis spans
+    days ``0..N``: day ``N`` is the projected decision day one day past the data.
+    With a quasi-real-time sequence of snapshots, each length-``N`` snapshot
+    contributes only its projected decision day ``N``.
+
+    For a non-quasi-real-time under-reporting fit, posterior ``incidence`` and its
+    summaries use a separate ``data_time`` axis spanning days ``0..N-1``. They are
+    omitted from quasi-real-time aggregates, whose snapshots have differing histories.
+
     Parameters
     ----------
-    incidence_vec : IncidenceSeriesInput
-        Observed incidence time series.
+    incidence : IncidenceSeriesInput or Sequence[IncidenceSeriesInput]
+        Observed incidence time series, or (with ``quasi_real_time=True``) a sequence of
+        snapshots. When ``reporting_prob`` is supplied, the series must start on the
+        index-case day and its first value must be positive. With both ``quasi_real_time``
+        and ``delay_cdf``, a historical snapshot sequence is required because a single final
+        series cannot reconstruct earlier reporting states.
     serial_interval_dist_vec : SerialIntervalInput
         Discretised serial interval distribution (probability mass per day).
     prior_median : float, optional
@@ -272,14 +83,51 @@ def fit_autoregressive_model(
         Defaults to ``DEFAULTS.log_rep_no_rho``.
     quasi_real_time : bool
         If True, refit using only the data available up to each successive time point.
+        ``incidence`` may then also be a *sequence* of snapshots; each snapshot
+        must start on outbreak day 0, and its calculation time is inferred from its
+        length. Supplying ``delay_cdf`` requires this snapshot form.
+    reporting_prob : float, optional
+        Case-reporting probability. If given, the under-reporting offshoot is fit with a
+        latent true-case vector instead of the full-reporting model. This also **changes the
+        sampler**: the discrete latent cannot be sampled by nutpie, so PyMC's compound
+        NUTS + Metropolis is used, with more draws by default (``draws=8000``, ``tune=2000``
+        rather than ``1000``/``1000``) because the latent block is the mixing bottleneck.
+        Override via ``draws`` / ``tune`` / ``chains``.
+
+        On a non-quasi-real-time fit the latent case history is inferred from the *whole*
+        series, so the reported probability at day ``t`` is conditioned on data after ``t`` as
+        well as before it — a retrospective quantity, not a real-time one. (The reproduction
+        number is retrospective on both the full- and under-reporting paths.)
+    delay_cdf : FloatArray, optional
+        Onset-to-report delay CDF; requires ``reporting_prob`` and adds right-truncation
+        (nowcasting) to the under-reporting model. After the fixed index case, a day with
+        effective reporting probability zero must have zero reported cases and contributes no
+        reported-case likelihood.
     freeze_from_final_case : bool
         If True, hold the reproduction number fixed at its final-case-day posterior
         samples after the final observed case.
+    rng : np.random.Generator or int, optional
+        Seed for the sampler. A ``Generator`` is consumed in place, so successive fits sharing
+        one generator draw different seeds. Under ``quasi_real_time`` a child generator is
+        spawned per snapshot, making results independent of execution order.
+    thin : int
+        Keep every ``thin``th posterior draw. Applied after sampling.
+    step_func : Callable[[], Any], optional
+        Zero-argument factory returning an explicit PyMC step method. Not supported together
+        with ``reporting_prob`` (under-reporting fits rely on PyMC assigning the latent's
+        Metropolis step automatically).
+    parallel : bool
+        If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
+        with joblib. No effect on a single (non-quasi-real-time) fit.
     compute_diagnostics : bool
         If True, compute convergence diagnostics, attach them to the returned
-        dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
+        dataset's ``attrs["diagnostics"]``, and warn on poor sampling. Under
+        ``quasi_real_time``, diagnostics aggregate every fitted reproduction-number value
+        (and every fitted latent-incidence value for under-reporting) across all snapshots,
+        before retaining only their decision-day outputs.
     raise_on_poor_diagnostics : bool
-        If True, raise (instead of warning) when sampling diagnostics are poor.
+        If True, raise (instead of warning) when reproduction-number or latent-incidence
+        sampling diagnostics are poor.
     **kwargs : Any
         Additional keyword arguments forwarded to the sampler.
 
@@ -289,43 +137,23 @@ def fit_autoregressive_model(
         Posterior dataset including the inferred reproduction numbers, summary
         statistics, and the daily probability of additional cases.
     """
-    prior_median = (
-        DEFAULTS.rep_no_prior_median if prior_median is None else prior_median
+    rep_no_vec_func = build_ar_rep_no(
+        prior_median=prior_median,
+        prior_percentile_2_5=prior_percentile_2_5,
+        rho=rho,
     )
-    prior_percentile_2_5 = (
-        DEFAULTS.rep_no_prior_percentile_2_5
-        if prior_percentile_2_5 is None
-        else prior_percentile_2_5
-    )
-    rho = DEFAULTS.log_rep_no_rho if rho is None else rho
-    lognormal_params = lognormal_params_from_median_percentile_2_5(
-        median=prior_median, percentile_2_5=prior_percentile_2_5
-    )
-    log_rep_no_sigma_innov = _ar_innovation_std(
-        stationary_std=lognormal_params["sigma"], rho=rho
-    )
-
-    def rep_no_vec_func(_: int) -> Any:
-        log_rep_no_deviation_vec = pm.AR(
-            "log_rep_no_deviation",
-            sigma=log_rep_no_sigma_innov,
-            rho=rho,
-            dims=("time",),
-            init_dist=pm.Normal.dist(mu=0, sigma=lognormal_params["sigma"]),
-        )
-        rep_no_vec = pm.Deterministic(
-            "rep_no",
-            pm.math.exp(lognormal_params["mu"] + cast(Any, log_rep_no_deviation_vec)),
-            dims=("time",),
-        )
-        return rep_no_vec
-
     return _fit_model(
-        incidence_vec=incidence_vec,
+        incidence=incidence,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
+        reporting_prob=reporting_prob,
+        delay_cdf=delay_cdf,
         freeze_from_final_case=freeze_from_final_case,
+        rng=rng,
+        thin=thin,
+        step_func=step_func,
+        parallel=parallel,
         compute_diagnostics=compute_diagnostics,
         raise_on_poor_diagnostics=raise_on_poor_diagnostics,
         **kwargs,
@@ -334,7 +162,7 @@ def fit_autoregressive_model(
 
 def fit_suitability_model(
     *,
-    incidence_vec: IncidenceSeriesInput,
+    incidence: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
     serial_interval_dist_vec: SerialIntervalInput,
     suitability_mean_vec: list[float] | FloatArray,
     suitability_std: float | None = None,
@@ -343,6 +171,12 @@ def fit_suitability_model(
     rep_no_factor_prior_percentile_2_5: float | None = None,
     log_rep_no_factor_rho: float | None = None,
     quasi_real_time: bool = False,
+    reporting_prob: float | None = None,
+    delay_cdf: FloatArray | None = None,
+    rng: np.random.Generator | int | None = None,
+    thin: int = 1,
+    step_func: Callable[[], Any] | None = None,
+    parallel: bool = True,
     compute_diagnostics: bool = True,
     raise_on_poor_diagnostics: bool = False,
     **kwargs: Any,
@@ -351,14 +185,33 @@ def fit_suitability_model(
     Fit the climate-suitability renewal model, decomposing the reproduction number into a
     suitability profile and a reproduction-number factor.
 
+    For a single incidence series of length ``N``, the returned time axis spans
+    days ``0..N``: day ``N`` is the projected decision day one day past the data.
+    With a quasi-real-time sequence of snapshots, each length-``N`` snapshot
+    contributes only its projected decision day ``N``.
+
+    For a non-quasi-real-time under-reporting fit, posterior ``incidence`` and its
+    summaries use a separate ``data_time`` axis spanning days ``0..N-1``. They are
+    omitted from quasi-real-time aggregates, whose snapshots have differing histories.
+
     Parameters
     ----------
-    incidence_vec : IncidenceSeriesInput
-        Observed incidence time series.
+    incidence : IncidenceSeriesInput or Sequence[IncidenceSeriesInput]
+        Observed incidence time series, or (with ``quasi_real_time=True``) a sequence of
+        snapshots. When ``reporting_prob`` is supplied, the series must start on the
+        index-case day and its first value must be positive. With both ``quasi_real_time``
+        and ``delay_cdf``, a historical snapshot sequence is required because a single final
+        series cannot reconstruct earlier reporting states.
     serial_interval_dist_vec : SerialIntervalInput
         Discretised serial interval distribution (probability mass per day).
     suitability_mean_vec : list[float] or FloatArray
-        Prior mean suitability at each time.
+        Prior mean suitability over the full reproduction-number inference horizon. For
+        incidence length ``N``, serial-interval length ``S`` and last non-zero incidence day
+        ``t_final_case``, the required length is ``max(N + 1, t_final_case + S + 1)`` for full
+        reporting, and ``N + S`` for under-reporting. Note the full-reporting requirement
+        depends on *where* the last case sits, not just on ``N``: a series padded with trailing
+        zeros needs less than one ending on a case. Too short a vector raises, reporting the
+        required horizon. For a snapshot sequence, size it for the longest snapshot.
     suitability_std : float, optional
         Stationary standard deviation of the suitability deviations. Defaults to
         ``DEFAULTS.suitability_std``.
@@ -376,11 +229,48 @@ def fit_suitability_model(
         ``DEFAULTS.log_rep_no_factor_rho``.
     quasi_real_time : bool
         If True, refit using only the data available up to each successive time point.
+        ``incidence`` may then also be a *sequence* of snapshots; each snapshot
+        must start on outbreak day 0, and its calculation time is inferred from its
+        length. Supplying ``delay_cdf`` requires this snapshot form.
+    reporting_prob : float, optional
+        Case-reporting probability. If given, the under-reporting offshoot is fit with a
+        latent true-case vector instead of the full-reporting model. This also **changes the
+        sampler**: the discrete latent cannot be sampled by nutpie, so PyMC's compound
+        NUTS + Metropolis is used, with more draws by default (``draws=8000``, ``tune=2000``
+        rather than ``1000``/``1000``) because the latent block is the mixing bottleneck.
+        Override via ``draws`` / ``tune`` / ``chains``.
+
+        On a non-quasi-real-time fit the latent case history is inferred from the *whole*
+        series, so the reported probability at day ``t`` is conditioned on data after ``t`` as
+        well as before it — a retrospective quantity, not a real-time one. (The reproduction
+        number is retrospective on both the full- and under-reporting paths.)
+    delay_cdf : FloatArray, optional
+        Onset-to-report delay CDF; requires ``reporting_prob`` and adds right-truncation
+        (nowcasting) to the under-reporting model. After the fixed index case, a day with
+        effective reporting probability zero must have zero reported cases and contributes no
+        reported-case likelihood.
+    rng : np.random.Generator or int, optional
+        Seed for the sampler. A ``Generator`` is consumed in place, so successive fits sharing
+        one generator draw different seeds. Under ``quasi_real_time`` a child generator is
+        spawned per snapshot, making results independent of execution order.
+    thin : int
+        Keep every ``thin``th posterior draw. Applied after sampling.
+    step_func : Callable[[], Any], optional
+        Zero-argument factory returning an explicit PyMC step method. Not supported together
+        with ``reporting_prob`` (under-reporting fits rely on PyMC assigning the latent's
+        Metropolis step automatically).
+    parallel : bool
+        If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
+        with joblib. No effect on a single (non-quasi-real-time) fit.
     compute_diagnostics : bool
         If True, compute convergence diagnostics, attach them to the returned
-        dataset's ``attrs["diagnostics"]``, and warn on poor sampling.
+        dataset's ``attrs["diagnostics"]``, and warn on poor sampling. Under
+        ``quasi_real_time``, diagnostics aggregate every fitted reproduction-number value
+        (and every fitted latent-incidence value for under-reporting) across all snapshots,
+        before retaining only their decision-day outputs.
     raise_on_poor_diagnostics : bool
-        If True, raise (instead of warning) when sampling diagnostics are poor.
+        If True, raise (instead of warning) when reproduction-number or latent-incidence
+        sampling diagnostics are poor.
     **kwargs : Any
         Additional keyword arguments forwarded to the sampler.
 
@@ -391,120 +281,228 @@ def fit_suitability_model(
         reproduction-number factor, summary statistics, and the daily probability of
         additional cases.
     """
-    suitability_mean_vec = np.asarray(suitability_mean_vec)
-    suitability_std = (
-        DEFAULTS.suitability_std if suitability_std is None else suitability_std
+    rep_no_vec_func = build_suitability_rep_no(
+        suitability_mean_vec=suitability_mean_vec,
+        suitability_std=suitability_std,
+        suitability_rho=suitability_rho,
+        rep_no_factor_prior_median=rep_no_factor_prior_median,
+        rep_no_factor_prior_percentile_2_5=rep_no_factor_prior_percentile_2_5,
+        log_rep_no_factor_rho=log_rep_no_factor_rho,
     )
-    suitability_rho = (
-        DEFAULTS.suitability_rho if suitability_rho is None else suitability_rho
-    )
-    rep_no_factor_prior_median = (
-        DEFAULTS.rep_no_factor_prior_median
-        if rep_no_factor_prior_median is None
-        else rep_no_factor_prior_median
-    )
-    rep_no_factor_prior_percentile_2_5 = (
-        DEFAULTS.rep_no_factor_prior_percentile_2_5
-        if rep_no_factor_prior_percentile_2_5 is None
-        else rep_no_factor_prior_percentile_2_5
-    )
-    log_rep_no_factor_rho = (
-        DEFAULTS.log_rep_no_factor_rho
-        if log_rep_no_factor_rho is None
-        else log_rep_no_factor_rho
-    )
-    rep_no_factor_lognormal_params = lognormal_params_from_median_percentile_2_5(
-        median=rep_no_factor_prior_median,
-        percentile_2_5=rep_no_factor_prior_percentile_2_5,
-    )
-
-    def rep_no_vec_func(t_infer_to: int) -> Any:
-        log_rep_no_factor_deviation_vec = pm.AR(
-            "log_rep_no_factor_deviation",
-            sigma=rep_no_factor_lognormal_params["sigma"]
-            * np.sqrt(1 - log_rep_no_factor_rho**2),
-            rho=log_rep_no_factor_rho,
-            dims=("time",),
-            init_dist=pm.Normal.dist(
-                mu=0, sigma=rep_no_factor_lognormal_params["sigma"]
-            ),
-        )
-        rep_no_factor_vec = pm.Deterministic(
-            "rep_no_factor",
-            pm.math.exp(
-                rep_no_factor_lognormal_params["mu"]
-                + cast(Any, log_rep_no_factor_deviation_vec)
-            ),
-            dims=("time",),
-        )
-        suitability_deviation_vec = pm.AR(
-            "suitability_deviation",
-            sigma=suitability_std * np.sqrt(1 - suitability_rho**2),
-            rho=suitability_rho,
-            dims=("time",),
-            init_dist=pm.Normal.dist(mu=0, sigma=suitability_std),
-        )
-        suitability_vec = pm.Deterministic(
-            "suitability",
-            _softclip(
-                suitability_mean_vec[:t_infer_to]
-                + cast(Any, suitability_deviation_vec),
-                lower=1e-8,
-                upper=1.0,
-            ),
-            dims=("time",),
-        )
-        rep_no_vec = pm.Deterministic(
-            "rep_no", rep_no_factor_vec * suitability_vec, dims=("time",)
-        )
-        return rep_no_vec
-
-    ds_posterior = _fit_model(
-        incidence_vec=incidence_vec,
+    posterior_ds = _fit_model(
+        incidence=incidence,
         serial_interval_dist_vec=serial_interval_dist_vec,
         rep_no_vec_func=rep_no_vec_func,
         quasi_real_time=quasi_real_time,
+        reporting_prob=reporting_prob,
+        delay_cdf=delay_cdf,
+        rng=rng,
+        thin=thin,
+        step_func=step_func,
+        parallel=parallel,
         compute_diagnostics=compute_diagnostics,
         raise_on_poor_diagnostics=raise_on_poor_diagnostics,
         **kwargs,
     )
     # Extract further summary stats
-    ds_posterior = ds_posterior.assign(
-        suitability_mean=ds_posterior["suitability"].mean(dim=["chain", "draw"]),
-        suitability_lower=ds_posterior["suitability"]
-        .quantile(0.025, dim=["chain", "draw"])
-        .drop_vars("quantile"),
-        suitability_upper=ds_posterior["suitability"]
-        .quantile(0.975, dim=["chain", "draw"])
-        .drop_vars("quantile"),
-        rep_no_factor_mean=ds_posterior["rep_no_factor"].mean(dim=["chain", "draw"]),
-        rep_no_factor_lower=ds_posterior["rep_no_factor"]
-        .quantile(0.025, dim=["chain", "draw"])
-        .drop_vars("quantile"),
-        rep_no_factor_upper=ds_posterior["rep_no_factor"]
-        .quantile(0.975, dim=["chain", "draw"])
-        .drop_vars("quantile"),
+    posterior_ds = posterior_ds.assign(
+        {
+            f"{var}_{stat}": _posterior_summary(posterior_ds[var], stat)
+            for var in ("suitability", "rep_no_factor")
+            for stat in ("mean", "lower", "upper")
+        }
     )
-    return ds_posterior
+    return posterior_ds
 
 
-def _ar_innovation_std(*, stationary_std: float, rho: float | list[float]) -> float:
-    # Innovation std giving the target stationary std for an AR(1) or AR(2) process
-    if not isinstance(rho, list):
-        rho = [rho]
-    if len(rho) == 1:
-        return stationary_std * np.sqrt(1 - rho[0] ** 2)
-    elif len(rho) == 2:
-        return stationary_std * np.sqrt(
-            1 - (rho[0] ** 2 * (1 + rho[1])) / (1 - rho[1]) - rho[1] ** 2
+def fit_known_rep_no_model(
+    *,
+    incidence: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
+    serial_interval_dist_vec: SerialIntervalInput,
+    rep_no_func: Callable[[IntArray], FloatArray],
+    quasi_real_time: bool = False,
+    reporting_prob: float | None = None,
+    delay_cdf: FloatArray | None = None,
+    rng: np.random.Generator | int | None = None,
+    thin: int = 1,
+    step_func: Callable[[], Any] | None = None,
+    parallel: bool = True,
+    compute_diagnostics: bool = True,
+    raise_on_poor_diagnostics: bool = False,
+    **kwargs: Any,
+) -> xr.Dataset:
+    """
+    Fit the renewal model with the reproduction number fixed to a known function of time.
+
+    The reproduction number is held at ``rep_no_func`` (constant across draws) rather than
+    inferred, so only the remaining random variables are estimated. Combined with a
+    ``reporting_prob`` this isolates the under-reporting (latent-case) inference from
+    reproduction-number estimation.
+
+    For a single incidence series of length ``N``, the returned time axis spans
+    days ``0..N``: day ``N`` is the projected decision day one day past the data.
+    With a quasi-real-time sequence of snapshots, each length-``N`` snapshot
+    contributes only its projected decision day ``N``.
+
+    For a non-quasi-real-time under-reporting fit, posterior ``incidence`` and its
+    summaries use a separate ``data_time`` axis spanning days ``0..N-1``. They are
+    omitted from quasi-real-time aggregates, whose snapshots have differing histories.
+
+    Parameters
+    ----------
+    incidence : IncidenceSeriesInput or Sequence[IncidenceSeriesInput]
+        Observed incidence time series, or (with ``quasi_real_time=True``) a sequence of
+        snapshots. When ``reporting_prob`` is supplied, the series must start on the
+        index-case day and its first value must be positive. With both ``quasi_real_time``
+        and ``delay_cdf``, a historical snapshot sequence is required because a single final
+        series cannot reconstruct earlier reporting states.
+    serial_interval_dist_vec : SerialIntervalInput
+        Discretised serial interval distribution (probability mass per day).
+    rep_no_func : Callable[[IntArray], FloatArray]
+        Function returning the known reproduction number at each of a vector of times
+        (days). Evaluated internally over the full inference horizon.
+    quasi_real_time : bool
+        If True, refit using only the data available up to each successive time point.
+        ``incidence`` may then also be a *sequence* of snapshots; each snapshot
+        must start on outbreak day 0, and its calculation time is inferred from its
+        length. Supplying ``delay_cdf`` requires this snapshot form.
+    reporting_prob : float, optional
+        Case-reporting probability. If given, the under-reporting offshoot is fit with a
+        latent true-case vector instead of the full-reporting model. This also **changes the
+        sampler**: the discrete latent cannot be sampled by nutpie, so PyMC's compound
+        NUTS + Metropolis is used, with more draws by default (``draws=8000``, ``tune=2000``
+        rather than ``1000``/``1000``) because the latent block is the mixing bottleneck.
+        Override via ``draws`` / ``tune`` / ``chains``.
+
+        On a non-quasi-real-time fit the latent case history is inferred from the *whole*
+        series, so the reported probability at day ``t`` is conditioned on data after ``t`` as
+        well as before it — a retrospective quantity, not a real-time one.
+    delay_cdf : FloatArray, optional
+        Onset-to-report delay CDF; requires ``reporting_prob`` and adds right-truncation
+        (nowcasting) to the under-reporting model. After the fixed index case, a day with
+        effective reporting probability zero must have zero reported cases and contributes no
+        reported-case likelihood.
+    rng : np.random.Generator or int, optional
+        Seed for the sampler. A ``Generator`` is consumed in place, so successive fits sharing
+        one generator draw different seeds. Under ``quasi_real_time`` a child generator is
+        spawned per snapshot, making results independent of execution order.
+    thin : int
+        Keep every ``thin``th posterior draw. Applied after sampling.
+    step_func : Callable[[], Any], optional
+        Zero-argument factory returning an explicit PyMC step method. Not supported together
+        with ``reporting_prob`` (under-reporting fits rely on PyMC assigning the latent's
+        Metropolis step automatically).
+    parallel : bool
+        If True (and ``quasi_real_time=True``), fit the per-snapshot models across processes
+        with joblib. No effect on a single (non-quasi-real-time) fit.
+    compute_diagnostics : bool
+        If True, compute convergence diagnostics, attach them to the returned dataset's
+        ``attrs["diagnostics"]``, and warn on poor sampling. Under ``quasi_real_time``,
+        diagnostics aggregate every fitted reproduction-number value (and every fitted
+        latent-incidence value for under-reporting) across all snapshots, before retaining
+        only their decision-day outputs.
+    raise_on_poor_diagnostics : bool
+        If True, raise (instead of warning) when latent-incidence sampling diagnostics are
+        poor. Reproduction-number diagnostics are degenerate on this path because the
+        reproduction number is fixed (its ESS simply equals the draw count).
+    **kwargs : Any
+        Additional keyword arguments forwarded to the sampler.
+
+    Returns
+    -------
+    xr.Dataset
+        Posterior dataset including the fixed reproduction number, summary statistics, and
+        the daily probability of additional cases.
+    """
+    rep_no_vec_func = build_known_rep_no(rep_no_func=rep_no_func)
+    return _fit_model(
+        incidence=incidence,
+        serial_interval_dist_vec=serial_interval_dist_vec,
+        rep_no_vec_func=rep_no_vec_func,
+        quasi_real_time=quasi_real_time,
+        reporting_prob=reporting_prob,
+        delay_cdf=delay_cdf,
+        rng=rng,
+        thin=thin,
+        step_func=step_func,
+        parallel=parallel,
+        compute_diagnostics=compute_diagnostics,
+        raise_on_poor_diagnostics=raise_on_poor_diagnostics,
+        **kwargs,
+    )
+
+
+def _fit_model(
+    *,
+    incidence: IncidenceSeriesInput | Sequence[IncidenceSeriesInput],
+    serial_interval_dist_vec: SerialIntervalInput,
+    rep_no_vec_func: Callable[[int], Any],
+    quasi_real_time: bool,
+    step_func: Callable[[], Any] | None = None,
+    thin: int = 1,
+    rng: np.random.Generator | int | None = None,
+    reporting_prob: float | None = None,
+    delay_cdf: FloatArray | None = None,
+    freeze_from_final_case: bool = False,
+    parallel: bool = True,
+    compute_diagnostics: bool = False,
+    raise_on_poor_diagnostics: bool = False,
+    **kwargs_sample: Any,
+) -> xr.Dataset:
+    # Reject the argument combinations neither fitting path can honour, then dispatch:
+    # `quasi_real_time` refits one snapshot per calculation time (`_inference_qrt`), otherwise a
+    # single snapshot is fit directly (`_inference_core`). Validating here rather than in the
+    # engines keeps the checks in one place, since the quasi-real-time loop forwards these
+    # arguments to the single-fit engine unchanged.
+    if delay_cdf is not None:
+        if reporting_prob is None:
+            raise ValueError("delay_cdf requires reporting_prob")
+        if quasi_real_time and not _is_incidence_sequence(incidence):
+            raise ValueError(
+                "delay_cdf with quasi_real_time=True requires a sequence of historical "
+                "incidence snapshots; a single final series cannot reconstruct past "
+                "reporting states"
+            )
+    if reporting_prob is not None and step_func is not None:
+        raise ValueError(
+            "step_func is not supported with reporting_prob; under-reporting fits "
+            "use PyMC's automatically assigned compound sampler"
         )
-    raise ValueError("Only AR(1) and AR(2) are supported")
-
-
-def _softclip(x: Any, *, lower: float, upper: float, tau: float = 0.001) -> Any:
-    # Smooth (softplus-based) clip of x to the interval [lower, upper]
-    return (
-        x
-        + tau * pm.math.log1pexp((lower - x) / tau)
-        - tau * pm.math.log1pexp((x - upper) / tau)
+    if freeze_from_final_case:
+        if quasi_real_time:
+            raise NotImplementedError(
+                "freeze_from_final_case is not supported with quasi_real_time=True"
+            )
+        if reporting_prob is not None:
+            raise NotImplementedError(
+                "freeze_from_final_case is not supported with reporting_prob"
+            )
+    if quasi_real_time:
+        return _fit_model_qrt(
+            incidence=incidence,
+            serial_interval_dist_vec=serial_interval_dist_vec,
+            rep_no_vec_func=rep_no_vec_func,
+            reporting_prob=reporting_prob,
+            delay_cdf=delay_cdf,
+            step_func=step_func,
+            thin=thin,
+            rng=rng,
+            parallel=parallel,
+            compute_diagnostics=compute_diagnostics,
+            raise_on_poor_diagnostics=raise_on_poor_diagnostics,
+            **kwargs_sample,
+        )
+    return _fit_single_model(
+        incidence=incidence,
+        serial_interval_dist_vec=serial_interval_dist_vec,
+        rep_no_vec_func=rep_no_vec_func,
+        step_func=step_func,
+        thin=thin,
+        rng=rng,
+        reporting_prob=reporting_prob,
+        delay_cdf=delay_cdf,
+        freeze_from_final_case=freeze_from_final_case,
+        compute_diagnostics=compute_diagnostics,
+        raise_on_poor_diagnostics=raise_on_poor_diagnostics,
+        **kwargs_sample,
     )

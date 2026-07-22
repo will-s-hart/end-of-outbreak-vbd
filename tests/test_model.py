@@ -1,8 +1,9 @@
 # Note that AI tools were used to generate tests
 
 import numpy as np
+import pytest
 
-from endoutbreakvbd.model import run_renewal_model
+from endoutbreakvbd.model import run_renewal_model, simulate_outbreak
 
 
 def test_run_renewal_model_extinction_with_zero_reproduction_number(rng):
@@ -63,3 +64,41 @@ def test_run_renewal_model_short_horizon_does_not_raise(rng):
         incidence_init=1,
     )
     np.testing.assert_array_equal(out, np.array([1]))
+
+
+def test_simulate_outbreak_returns_outbreak_meeting_size_target(rng):
+    # R declines below 1 so the outbreak is finite (grows a few generations, then dies out).
+    out = simulate_outbreak(
+        rep_no_func=lambda t: 2.0 if t < 4 else 0.2,
+        serial_interval_dist_vec=[1.0],
+        rng=rng,
+        min_size=5,
+        incidence_init=1,
+    )
+    assert out.sum() >= 5
+
+
+def test_simulate_outbreak_honours_max_size_and_accept_predicate(rng):
+    out = simulate_outbreak(
+        rep_no_func=lambda t: 1.8 if t < 4 else 0.2,
+        serial_interval_dist_vec=[1.0],
+        rng=rng,
+        min_size=3,
+        max_size=50,
+        accept=lambda incidence_vec: incidence_vec[0] == 1,
+        incidence_init=1,
+    )
+    assert 3 <= out.sum() <= 50
+    assert out[0] == 1
+
+
+def test_simulate_outbreak_raises_when_target_unreachable(rng):
+    # An always-extinct process (R = 0) can never reach a large minimum size.
+    with pytest.raises(RuntimeError, match="could not simulate"):
+        simulate_outbreak(
+            rep_no_func=lambda t: 0.0,
+            serial_interval_dist_vec=[1.0],
+            rng=rng,
+            min_size=1000,
+            max_attempts=5,
+        )

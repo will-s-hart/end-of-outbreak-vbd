@@ -13,19 +13,19 @@ from scripts.weather_suitability_data_plots import make_plots
 
 def run_analyses():
     inputs = get_inputs_weather_suitability_data()
-    _get_process_data(
-        df_suitability_grid=inputs["df_suitability_grid"],
+    _process_weather_suitability_data(
+        suitability_grid_df=inputs["suitability_grid_df"],
         suitability_lag_days=inputs["suitability_lag_days"],
-        save_path_all=inputs["results_paths"]["all"],
-        save_path_2017=inputs["results_paths"]["2017"],
+        all_results_path=inputs["results_paths"]["all"],
+        results_2017_path=inputs["results_paths"]["2017"],
     )
 
 
-def _get_process_data(
-    *, df_suitability_grid, suitability_lag_days, save_path_all, save_path_2017
+def _process_weather_suitability_data(
+    *, suitability_grid_df, suitability_lag_days, all_results_path, results_2017_path
 ):
     # Retrieve temperature data
-    df_data = (
+    observed_temperature_df = (
         meteostat.Daily(
             loc=[16239],
             start=datetime(2010, 1, 1),
@@ -36,60 +36,65 @@ def _get_process_data(
         .rename_axis("date")
     )
     # Fill in NaNs for missing dates (needed for fitting seasonal model)
-    df_full = pd.DataFrame(
+    full_temperature_df = pd.DataFrame(
         {"temperature": np.nan},
         index=pd.date_range("2010-01-01", "2024-12-31"),
     ).rename_axis("date")
-    df_full.loc[df_data.index, "temperature"] = df_data["temperature"]
+    full_temperature_df.loc[observed_temperature_df.index, "temperature"] = (
+        observed_temperature_df["temperature"]
+    )
     # Fit seasonal model to temperature data
-    dp = DeterministicProcess(
-        index=df_full.index,
+    deterministic_process = DeterministicProcess(
+        index=full_temperature_df.index,
         constant=True,
         fourier=2,
         period=365.25,
         drop=True,
     )
-    x_full = dp.in_sample()
-    y_full = df_full["temperature"]
-    obs_mask = y_full.notna()
-    x_train = x_full.loc[obs_mask]
-    y_train = y_full.loc[obs_mask]
-    model = OLS(y_train, x_train).fit()
-    df_smoothed = pd.DataFrame(
-        {"temperature": model.predict(x_full)}, index=df_full.index
+    full_design_df = deterministic_process.in_sample()
+    full_temperature_series = full_temperature_df["temperature"]
+    observed_mask = full_temperature_series.notna()
+    training_design_df = full_design_df.loc[observed_mask]
+    training_temperature_series = full_temperature_series.loc[observed_mask]
+    temperature_model = OLS(training_temperature_series, training_design_df).fit()
+    smoothed_temperature_df = pd.DataFrame(
+        {"temperature": temperature_model.predict(full_design_df)},
+        index=full_temperature_df.index,
     )
     # Define temperature-suitability mapping
-    temperature_grid = df_suitability_grid["temperature"].to_numpy(dtype=float)
-    suitability_grid = df_suitability_grid["suitability"].to_numpy(dtype=float)
+    temperature_grid = suitability_grid_df["temperature"].to_numpy(dtype=float)
+    suitability_grid = suitability_grid_df["suitability"].to_numpy(dtype=float)
     # Compute suitability for and save to CSV
-    df_out_full = df_full.assign(temperature_smoothed=df_smoothed["temperature"])
-    df_out_full = df_out_full.assign(
+    all_results_df = full_temperature_df.assign(
+        temperature_smoothed=smoothed_temperature_df["temperature"]
+    )
+    all_results_df = all_results_df.assign(
         suitability_instantaneous=np.interp(
-            df_out_full["temperature"], temperature_grid, suitability_grid
+            all_results_df["temperature"], temperature_grid, suitability_grid
         ),
         suitability_smoothed_instantaneous=np.interp(
-            df_out_full["temperature_smoothed"], temperature_grid, suitability_grid
+            all_results_df["temperature_smoothed"], temperature_grid, suitability_grid
         ),
     )
-    df_out_full = df_out_full.assign(
-        suitability_smoothed_lagged=df_out_full[
+    all_results_df = all_results_df.assign(
+        suitability_smoothed_lagged=all_results_df[
             "suitability_smoothed_instantaneous"
         ].shift(suitability_lag_days)
     )
-    df_out_2017 = df_out_full.loc["2017"]
-    df_out_full.to_csv(save_path_all)
-    df_out_2017.to_csv(save_path_2017)
+    results_2017_df = all_results_df.loc["2017"]
+    all_results_df.to_csv(all_results_path)
+    results_2017_df.to_csv(results_2017_path)
 
 
 if __name__ == "__main__":
-    argparser = argparse.ArgumentParser()
-    argparser.add_argument(
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
         "-r",
         "--results-only",
         action="store_true",
         help="Only run analyses and save results (no plots)",
     )
-    args = argparser.parse_args()
+    args = parser.parse_args()
     run_analyses()
     if not args.results_only:
         make_plots()

@@ -3,9 +3,9 @@ import argparse
 from endoutbreakvbd.utils import set_plot_config
 from scripts.inputs import get_inputs_lazio_epiestim
 from scripts.lazio_outbreak_plots import (
-    _make_decision_plot,
+    _make_additional_case_prob_plot,
+    _make_decision_delay_plot,
     _make_rep_no_plot,
-    _make_prob_plot,
 )
 
 
@@ -13,31 +13,35 @@ def make_plots():
     set_plot_config()
     inputs = get_inputs_lazio_epiestim()
     model_names = ["Suitability-based", "EpiEstim"]
-    data_paths = [
+    results_paths = [
         inputs["results_paths"]["suitability"],
         inputs["results_paths"]["epiestim"],
     ]
+    calendar_kwargs = {
+        "calendar_day_index_vec": inputs["calendar_day_index_vec"],
+        "incidence_vec": inputs["incidence_vec"],
+        "calendar_day_index_max": inputs["calendar_day_index_max"],
+    }
     _make_rep_no_plot(
-        doy_vec=inputs["doy_vec"],
-        incidence_vec=inputs["incidence_vec"],
+        **calendar_kwargs,
         model_names=model_names,
-        data_paths=data_paths,
-        save_path=inputs["fig_paths"]["rep_no"],
+        results_paths=results_paths,
+        fig_path=inputs["fig_paths"]["rep_no"],
     )
-    _make_prob_plot(
-        doy_vec=inputs["doy_vec"],
+    _make_additional_case_prob_plot(
+        **calendar_kwargs,
+        model_names=model_names,
+        existing_decisions=inputs["existing_decisions"],
+        results_paths=results_paths,
+        fig_path=inputs["fig_paths"]["additional_case_prob"],
+    )
+    _make_decision_delay_plot(
         incidence_vec=inputs["incidence_vec"],
         model_names=model_names,
         existing_decisions=inputs["existing_decisions"],
-        data_paths=data_paths,
-        save_path=inputs["fig_paths"]["additional_case_prob"],
-    )
-    _make_decision_plot(
-        incidence_vec=inputs["incidence_vec"],
-        model_names=model_names,
-        existing_decisions=inputs["existing_decisions"],
-        data_paths=data_paths,
-        save_path=inputs["fig_paths"]["decision"],
+        results_paths=results_paths,
+        risk_threshold_pct_vec=inputs["risk_threshold_pct_grid"],
+        fig_path=inputs["fig_paths"]["decision_delay"],
     )
 
 
