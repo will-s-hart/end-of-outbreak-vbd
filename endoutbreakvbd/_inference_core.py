@@ -391,9 +391,7 @@ def _combine_diagnostic_components(
         else np.nan
     )
     return _DiagnosticComponents(
-        rhat_values=np.concatenate(
-            [component.rhat_values for component in components]
-        ),
+        rhat_values=np.concatenate([component.rhat_values for component in components]),
         ess_values=np.concatenate([component.ess_values for component in components]),
         n_diverging=n_diverging,
     )

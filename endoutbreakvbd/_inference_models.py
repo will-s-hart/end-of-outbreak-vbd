@@ -101,9 +101,7 @@ def _build_underreporting_model(
     observed_incidence_after_index_vec = observed_incidence_vec[1:].astype(float)
     reporting_prob_after_index_vec = reporting_prob_vec[1:]
     positive_reporting_prob_mask = reporting_prob_after_index_vec > 0
-    if np.any(
-        observed_incidence_after_index_vec[~positive_reporting_prob_mask] > 0
-    ):
+    if np.any(observed_incidence_after_index_vec[~positive_reporting_prob_mask] > 0):
         raise ValueError(
             "observed incidence cannot be positive on a day when the effective "
             "reporting probability is zero"
@@ -165,9 +163,7 @@ def _build_underreporting_model(
                 * mu_vec[1:][positive_reporting_prob_mask]
                 + _POISSON_MU_FLOOR
             ),
-            observed=observed_incidence_after_index_vec[
-                positive_reporting_prob_mask
-            ],
+            observed=observed_incidence_after_index_vec[positive_reporting_prob_mask],
         )
     return model
 
