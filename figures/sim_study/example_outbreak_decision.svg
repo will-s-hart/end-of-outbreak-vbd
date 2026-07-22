@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-07-17T10:21:11.800344</dc:date>
+    <dc:date>2026-07-21T19:07:21.672345</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -43,193 +43,193 @@ z
     <g id="xtick_1">
      <g id="line2d_1">
       <defs>
-       <path id="me3015cd4e3" d="M 0 0 
+       <path id="m0edf28f4d8" d="M 0 0 
 L 0 3.5 
 " style="stroke: #000000; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#me3015cd4e3" x="80.754545" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="80.754545" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_1">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="80.754545" y="467.208438" transform="rotate(-0 80.754545 467.208438)">1 Jan</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="80.754545" y="467.71625" transform="rotate(-0 80.754545 467.71625)">1 Jan</text>
      </g>
     </g>
     <g id="xtick_2">
      <g id="line2d_2">
       <g>
-       <use xlink:href="#me3015cd4e3" x="110.995804" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="110.995804" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
     <g id="xtick_3">
      <g id="line2d_3">
       <g>
-       <use xlink:href="#me3015cd4e3" x="138.31049" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="138.31049" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_2">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="138.31049" y="467.208438" transform="rotate(-0 138.31049 467.208438)">1 Mar</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="138.31049" y="467.71625" transform="rotate(-0 138.31049 467.71625)">1 Mar</text>
      </g>
     </g>
     <g id="xtick_4">
      <g id="line2d_4">
       <g>
-       <use xlink:href="#me3015cd4e3" x="168.551748" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="168.551748" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
     <g id="xtick_5">
      <g id="line2d_5">
       <g>
-       <use xlink:href="#me3015cd4e3" x="197.817483" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="197.817483" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_3">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="197.817483" y="467.208438" transform="rotate(-0 197.817483 467.208438)">1 May</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="197.817483" y="467.71625" transform="rotate(-0 197.817483 467.71625)">1 May</text>
      </g>
     </g>
     <g id="xtick_6">
      <g id="line2d_6">
       <g>
-       <use xlink:href="#me3015cd4e3" x="228.058741" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="228.058741" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
     <g id="xtick_7">
      <g id="line2d_7">
       <g>
-       <use xlink:href="#me3015cd4e3" x="257.324476" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="257.324476" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_4">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="257.324476" y="467.208438" transform="rotate(-0 257.324476 467.208438)">1 Jul</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="257.324476" y="467.7175" transform="rotate(-0 257.324476 467.7175)">1 Jul</text>
      </g>
     </g>
     <g id="xtick_8">
      <g id="line2d_8">
       <g>
-       <use xlink:href="#me3015cd4e3" x="287.565734" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="287.565734" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
     <g id="xtick_9">
      <g id="line2d_9">
       <g>
-       <use xlink:href="#me3015cd4e3" x="317.806993" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="317.806993" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_5">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="317.806993" y="467.208438" transform="rotate(-0 317.806993 467.208438)">1 Sep</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="317.806993" y="467.71625" transform="rotate(-0 317.806993 467.71625)">1 Sep</text>
      </g>
     </g>
     <g id="xtick_10">
      <g id="line2d_10">
       <g>
-       <use xlink:href="#me3015cd4e3" x="347.072727" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="347.072727" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
     <g id="xtick_11">
      <g id="line2d_11">
       <g>
-       <use xlink:href="#me3015cd4e3" x="377.313986" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="377.313986" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_6">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="377.313986" y="467.208438" transform="rotate(-0 377.313986 467.208438)">1 Nov</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="377.313986" y="467.71625" transform="rotate(-0 377.313986 467.71625)">1 Nov</text>
      </g>
     </g>
     <g id="xtick_12">
      <g id="line2d_12">
       <g>
-       <use xlink:href="#me3015cd4e3" x="406.57972" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="406.57972" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
     <g id="xtick_13">
      <g id="line2d_13">
       <g>
-       <use xlink:href="#me3015cd4e3" x="436.820979" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0edf28f4d8" x="436.820979" y="448.56" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_7">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="436.820979" y="467.208438" transform="rotate(-0 436.820979 467.208438)">1 Jan</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="436.820979" y="467.71625" transform="rotate(-0 436.820979 467.71625)">1 Jan</text>
      </g>
     </g>
     <g id="text_8">
-     <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="258.3" y="486.224375" transform="rotate(-0 258.3 486.224375)">Date of last observed case</text>
+     <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: middle" x="258.3" y="487.71875" transform="rotate(-0 258.3 487.71875)">Date of last observed case</text>
     </g>
    </g>
    <g id="matplotlib.axis_2">
     <g id="ytick_1">
      <g id="line2d_14">
       <defs>
-       <path id="m9407afcdff" d="M 0 0 
+       <path id="m0515c3fb37" d="M 0 0 
 L -3.5 0 
 " style="stroke: #000000; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#m9407afcdff" x="63" y="444.489231" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0515c3fb37" x="63" y="444.489231" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_9">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="450.31345" transform="rotate(-0 56 450.31345)">0</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="450.567356" transform="rotate(-0 56 450.567356)">0</text>
      </g>
     </g>
     <g id="ytick_2">
      <g id="line2d_15">
       <g>
-       <use xlink:href="#m9407afcdff" x="63" y="376.643077" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0515c3fb37" x="63" y="376.643077" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_10">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="382.467296" transform="rotate(-0 56 382.467296)">5</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="382.721202" transform="rotate(-0 56 382.721202)">5</text>
      </g>
     </g>
     <g id="ytick_3">
      <g id="line2d_16">
       <g>
-       <use xlink:href="#m9407afcdff" x="63" y="308.796923" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0515c3fb37" x="63" y="308.796923" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_11">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="314.621142" transform="rotate(-0 56 314.621142)">10</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="314.875048" transform="rotate(-0 56 314.875048)">10</text>
      </g>
     </g>
     <g id="ytick_4">
      <g id="line2d_17">
       <g>
-       <use xlink:href="#m9407afcdff" x="63" y="240.950769" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0515c3fb37" x="63" y="240.950769" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_12">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="246.774988" transform="rotate(-0 56 246.774988)">15</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="247.028894" transform="rotate(-0 56 247.028894)">15</text>
      </g>
     </g>
     <g id="ytick_5">
      <g id="line2d_18">
       <g>
-       <use xlink:href="#m9407afcdff" x="63" y="173.104615" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0515c3fb37" x="63" y="173.104615" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_13">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="178.928834" transform="rotate(-0 56 178.928834)">20</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="179.18274" transform="rotate(-0 56 179.18274)">20</text>
      </g>
     </g>
     <g id="ytick_6">
      <g id="line2d_19">
       <g>
-       <use xlink:href="#m9407afcdff" x="63" y="105.258462" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m0515c3fb37" x="63" y="105.258462" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_14">
-      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="111.08268" transform="rotate(-0 56 111.08268)">25</text>
+      <text style="font-size: 16px; font-family: 'Arial', sans-serif; text-anchor: end" x="56" y="111.336587" transform="rotate(-0 56 111.336587)">25</text>
      </g>
     </g>
     <g id="text_15">
-     <text style="font-size: 16px; font-family: 'Arial', sans-serif" transform="translate(12.224219 359.88875) rotate(-90)">Days from last observed case</text>
-     <text style="font-size: 16px; font-family: 'Arial', sans-serif" transform="translate(29.638594 358.56125) rotate(-90)">until risk falls below threshold</text>
+     <text style="font-size: 16px; font-family: 'Arial', sans-serif" transform="translate(6.990312 373.18) rotate(-90)">Days from last observed case</text>
+     <text style="font-size: 16px; font-family: 'Arial', sans-serif" transform="translate(26.194687 374.39) rotate(-90)">until risk falls below threshold</text>
     </g>
    </g>
    <g id="line2d_20">
@@ -290,7 +290,7 @@ L 359.754545 349.504615
 L 360.73007 430.92 
 L 435.845455 430.92 
 L 435.845455 430.92 
-" clip-path="url(#p364f0421ef)" style="fill: none; stroke: #0173b2; stroke-width: 2; stroke-linecap: square"/>
+" clip-path="url(#p0c8c875ef7)" style="fill: none; stroke: #0173b2; stroke-width: 2; stroke-linecap: square"/>
    </g>
    <g id="line2d_21">
     <path d="M 80.754545 430.92 
@@ -344,7 +344,7 @@ L 355.852448 349.504615
 L 356.827972 430.92 
 L 435.845455 430.92 
 L 435.845455 430.92 
-" clip-path="url(#p364f0421ef)" style="fill: none; stroke: #de8f05; stroke-width: 2; stroke-linecap: square"/>
+" clip-path="url(#p0c8c875ef7)" style="fill: none; stroke: #de8f05; stroke-width: 2; stroke-linecap: square"/>
    </g>
    <g id="line2d_22">
     <path d="M 80.754545 430.92 
@@ -393,7 +393,7 @@ L 352.925874 363.073846
 L 353.901399 430.92 
 L 435.845455 430.92 
 L 435.845455 430.92 
-" clip-path="url(#p364f0421ef)" style="fill: none; stroke: #029e73; stroke-width: 2; stroke-linecap: square"/>
+" clip-path="url(#p0c8c875ef7)" style="fill: none; stroke: #029e73; stroke-width: 2; stroke-linecap: square"/>
    </g>
    <g id="patch_3">
     <path d="M 63 448.56 
@@ -407,50 +407,50 @@ L 453.6 448.56
    </g>
    <g id="legend_1">
     <g id="patch_5">
-     <path d="M 72.8 286.828008 
-L 236.648125 286.828008 
-Q 239.448125 286.828008 239.448125 284.028008 
-L 239.448125 225.011992 
-Q 239.448125 222.211992 236.648125 222.211992 
-L 72.8 222.211992 
-Q 70 222.211992 70 225.011992 
-L 70 284.028008 
-Q 70 286.828008 72.8 286.828008 
+     <path d="M 72.8 288.121641 
+L 253.04125 288.121641 
+Q 255.84125 288.121641 255.84125 285.321641 
+L 255.84125 223.718359 
+Q 255.84125 220.918359 253.04125 220.918359 
+L 72.8 220.918359 
+Q 70 220.918359 70 223.718359 
+L 70 285.321641 
+Q 70 288.121641 72.8 288.121641 
 z
 " style="fill: #ffffff; opacity: 0.8; stroke: #cccccc; stroke-linejoin: miter"/>
     </g>
     <g id="line2d_23">
-     <path d="M 75.6 233.104375 
-L 89.6 233.104375 
-L 103.6 233.104375 
+     <path d="M 75.6 232.256172 
+L 89.6 232.256172 
+L 103.6 232.256172 
 " style="fill: none; stroke: #0173b2; stroke-width: 2; stroke-linecap: square"/>
     </g>
     <g id="text_16">
-     <text style="font-size: 14px; font-family: 'Arial', sans-serif; text-anchor: start" x="114.8" y="238.004375" transform="rotate(-0 114.8 238.004375)">1.0% risk threshold</text>
+     <text style="font-size: 14px; font-family: 'Arial', sans-serif; text-anchor: start" x="114.8" y="237.156172" transform="rotate(-0 114.8 237.156172)">1.0% risk threshold</text>
     </g>
     <g id="line2d_24">
-     <path d="M 75.6 253.243047 
-L 89.6 253.243047 
-L 103.6 253.243047 
+     <path d="M 75.6 253.257266 
+L 89.6 253.257266 
+L 103.6 253.257266 
 " style="fill: none; stroke: #de8f05; stroke-width: 2; stroke-linecap: square"/>
     </g>
     <g id="text_17">
-     <text style="font-size: 14px; font-family: 'Arial', sans-serif; text-anchor: start" x="114.8" y="258.143047" transform="rotate(-0 114.8 258.143047)">2.5% risk threshold</text>
+     <text style="font-size: 14px; font-family: 'Arial', sans-serif; text-anchor: start" x="114.8" y="258.157266" transform="rotate(-0 114.8 258.157266)">2.5% risk threshold</text>
     </g>
     <g id="line2d_25">
-     <path d="M 75.6 273.381719 
-L 89.6 273.381719 
-L 103.6 273.381719 
+     <path d="M 75.6 274.258359 
+L 89.6 274.258359 
+L 103.6 274.258359 
 " style="fill: none; stroke: #029e73; stroke-width: 2; stroke-linecap: square"/>
     </g>
     <g id="text_18">
-     <text style="font-size: 14px; font-family: 'Arial', sans-serif; text-anchor: start" x="114.8" y="278.281719" transform="rotate(-0 114.8 278.281719)">5.0% risk threshold</text>
+     <text style="font-size: 14px; font-family: 'Arial', sans-serif; text-anchor: start" x="114.8" y="279.158359" transform="rotate(-0 114.8 279.158359)">5.0% risk threshold</text>
     </g>
    </g>
   </g>
  </g>
  <defs>
-  <clipPath id="p364f0421ef">
+  <clipPath id="p0c8c875ef7">
    <rect x="63" y="60.48" width="390.6" height="388.08"/>
   </clipPath>
  </defs>
