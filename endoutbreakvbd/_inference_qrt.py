@@ -62,9 +62,7 @@ def _fit_model_qrt(
     # joblib (mirroring calc_additional_case_prob_simulation); each fit then samples chains
     # sequentially (cores=1) so joblib, not pm.sample, owns the parallelism.
     is_incidence_snapshot_sequence = _is_incidence_sequence(incidence)
-    extra_kwargs: dict[str, Any] = {"progressbar": False}
-    if reporting_prob is None:
-        extra_kwargs["quiet"] = True
+    extra_kwargs: dict[str, Any] = {"progressbar": False, "quiet": True}
 
     # Each step pairs a snapshot incidence series with the time positions of its returned dataset
     # to keep (see above): the decision day `[-1]`, plus day 0 for the first single-series snapshot.
@@ -175,7 +173,9 @@ def _fit_model_qrt(
             if component is not None
         ]
         if len(rep_no_components) != len(fit_tasks):
-            raise RuntimeError("a QRT snapshot did not return reproduction-number diagnostics")
+            raise RuntimeError(
+                "a QRT snapshot did not return reproduction-number diagnostics"
+            )
         diagnostics = _summarize_and_check_diagnostics(
             _combine_diagnostic_components(rep_no_components),
             raise_on_problems=raise_on_poor_diagnostics,

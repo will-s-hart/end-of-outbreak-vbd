@@ -55,9 +55,9 @@ def test_fit_model_qrt_sequence_mode_forwards_per_snapshot(monkeypatch):
     assert all(np.array_equal(c["delay_cdf"], delay_cdf) for c in calls)
     np.testing.assert_array_equal(calls[0]["incidence"], incidence_snapshots[0])
     np.testing.assert_array_equal(calls[1]["incidence"], incidence_snapshots[1])
-    # progressbar suppressed, but the full-reporting-only `quiet` flag is not injected here.
+    # Each snapshot suppresses its own output; the outer QRT loop owns progress reporting.
     assert calls[0]["progressbar"] is False
-    assert "quiet" not in calls[0]
+    assert calls[0]["quiet"] is True
     # Each snapshot keeps its projected decision day = len(snapshot); concatenated in order.
     np.testing.assert_array_equal(out.coords["time"].to_numpy(), np.array([2, 4]))
     np.testing.assert_allclose(out["additional_case_prob"].to_numpy(), [0.2, 0.4])
