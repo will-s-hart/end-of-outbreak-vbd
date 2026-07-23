@@ -342,7 +342,7 @@ def _make_parameter_estimate_plots(inputs, colors):
             full_reporting_suitability_df,
             full_reporting_suitability_calendar_day_index_vec,
             "rep_no_factor",
-            "Reproduction-number factor",
+            "Reproduction number scaling factor",
             "rep_no_factor",
             colors[0],
         ),

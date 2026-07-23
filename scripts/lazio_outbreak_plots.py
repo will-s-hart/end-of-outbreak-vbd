@@ -291,7 +291,7 @@ def _make_rep_no_factor_plot(
     )
     _clip_calendar_axis(ax, calendar_day_index_max)
     ax.set_ylim(0, np.minimum(ax.get_ylim()[1], 10))
-    ax.set_ylabel("Reproduction-number factor")
+    ax.set_ylabel("Reproduction number scaling factor")
     if fig_path is not None:
         fig.savefig(fig_path)
     return fig, ax
