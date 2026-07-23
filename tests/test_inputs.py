@@ -282,6 +282,10 @@ def test_get_inputs_lazio_underreporting_qrt_structure(monkeypatch):
     # The full-reporting lazio_outbreak fits back the dashed "full outbreak knowledge" overlay.
     assert {"suitability", "autoregressive"}.issubset(out["full_reporting_paths"])
     assert "risk_threshold_pct_grid" in out
+    assert out["calendar_day_index_max"] == inputs.CALENDAR_DAY_INDEX_MAX
+    for decision in out["existing_decisions"].values():
+        assert {"calendar_day_index", "days_after_final_case"}.issubset(decision)
+        assert {"doy", "days_from_final_case"}.isdisjoint(decision)
 
 
 def test_get_inputs_lazio_underreporting_qrt_rejects_out_of_range_dates(monkeypatch):

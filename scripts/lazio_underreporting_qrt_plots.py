@@ -7,8 +7,8 @@ dashed lines. ``_make_cases_plot`` and ``_make_prob_plot`` are shared with the r
 under-reporting analysis (``lazio_underreporting_retro_plots``).
 
 Builds its own calendar-date axis from the reporting-matrix snapshot dates rather than routing
-through the ``doy_vec``-zipped ``lazio_outbreak_plots`` helpers (whose strict zip assumes the
-retrospective grid length).
+through the ``calendar_day_index_vec``-zipped ``lazio_outbreak_plots`` helpers (whose strict zip
+assumes the retrospective grid length).
 """
 
 import argparse
@@ -149,17 +149,17 @@ def _make_prob_plot(
         )
     # Decision markers follow the main Lazio outbreak colours: C3 (blood), C4 (45-day rule).
     marker_calendar_day_index_vals = [
-        decisions["blood_resumed_anzio"]["doy"],
-        decisions["45_day_rule"]["doy"],
+        decisions["blood_resumed_anzio"]["calendar_day_index"],
+        decisions["45_day_rule"]["calendar_day_index"],
     ]
     ax.axvline(
-        decisions["blood_resumed_anzio"]["doy"],
+        decisions["blood_resumed_anzio"]["calendar_day_index"],
         color=colors[3],
         linestyle="dotted",
         label="Blood measures\nlifted",
     )
     ax.axvline(
-        decisions["45_day_rule"]["doy"],
+        decisions["45_day_rule"]["calendar_day_index"],
         color=colors[4],
         linestyle="dotted",
         label="45-day rule",

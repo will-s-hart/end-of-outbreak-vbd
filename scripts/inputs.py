@@ -638,6 +638,7 @@ def get_inputs_lazio_underreporting_qrt(
         "existing_decisions": existing_decisions,
         "t_final_case": t_final_case,
         "risk_threshold_pct_grid": RISK_THRESHOLD_PCT_GRID,
+        "calendar_day_index_max": CALENDAR_DAY_INDEX_MAX,
         # Existing full-reporting retrospective fits, overlaid (dashed) on the prob panel as the
         # "full outbreak knowledge" benchmark.
         "full_reporting_paths": {

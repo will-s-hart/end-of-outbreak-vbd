@@ -87,13 +87,13 @@ def _make_decision_plot(inputs, colors):
     # 45-day line is included here (unlike in the main Lazio outbreak analysis, where it sits well
     # above the panel's y-range).
     ax.axhline(
-        decisions["blood_resumed_anzio"]["days_from_final_case"],
+        decisions["blood_resumed_anzio"]["days_after_final_case"],
         color=colors[3],
         linestyle="dotted",
         label="Blood measures lifted",
     )
     ax.axhline(
-        decisions["45_day_rule"]["days_from_final_case"],
+        decisions["45_day_rule"]["days_after_final_case"],
         color=colors[4],
         linestyle="dotted",
         label="45-day rule",

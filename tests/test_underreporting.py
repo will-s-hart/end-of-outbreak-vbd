@@ -13,9 +13,12 @@ import endoutbreakvbd.inference as inference
 import scripts.lazio_underreporting_retro as lazio_underreporting_retro
 from endoutbreakvbd.rep_no_models import build_ar_rep_no, build_known_rep_no
 from scripts.lazio_underreporting_qrt import _posterior_trajectory_frame
-from scripts.lazio_underreporting_qrt_plots import _make_cases_plot
+from scripts.lazio_underreporting_qrt_plots import _make_cases_plot, _make_prob_plot
 from scripts.lazio_underreporting_retro import _write_results
-from scripts.lazio_underreporting_retro_plots import _make_estimate_plots
+from scripts.lazio_underreporting_retro_plots import (
+    _make_decision_plot,
+    _make_estimate_plots,
+)
 
 
 class _CtxModel:
@@ -508,6 +511,129 @@ def test_qrt_trajectory_reindexes_incidence_to_projected_time():
     )
     assert np.isnan(result["reported_incidence"].iloc[-1])
     assert result["additional_case_prob"].iloc[-1] == pytest.approx(0.1)
+
+
+def test_qrt_cases_plot_uses_calendar_day_index_max(tmp_path):
+    trajectory_path = tmp_path / "trajectory.csv"
+    pd.DataFrame(
+        {
+            "date": pd.date_range("2017-12-30", periods=4),
+            "reported_incidence": [1, 0, 0, 0],
+            "incidence_mean": [1.0, 0.5, 0.25, 0.1],
+            "incidence_lower": [1.0, 0.0, 0.0, 0.0],
+            "incidence_upper": [1.0, 1.0, 1.0, 1.0],
+        }
+    ).to_csv(trajectory_path, index=False)
+    inputs = {
+        "results_paths": {"trajectory": trajectory_path},
+        "calendar_day_index_max": 365,
+        "fig_paths": {"incidence": tmp_path / "cases.svg"},
+    }
+
+    fig, ax = _make_cases_plot(inputs, ["tab:blue"])
+
+    assert ax.get_xlim()[1] == 365
+    assert np.max(ax.lines[0].get_xdata()) == 365
+    plt.close(fig)
+
+
+def test_underreporting_prob_plot_uses_calendar_day_index_decisions(tmp_path):
+    dates = pd.date_range("2017-10-01", periods=4)
+    results_paths = {}
+    full_reporting_paths = {}
+    for name in ("suitability", "autoregressive"):
+        results_path = tmp_path / f"{name}_underreporting.csv"
+        pd.DataFrame(
+            {
+                "date": dates,
+                "additional_case_prob": [1.0, 0.6, 0.2, 0.05],
+            }
+        ).to_csv(results_path, index=False)
+        results_paths[f"{name}_p60"] = results_path
+
+        full_reporting_path = tmp_path / f"{name}_full_reporting.csv"
+        pd.DataFrame(
+            {
+                "day_of_outbreak": np.arange(len(dates)),
+                "additional_case_prob": [1.0, 0.5, 0.1, 0.01],
+            }
+        ).to_csv(full_reporting_path, index=False)
+        full_reporting_paths[name] = full_reporting_path
+
+    trajectory_path = tmp_path / "trajectory.csv"
+    pd.DataFrame(
+        {
+            "date": dates,
+            "reported_incidence": [1, 0, 0, 0],
+        }
+    ).to_csv(trajectory_path, index=False)
+    results_paths["trajectory"] = trajectory_path
+    marker_vals = [280, 290]
+    inputs = {
+        "results_paths": results_paths,
+        "full_reporting_paths": full_reporting_paths,
+        "full_reporting_outbreak_start_date": dates[0],
+        "existing_decisions": {
+            "blood_resumed_anzio": {"calendar_day_index": marker_vals[0]},
+            "45_day_rule": {"calendar_day_index": marker_vals[1]},
+        },
+        "fig_paths": {
+            "additional_case_prob": tmp_path / "additional_case_prob.svg"
+        },
+    }
+
+    fig, ax = _make_prob_plot(
+        inputs, ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
+    )
+
+    marker_lines = [line for line in ax.lines if line.get_linestyle() == ":"]
+    assert [line.get_xdata()[0] for line in marker_lines] == marker_vals
+    plt.close(fig)
+
+
+def test_underreporting_retro_decision_plot_uses_days_after_final_case(tmp_path):
+    results_paths = {}
+    full_reporting_paths = {}
+    for name in ("suitability", "autoregressive"):
+        results_path = tmp_path / f"{name}_underreporting.csv"
+        pd.DataFrame(
+            {"additional_case_prob": [1.0, 0.6, 0.2, 0.05]}
+        ).to_csv(results_path, index=False)
+        results_paths[f"{name}_p60"] = results_path
+
+        full_reporting_path = tmp_path / f"{name}_full_reporting.csv"
+        pd.DataFrame(
+            {
+                "day_of_outbreak": np.arange(4),
+                "additional_case_prob": [1.0, 0.5, 0.1, 0.01],
+            }
+        ).to_csv(full_reporting_path, index=False)
+        full_reporting_paths[name] = full_reporting_path
+
+    marker_vals = [35, 45]
+    inputs = {
+        "t_final_case": 0,
+        "t_calc_vec": np.arange(4),
+        "risk_threshold_pct_grid": np.array([0.1, 1.0, 10.0]),
+        "results_paths": results_paths,
+        "full_reporting_paths": full_reporting_paths,
+        "existing_decisions": {
+            "blood_resumed_anzio": {"days_after_final_case": marker_vals[0]},
+            "45_day_rule": {"days_after_final_case": marker_vals[1]},
+        },
+        "fig_paths": {"decision_delay": tmp_path / "decision.svg"},
+    }
+
+    figure_ids_before = set(plt.get_fignums())
+    _make_decision_plot(
+        inputs, ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
+    )
+    figure_ids_after = set(plt.get_fignums()) - figure_ids_before
+    assert len(figure_ids_after) == 1
+    fig = plt.figure(figure_ids_after.pop())
+    marker_lines = [line for line in fig.axes[0].lines if line.get_linestyle() == ":"]
+    assert [np.asarray(line.get_ydata())[0] for line in marker_lines] == marker_vals
+    plt.close(fig)
 
 
 def test_underreporting_retro_date_plots_stop_at_end_of_2017(tmp_path):
