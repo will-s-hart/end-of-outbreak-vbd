@@ -251,7 +251,7 @@ def get_inputs_sim_sensitivity() -> dict[str, Any]:
         return (rep_no_factor / rep_no_factor_default) * rep_no_grid_default
 
     def _rep_no_factor_label(rep_no_factor):
-        return f"Reproduction-number factor = {rep_no_factor}"
+        return rf"$R_{{\max}} = {rep_no_factor}$"
 
     def _decay_speed_label(decay_speed):
         return rf"$\gamma = {decay_speed}$"
