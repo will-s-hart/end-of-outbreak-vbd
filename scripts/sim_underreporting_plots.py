@@ -46,6 +46,17 @@ def make_plots():
         alpha=0.3,
         zorder=1,
     )
+    # Outline the credible interval so its edges stay distinguishable from the case bars, but
+    # keep the lines thinner and fainter than the mean (and behind the bars, like the band).
+    for bound_column in ["incidence_lower", "incidence_upper"]:
+        ax.plot(
+            t_vec,
+            sim_df[bound_column],
+            color=colors[0],
+            alpha=0.7,
+            linewidth=1,
+            zorder=1,
+        )
     ax.bar(
         t_vec, reported_incidence_vec, color=_REPORTED_COLOR, label="Reported", zorder=2
     )

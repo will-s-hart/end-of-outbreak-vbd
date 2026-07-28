@@ -434,6 +434,17 @@ def plot_incidence_on_twin_ax(
             alpha=0.25,
             zorder=1,
         )
+        # Outline the band so its edges stay distinguishable from the bars, but keep the lines
+        # thinner and fainter than the mean (and behind the bars, like the band itself).
+        for bound_vec in (fitted_lower_vec, fitted_upper_vec):
+            twin_ax.plot(
+                t_vec,
+                bound_vec,
+                color=fitted_incidence_color,
+                alpha=0.7,
+                linewidth=1,
+                zorder=1,
+            )
     incidence_total_vec = np.zeros(len(incidence_layers[0]), dtype=float)
     for layer, color, label in zip(incidence_layers, colors, labels, strict=True):
         twin_ax.bar(
