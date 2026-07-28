@@ -47,18 +47,28 @@ def _make_incidence_plot(inputs, colors):
         alpha=0.5,
         label="Reported",
     )
-    ax.plot(
-        plot_calendar_day_index_vec,
-        suitability_df.loc[plot_mask, "incidence_mean"],
-        color=colors[0],
-        label="Estimated true\n(suitability-based)",
-    )
     ax.fill_between(
         plot_calendar_day_index_vec,
         suitability_df.loc[plot_mask, "incidence_lower"],
         suitability_df.loc[plot_mask, "incidence_upper"],
         color=colors[0],
         alpha=0.3,
+    )
+    # Outline the credible interval so its edges stay distinguishable from the case bars, but
+    # keep the lines thinner and fainter than the posterior mean.
+    for bound_column in ["incidence_lower", "incidence_upper"]:
+        ax.plot(
+            plot_calendar_day_index_vec,
+            suitability_df.loc[plot_mask, bound_column],
+            color=colors[0],
+            alpha=0.7,
+            linewidth=1,
+        )
+    ax.plot(
+        plot_calendar_day_index_vec,
+        suitability_df.loc[plot_mask, "incidence_mean"],
+        color=colors[0],
+        label="Estimated true\n(suitability-based)",
     )
     ax.set_xlim(plot_calendar_day_index_vec.min(), inputs["calendar_day_index_max"])
     month_start_xticks(ax)
