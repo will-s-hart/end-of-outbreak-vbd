@@ -1,3 +1,7 @@
+"""Sensitivity of the simulation study's decision delays to the maximum R_t and the speed of its
+seasonal decline.
+"""
+
 import argparse
 
 import numpy as np

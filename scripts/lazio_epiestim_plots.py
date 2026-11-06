@@ -1,3 +1,5 @@
+"""Plots comparing EpiEstim with the suitability-based model for the Lazio outbreak."""
+
 import argparse
 
 from endoutbreakvbd.utils import set_plot_config

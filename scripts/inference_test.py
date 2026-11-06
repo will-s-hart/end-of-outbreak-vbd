@@ -1,3 +1,7 @@
+"""Inference test: fit both R_t models to a simulated outbreak whose suitability, R_t and
+additional-case probability are known.
+"""
+
 import argparse
 
 import numpy as np
@@ -7,8 +11,6 @@ from endoutbreakvbd import calc_additional_case_prob_analytical
 from endoutbreakvbd._types import IntArray, RepNoOutput
 from endoutbreakvbd.model import run_renewal_model
 from endoutbreakvbd.utils import rep_no_from_grid
-
-# from endoutbreakvbd.utils import lognormal_params_from_median_percentile_2_5
 from scripts.inference_test_plots import make_plots
 from scripts.inputs import get_inputs_inference_test
 from scripts.lazio_outbreak import _run_analyses_for_model
@@ -59,17 +61,10 @@ def _generate_outbreak_data(
     rng,
     results_path,
 ):
+    # Simulate a 500-1000-case outbreak from AR(1) suitability about the seasonal mean times a
+    # step-change R_t factor, and save it with its true R_t and additional-case probability.
     suitability_std = suitability_model_params["suitability_std"]
     suitability_rho = suitability_model_params["suitability_rho"]
-    # rep_no_factor_prior_median = suitability_model_params["rep_no_factor_prior_median"]
-    # rep_no_factor_prior_percentile_2_5 = suitability_model_params[
-    #     "rep_no_factor_prior_percentile_2_5"
-    # ]
-    # rep_no_factor_prior_lognormal_params = lognormal_params_from_median_percentile_2_5(
-    #     median=rep_no_factor_prior_median,
-    #     percentile_2_5=rep_no_factor_prior_percentile_2_5,
-    # )
-    # log_rep_no_factor_rho = suitability_model_params["log_rep_no_factor_rho"]
 
     t_stop = 500
     suitability_mean_vec = rep_no_from_grid(
@@ -134,6 +129,7 @@ def _generate_outbreak_data(
 
 
 def _simulate_ar_vec(*, mean_vec, std, rho, t_stop, rng):
+    # `mean_vec` plus stationary AR(1) deviations with marginal standard deviation `std`.
     deviation_vec = np.zeros(t_stop)
     deviation_vec[0] = rng.normal(loc=0, scale=std)
     for t in range(1, t_stop):

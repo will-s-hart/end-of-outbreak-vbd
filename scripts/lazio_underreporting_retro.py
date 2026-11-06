@@ -1,14 +1,5 @@
-"""Retrospective end-of-outbreak inference for the Lazio chikungunya outbreak under
-under-reporting (no delay / right-truncation).
-
-Unlike the quasi-real-time nowcast, this fits the full reported outbreak once per model with a
-constant per-day reporting probability (``delay_cdf=None``), inflating the reported cases to a
-latent true-incidence trajectory. The suitability and autoregressive models are both fit at a 60%
-reporting probability. Each fit writes a full posterior trajectory frame; the suitability fit
-additionally carries the suitability and R_t-factor decomposition.
-
-The "full outbreak knowledge" dashed benchmark on the probability panel reuses the existing
-full-reporting ``lazio_outbreak`` results (see ``get_inputs_lazio_underreporting_retro``).
+"""Retrospective Lazio outbreak inference under under-reporting: both R_t models fit with a
+constant 60% reporting probability and no reporting delay.
 """
 
 import argparse
@@ -81,6 +72,8 @@ def run_analyses(sampler_kwargs=None):
 def _write_results(
     posterior_ds, results_path, incidence_vec, outbreak_start_date, *, suitability
 ):
+    # Write the posterior trajectories (true incidence, R_t, the suitability decomposition if
+    # `suitability`, and additional-case probability) to CSV.
     t_vec = posterior_ds["time"].values
     outbreak_date_vec = outbreak_start_date + pd.to_timedelta(t_vec, unit="D")
     # The fit reports one projected day past the data (the current-day risk), so the posterior
@@ -114,6 +107,7 @@ def _write_results(
 
 
 def _write_diagnostics(posterior_ds, diagnostics_path):
+    # Write the convergence diagnostics attached by the fit to CSV.
     pd.Series(posterior_ds.attrs["diagnostics"], name="value").rename_axis(
         "stat"
     ).to_csv(diagnostics_path)

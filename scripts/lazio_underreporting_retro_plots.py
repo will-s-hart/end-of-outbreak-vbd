@@ -1,8 +1,5 @@
-"""Plots for the retrospective under-reporting analysis.
-
-Results: the estimated true-case trajectory, additional-case probability with the
-full-reporting benchmark, and decision delay vs risk threshold. Diagnostics: the
-suitability, R_t-factor, and R_t posteriors.
+"""Plots for the retrospective under-reporting analysis: estimated true cases, additional-case
+probability, decision delay and parameter posteriors, mostly against full reporting.
 """
 
 import argparse
@@ -33,6 +30,7 @@ def make_plots():
 
 
 def _make_incidence_plot(inputs, colors):
+    # Reported cases with the suitability-based model's estimated true incidence.
     suitability_df = pd.read_csv(
         inputs["results_paths"]["suitability_p60"], parse_dates=["date"]
     )
@@ -81,6 +79,8 @@ def _make_incidence_plot(inputs, colors):
 
 
 def _make_additional_case_prob_plot(inputs, colors):
+    # Additional-case probability for both models at 60% reporting (solid) and full reporting
+    # (dashed), with the real relaxation decisions marked.
     suitability_df = pd.read_csv(
         inputs["results_paths"]["suitability_p60"], parse_dates=["date"]
     )
@@ -150,6 +150,8 @@ def _make_additional_case_prob_plot(inputs, colors):
 
 
 def _make_decision_delay_plot(inputs, colors):
+    # Decision delay against risk threshold for both models at 60% reporting (solid) and full
+    # reporting (dashed), mirroring the probability panel.
     t_final_case = inputs["t_final_case"]
     t_calc_vec = inputs["t_calc_vec"]
     risk_threshold_pct_vec = inputs["risk_threshold_pct_grid"]
@@ -166,9 +168,6 @@ def _make_decision_delay_plot(inputs, colors):
             t_final_case=t_final_case,
         )
 
-    # Suitability vs autoregressive at 60% reporting (solid), each with the full-reporting
-    # "full outbreak knowledge" benchmark (dashed, from the lazio_outbreak fit) — mirroring the
-    # probability panel.
     fig, ax = plt.subplots()
     for results_df, color, label, full_key in [
         (suitability_df, colors[0], "Suitability-based", "suitability"),
@@ -219,6 +218,8 @@ def _make_decision_delay_plot(inputs, colors):
 
 
 def _make_parameter_estimate_plots(inputs, colors):
+    # Suitability, R_t scaling factor and R_t posteriors at 60% reporting, each overlaid with the
+    # full-reporting posterior.
     suitability_df = pd.read_csv(
         inputs["results_paths"]["suitability_p60"], parse_dates=["date"]
     )

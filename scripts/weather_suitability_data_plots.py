@@ -1,3 +1,7 @@
+"""Plots for the weather-suitability data: observed temperatures, the temperature-suitability
+mapping and the 2017 suitability series.
+"""
+
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -23,6 +27,7 @@ def make_plots():
 
 
 def _make_temperature_plot(*, all_results_path, fig_path):
+    # Daily temperatures by day of year (2017 highlighted), with the smoothed 2017 fit.
     all_results_df = pd.read_csv(all_results_path, index_col="date", parse_dates=True)
     all_date_index = pd.DatetimeIndex(all_results_df.index)
     # Split into 2017 and other years
@@ -56,6 +61,7 @@ def _make_temperature_plot(*, all_results_path, fig_path):
 
 
 def _make_suitability_model_plot(*, suitability_grid_df, fig_path):
+    # Temperature-suitability mapping.
     fig, ax = plt.subplots()
     ax.plot(suitability_grid_df["temperature"], suitability_grid_df["suitability"])
     ax.set_xlim(10, 40)
@@ -66,6 +72,7 @@ def _make_suitability_model_plot(*, suitability_grid_df, fig_path):
 
 
 def _make_suitability_plot(*, results_2017_path, fig_path):
+    # Smoothed, lagged 2017 suitability series (the seasonal suitability prior mean).
     results_2017_df = pd.read_csv(results_2017_path, index_col="date", parse_dates=True)
     date_2017_index = pd.DatetimeIndex(results_2017_df.index)
     fig, ax = plt.subplots()

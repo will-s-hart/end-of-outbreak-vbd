@@ -1,3 +1,7 @@
+"""Shared inputs for every analysis: one `get_inputs_<analysis>()` per script pair, returning
+the prepared data, parameters and results/figure paths.
+"""
+
 import functools
 import pathlib
 from typing import Any
@@ -34,6 +38,7 @@ CALENDAR_DAY_INDEX_MAX = 365
 
 
 def get_inputs_schematic() -> dict[str, Any]:
+    """Seasonal R_t, serial interval and simulation/inference settings for the schematic."""
     seasonal_amplitude = 2.5
     doy_seasonal_peak = 180
     seasonal_sigma = 65
@@ -89,12 +94,9 @@ def get_inputs_schematic() -> dict[str, Any]:
 
 
 def get_inputs_weather_suitability_data() -> dict[str, Any]:
-
+    """Temperature-suitability mapping and suitability lag for the suitability series."""
     # Temperature-suitability mapping (need to square values for full
     # transmission cycle)
-    # suitability_grid_df = pd.read_csv(
-    #     pathlib.Path(__file__).parents[1] / "data/mordecai_suitability_grid.csv"
-    # )
     suitability_grid_df = pd.read_csv(  # from https://doi.org/10.1098/rsif.2025.0707
         pathlib.Path(__file__).parents[1] / "data/tegar_suitability_grid.csv"
     )
@@ -130,6 +132,7 @@ def get_inputs_weather_suitability_data() -> dict[str, Any]:
 
 
 def get_inputs_sim_study() -> dict[str, Any]:
+    """Suitability-driven seasonal R_t and simulation settings for the simulation study."""
     serial_interval_dist_vec = _get_serial_interval_dist_vec()
 
     suitability_df = _get_2017_suitability_df()
@@ -200,6 +203,7 @@ def get_inputs_sim_study() -> dict[str, Any]:
 
 
 def get_inputs_sim_sensitivity() -> dict[str, Any]:
+    """Seasonal R_t profiles with perturbed maximum and decline speed for the sensitivity runs."""
     inputs_sim_study = get_inputs_sim_study()
 
     serial_interval_dist_vec = inputs_sim_study["serial_interval_dist_vec"]
@@ -358,6 +362,7 @@ def get_inputs_sim_sensitivity() -> dict[str, Any]:
 
 
 def get_inputs_inference_test(quasi_real_time: bool = False) -> dict[str, Any]:
+    """Seasonal suitability mean and model parameters for simulating the inference-test outbreak."""
     serial_interval_dist_vec = _get_serial_interval_dist_vec()
 
     suitability_df = _get_2017_suitability_df()
@@ -366,9 +371,6 @@ def get_inputs_inference_test(quasi_real_time: bool = False) -> dict[str, Any]:
     suitability_model_params = {
         "suitability_std": DEFAULTS.suitability_std,
         "suitability_rho": DEFAULTS.suitability_rho,
-        "rep_no_factor_prior_median": DEFAULTS.rep_no_factor_prior_median,
-        "rep_no_factor_prior_percentile_2_5": DEFAULTS.rep_no_factor_prior_percentile_2_5,
-        "log_rep_no_factor_rho": DEFAULTS.log_rep_no_factor_rho,
     }
 
     doy_start = 152
@@ -406,6 +408,7 @@ def get_inputs_inference_test(quasi_real_time: bool = False) -> dict[str, Any]:
 
 
 def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
+    """Padded Lazio incidence, suitability prior and real relaxation-decision dates."""
     serial_interval_dist_vec = _get_serial_interval_dist_vec()
 
     outbreak_df = _get_lazio_outbreak_df()
@@ -479,6 +482,7 @@ def get_inputs_lazio_outbreak(quasi_real_time: bool = False) -> dict[str, Any]:
 
 
 def get_inputs_lazio_frozen() -> dict[str, Any]:
+    """Lazio outbreak inputs with paths for the frozen-autoregressive fit."""
     inputs = get_inputs_lazio_outbreak(quasi_real_time=False)
     # Reuse the suitability fit produced by the lazio_outbreak analysis
     suitability_results_path = inputs["results_paths"]["suitability"]
@@ -501,6 +505,7 @@ def get_inputs_lazio_frozen() -> dict[str, Any]:
 
 
 def get_inputs_lazio_epiestim() -> dict[str, Any]:
+    """Lazio outbreak inputs with paths for the EpiEstim comparison."""
     inputs = get_inputs_lazio_outbreak(quasi_real_time=False)
     # Reuse the suitability fit produced by the lazio_outbreak analysis
     suitability_results_path = inputs["results_paths"]["suitability"]
@@ -523,6 +528,7 @@ def get_inputs_lazio_epiestim() -> dict[str, Any]:
 
 
 def get_inputs_lazio_underreporting_retro() -> dict[str, Any]:
+    """Lazio inputs for the 60%-reporting retrospective fits, plus full-reporting benchmarks."""
     inputs_lazio = get_inputs_lazio_outbreak(quasi_real_time=False)
     serial_interval_dist_vec = inputs_lazio["serial_interval_dist_vec"]
     serial_interval_max_days = len(serial_interval_dist_vec)
@@ -610,6 +616,7 @@ def get_inputs_lazio_underreporting_retro() -> dict[str, Any]:
 
 
 def _get_lazio_outbreak_df() -> pd.DataFrame:
+    # Lazio 2017 chikungunya cases by symptom-onset date, with day-of-year.
     df = pd.read_csv(
         pathlib.Path(__file__).parents[1] / "data/lazio_chik_2017.csv",
         index_col="onset_date",
@@ -620,6 +627,7 @@ def _get_lazio_outbreak_df() -> pd.DataFrame:
 
 
 def _get_2017_suitability_df() -> pd.DataFrame:
+    # 2017 temperature and suitability series written by the weather_suitability_data analysis.
     df = pd.read_csv(
         pathlib.Path(__file__).parents[1] / "results/weather_suitability_data/2017.csv",
         index_col="date",
@@ -661,6 +669,7 @@ def _get_suitability_mean_vec(doy_start: int, n_times: int) -> NDArray[np.float6
 
 
 def _get_serial_interval_dist_vec() -> NDArray[np.float64]:
+    # Gamma serial-interval distribution, discretised (Cori method) and truncated at 40 days.
     serial_interval_max_days = 40
     serial_interval_continuous_dist = scipy.stats.gamma(a=8.53, scale=1.46)
     serial_interval_dist_vec = discretise_cori(

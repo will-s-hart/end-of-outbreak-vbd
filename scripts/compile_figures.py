@@ -1,3 +1,5 @@
+"""Assemble the paper's multi-panel figures from the per-analysis SVG panels."""
+
 import pathlib
 
 import numpy as np

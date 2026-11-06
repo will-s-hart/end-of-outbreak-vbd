@@ -1,3 +1,5 @@
+"""Plots comparing the frozen-autoregressive and suitability-based models for the Lazio outbreak."""
+
 import argparse
 
 from endoutbreakvbd.utils import set_plot_config

@@ -1,3 +1,7 @@
+"""EpiEstim comparison for the Lazio outbreak: sliding-window R_t estimates (via rpy2)
+propagated to the additional-case probability.
+"""
+
 import argparse
 
 import numpy as np

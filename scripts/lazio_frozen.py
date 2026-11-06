@@ -1,3 +1,7 @@
+"""Lazio outbreak autoregressive fit with R_t frozen at its final-case-day posterior after the
+final observed case.
+"""
+
 import argparse
 
 import numpy as np

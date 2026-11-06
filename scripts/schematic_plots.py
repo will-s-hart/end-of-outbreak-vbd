@@ -1,7 +1,5 @@
-"""Conceptual schematic figure for the paper.
-
-Reads the outbreak CSV produced by `scripts/schematic.py` and draws the
-2x2 schematic panel layout with arrow chrome.
+"""Conceptual schematic figure: a 2x2 panel layout (three inputs, one output) drawn from the
+outbreak simulated by `scripts/schematic.py`.
 """
 
 from typing import Any
@@ -129,6 +127,7 @@ def make_plots():
 
 
 def _rounded_box_path(left, bottom, width, height, *, top_radius, bottom_radius):
+    # Box path in figure coordinates with separately rounded top and bottom corners.
     top_radius_x = top_radius
     top_radius_y = top_radius * FIGURE_ASPECT_RATIO
     bottom_radius_x = bottom_radius
@@ -169,6 +168,7 @@ def _rounded_box_path(left, bottom, width, height, *, top_radius, bottom_radius)
 
 
 def _decorate_panel(fig, panel_key):
+    # Draw a panel's coloured title bar, title and rounded border.
     panel_left, panel_bottom, panel_width, panel_height = PANEL_BOUNDS[panel_key]
     color = PANEL_COLORS[panel_key]
     title = PANEL_TITLES[panel_key]
@@ -228,6 +228,7 @@ def _decorate_panel(fig, panel_key):
 
 
 def _add_panel_axes(fig, panel_key, *, left_padding=AXES_PADDING_LEFT):
+    # Add axes inside a panel's border, below its title bar.
     panel_left, panel_bottom, panel_width, panel_height = PANEL_BOUNDS[panel_key]
     return fig.add_axes(
         [
@@ -240,6 +241,7 @@ def _add_panel_axes(fig, panel_key, *, left_padding=AXES_PADDING_LEFT):
 
 
 def _populate_panel_a(ax, *, doy_start, incidence_vec, doy_current):
+    # Simulated incidence, with the current day marked.
     doy_vec = doy_start + np.arange(incidence_vec.size)
     plot_mask = doy_vec <= DOY_MAX
     ax.bar(
@@ -272,6 +274,7 @@ def _populate_panel_a(ax, *, doy_start, incidence_vec, doy_current):
 
 
 def _populate_panel_b(ax, *, serial_interval_dist_vec):
+    # Serial-interval distribution.
     serial_interval_lag_vec = np.arange(1, serial_interval_dist_vec.size + 1)
     ax.bar(
         serial_interval_lag_vec,
@@ -289,6 +292,7 @@ def _populate_panel_b(ax, *, serial_interval_dist_vec):
 
 
 def _populate_panel_c(ax, *, outbreak_df, seasonal_profile_grid):
+    # Seasonal R_t profile and the posterior R_t after fitting to the case data.
     doy_vec = outbreak_df["day_of_year"].to_numpy()
     rep_no_mean_vec = outbreak_df["reproduction_number_mean"].to_numpy()
     rep_no_lower_vec = outbreak_df["reproduction_number_lower"].to_numpy()
@@ -342,6 +346,8 @@ def _populate_panel_d(
     intervention_graphic_path,
     safe_graphic_path,
 ):
+    # Additional-case risk in the run-up to the current day, shaded either side of the risk
+    # threshold with the intervention/safe graphics.
     doy_vec = outbreak_df["day_of_year"].to_numpy()
     prob_vec = outbreak_df["additional_case_prob"].to_numpy()
     x_lower = 305  # 1 November (non-leap year)
@@ -410,6 +416,7 @@ def _populate_panel_d(
 
 
 def _draw_inference_arrows(fig):
+    # Dashed connector from the incidence and serial-interval panels into the R_t panel.
     panel_a_left, panel_a_bottom, panel_a_width, _ = PANEL_BOUNDS["A"]
     panel_b_left, panel_b_bottom, panel_b_width, _ = PANEL_BOUNDS["B"]
     _, panel_c_bottom, _, panel_c_height = PANEL_BOUNDS["C"]
@@ -478,6 +485,7 @@ def _draw_inference_arrows(fig):
 
 
 def _block_arrow(fig, start, end, *, connectionstyle="arc3,rad=0"):
+    # Grey block arrow between two points in figure coordinates.
     fig.patches.append(
         mpatches.FancyArrowPatch(
             start,
@@ -495,6 +503,7 @@ def _block_arrow(fig, start, end, *, connectionstyle="arc3,rad=0"):
 
 
 def _draw_output_arrows(fig):
+    # Block arrows from each input panel into the output panel.
     panel_a_left, panel_a_bottom, panel_a_width, _ = PANEL_BOUNDS["A"]
     panel_b_left, panel_b_bottom, panel_b_width, _ = PANEL_BOUNDS["B"]
     panel_c_left, panel_c_bottom, panel_c_width, panel_c_height = PANEL_BOUNDS["C"]

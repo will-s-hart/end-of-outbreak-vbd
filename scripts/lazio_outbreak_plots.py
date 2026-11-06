@@ -1,3 +1,7 @@
+"""Plots for the Lazio outbreak analysis; its panel functions are reused by the other Lazio
+analyses and the inference test.
+"""
+
 import argparse
 
 import matplotlib.pyplot as plt
@@ -67,6 +71,7 @@ def make_plots(quasi_real_time=False):
 
 
 def _make_serial_interval_dist_plot(*, serial_interval_dist_vec, fig_path=None):
+    # Discretised serial-interval distribution.
     serial_interval_lag_vec = np.arange(1, len(serial_interval_dist_vec) + 1)
     fig, ax = plt.subplots()
     ax.bar(serial_interval_lag_vec, serial_interval_dist_vec, color="tab:blue")
@@ -97,6 +102,7 @@ def _make_rep_no_plot(
     calendar_day_index_max=None,
     fig_path=None,
 ):
+    # Posterior R_t (mean and 95% credible interval) for each model.
     colors = get_colors()[: len(model_names)]
     fig, ax = plt.subplots()
     plot_incidence_on_twin_ax(ax, calendar_day_index_vec, incidence_vec)
@@ -136,6 +142,7 @@ def _make_additional_case_prob_plot(
     calendar_day_index_max=None,
     fig_path=None,
 ):
+    # Additional-case probability for each model, with the real relaxation decisions marked.
     colors = get_colors()[: (len(model_names) + 3)]
     fig, ax = plt.subplots()
     plot_incidence_on_twin_ax(ax, calendar_day_index_vec, incidence_vec)
@@ -184,6 +191,7 @@ def _make_decision_delay_plot(
     risk_threshold_pct_vec,
     fig_path=None,
 ):
+    # Days from the final case until each model's risk falls below each risk threshold.
     colors = get_colors()[: (len(model_names) + 2)]
     fig, ax = plt.subplots()
     t_final_case = int(np.nonzero(incidence_vec)[0][-1])
@@ -233,6 +241,7 @@ def _make_suitability_plot(
     calendar_day_index_max=None,
     fig_path=None,
 ):
+    # Posterior suitability (mean and 95% credible interval) against the seasonal prior mean.
     results_df = pd.read_csv(results_path)
     fig, ax = plt.subplots()
     plot_incidence_on_twin_ax(ax, calendar_day_index_vec, incidence_vec)
@@ -273,6 +282,7 @@ def _make_rep_no_factor_plot(
     calendar_day_index_max=None,
     fig_path=None,
 ):
+    # Posterior R_t scaling factor (mean and 95% credible interval) of the suitability model.
     results_df = pd.read_csv(results_path)
     fig, ax = plt.subplots()
     plot_incidence_on_twin_ax(ax, calendar_day_index_vec, incidence_vec)

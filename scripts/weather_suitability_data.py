@@ -1,3 +1,7 @@
+"""Build the daily temperature-suitability series from weather-station temperatures, smoothed
+with a seasonal fit and mapped to lagged suitability.
+"""
+
 import argparse
 from datetime import datetime
 

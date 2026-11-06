@@ -1,10 +1,5 @@
-"""Simulate the schematic outbreak and run inference.
-
-Generates a renewal-process outbreak driven by a seasonal R_t and a gamma
-serial-interval distribution, then runs `fit_suitability_model` to infer R_t
-and the probability of additional cases on each day. Writes the simulated
-incidence together with the posterior R_t summary and daily additional-case probability
-to a single CSV consumed by `scripts/schematic_plots.py`.
+"""Simulate the schematic outbreak from a seasonal R_t and fit the suitability-based model to
+it, saving the incidence, posterior R_t and additional-case probability.
 """
 
 import argparse
@@ -82,6 +77,7 @@ def run_analyses():
 
 
 def _simulate_outbreak(inputs):
+    # Simulate a seasonal renewal outbreak whose size and final-case day fall in set windows.
     outbreak_rep_no_grid = inputs["outbreak_rep_no_grid"]
     doy_start = inputs["doy_start"]
 

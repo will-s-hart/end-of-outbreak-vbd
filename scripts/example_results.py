@@ -1,3 +1,7 @@
+"""Print example Lazio results: when each model's risk first falls below 1%, and the risk when
+blood measures were lifted, under full and under-reporting.
+"""
+
 import pandas as pd
 
 from scripts.inputs import (

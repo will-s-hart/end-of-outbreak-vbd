@@ -1,3 +1,7 @@
+"""Plots for the simulation study: seasonal R_t, example-outbreak risk and decision delay, and
+decision delays across many simulated outbreaks.
+"""
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -45,6 +49,7 @@ def make_plots():
 def _make_rep_no_plot(
     *, rep_no_doy_func, example_outbreak_doy_start_vals, fig_path=None
 ):
+    # Seasonal R_t profile, with the example outbreaks' start days marked.
     fig, ax = plt.subplots()
     doy_vec = np.arange(1, 366)
     ax.plot(doy_vec, rep_no_doy_func(doy_vec))
@@ -63,6 +68,7 @@ def _make_rep_no_plot(
 
 
 def _make_additional_case_prob_plot(*, incidence_vec, results_path, fig_path=None):
+    # Analytical (lines) and simulated (dots) additional-case probability per example start day.
     is_nontrivial_outbreak = np.sum(incidence_vec) > 1
     prob_df = pd.read_csv(results_path, index_col=[0, 1])
     doy_start_vec = prob_df.index.get_level_values("initial_case_day_of_year").unique()
@@ -104,6 +110,7 @@ def _make_additional_case_prob_plot(*, incidence_vec, results_path, fig_path=Non
 
 
 def _make_decision_delay_plot(*, results_path, fig_path=None):
+    # Example-outbreak decision delay against final-case date, one line per risk threshold.
     decision_delay_df = pd.read_csv(results_path, index_col=[0, 1])
     risk_threshold_pct_vec = decision_delay_df.index.get_level_values(
         "risk_threshold_pct"
@@ -139,6 +146,7 @@ def _make_many_outbreak_example_plot(
     results_path,
     fig_path=None,
 ):
+    # One simulated outbreak's incidence and additional-case probability, with thresholds marked.
     outbreak_df = pd.read_csv(results_path)
     fig, ax = plt.subplots()
     plot_incidence_on_twin_ax(
@@ -183,6 +191,8 @@ def _make_many_outbreak_decision_plot(
     x_tick_interval_months=1,
     fig_path=None,
 ):
+    # Median and 95% range of decision delay by week of final case, shaded by the share of
+    # outbreaks ending that week.
     results_df = pd.read_csv(results_path)
     bin_width_days = 7
     results_df["doy_final_case_binned"] = pd.cut(

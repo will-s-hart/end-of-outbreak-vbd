@@ -1,3 +1,5 @@
+"""Plots for the inference test: each model's posterior estimates against the simulated truth."""
+
 import argparse
 
 import numpy as np

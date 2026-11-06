@@ -1,3 +1,7 @@
+"""Plots for the simulation sensitivity analysis: the perturbed seasonal R_t profiles and the
+resulting decision delays.
+"""
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,6 +33,7 @@ def make_plots():
 
 
 def _make_rep_no_comparison_plot(*, curve_specs, y_limits, fig_path=None):
+    # Overlay the seasonal R_t profiles compared in one sensitivity analysis.
     fig, ax = plt.subplots()
     doy_vec = np.arange(1, 366)
     for label, rep_no_doy_func, cmap_name in curve_specs:

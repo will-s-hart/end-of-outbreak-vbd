@@ -1,3 +1,7 @@
+"""Simulation study: additional-case probability and decision delay for example and many
+simulated outbreaks under a suitability-driven seasonal R_t.
+"""
+
 import argparse
 import functools
 
@@ -59,6 +63,8 @@ def _run_example_outbreak_prob_analysis(
     rng,
     results_path,
 ):
+    # Additional-case probability of the example outbreak for each start day, computed both
+    # analytically and by simulation.
     t_calc_vec = np.arange(1, len(incidence_vec) + len(serial_interval_dist_vec) + 1)
     prob_df = pd.DataFrame(
         index=pd.MultiIndex.from_product(
@@ -98,6 +104,7 @@ def _run_example_outbreak_decision_analysis(
     serial_interval_dist_vec,
     results_path,
 ):
+    # Decision delay of the example outbreak as a function of its final-case day of year.
     t_final_case = np.nonzero(incidence_vec)[0][-1]
     t_calc_vec = np.arange(
         t_final_case + 1, t_final_case + len(serial_interval_dist_vec) + 2
@@ -146,6 +153,8 @@ def _run_many_outbreak_analysis(
     example_outbreak_idx=None,
     example_outbreak_results_path=None,
 ):
+    # Simulate many outbreaks with random start days (in parallel) and save each one's decision
+    # delays; optionally also save one example trajectory and count premature decisions.
     simulation_tasks = []
     return_outbreak_df_flags = [
         simulation_idx == example_outbreak_idx for simulation_idx in range(n_sims)
@@ -221,6 +230,8 @@ def _run_many_outbreak_analysis(
 
 
 def _many_outbreak_analysis_one_sim(args):
+    # Simulate one outbreak (resampled until it reaches the minimum size) and compute its
+    # decision delays, plus its trajectory and premature-decision count if requested.
     (
         outbreak_min_size,
         risk_threshold_pct_vals,

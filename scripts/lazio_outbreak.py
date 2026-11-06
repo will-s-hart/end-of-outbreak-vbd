@@ -1,3 +1,7 @@
+"""Full-reporting end-of-outbreak inference for the 2017 Lazio chikungunya outbreak, using the
+suitability-based and autoregressive R_t models.
+"""
+
 import argparse
 
 import numpy as np
@@ -50,6 +54,7 @@ def _run_analyses_for_model(
     compute_diagnostics=True,
     raise_on_poor_diagnostics=False,
 ):
+    # Fit one R_t model and write its posterior summaries (and diagnostics, if computed) to CSV.
     if model == "autoregressive":
         posterior_ds = fit_autoregressive_model(
             incidence=incidence_vec,
