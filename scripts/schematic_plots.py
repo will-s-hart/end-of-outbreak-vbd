@@ -4,12 +4,10 @@ outbreak simulated by `scripts/schematic.py`.
 
 from typing import Any
 
-import matplotlib.image as mpimg
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from matplotlib.path import Path
 
 from endoutbreakvbd.utils import month_start_xticks, set_plot_config
@@ -70,7 +68,7 @@ PANEL_BOUNDS = {
     ),
 }
 
-AXES_PADDING_LEFT = 0.045
+AXES_PADDING_LEFT = 0.062
 AXES_PADDING_RIGHT = 0.020
 AXES_PADDING_BOTTOM = 0.065
 AXES_PADDING_TOP = 0.010
@@ -78,6 +76,22 @@ AXES_PADDING_TOP = 0.010
 DOY_MIN = 91
 DOY_MAX = 335
 ADDITIONAL_CASE_PROB_THRESHOLD = 0.05
+
+SAFE_BAND_COLOR = "#9CCC65"
+ELEVATED_BAND_COLOR = "#FFE082"
+SAFE_COLOR = "#558B2F"
+INTERVENTION_COLOR = PANEL_COLORS["D"]
+MOSQUITO_COLOR = "#333333"
+
+# Both cards use equal drawing units and the same width in panel-D axes coordinates.
+CARD_AXES_LEFT = 0.46
+CARD_AXES_WIDTH = 0.5
+CARD_WIDTH = 10.0
+INTERVENTION_CARD_HEIGHT = 8.7
+SAFE_LABEL_HEIGHT = 1.3
+ICON_SCALE = 1.25
+CARD_CORNER_RADIUS = 0.45
+ICON_LINEWIDTH = 2.0
 
 
 def make_plots():
@@ -115,8 +129,6 @@ def make_plots():
         _add_panel_axes(fig, "D"),
         outbreak_df=outbreak_df,
         doy_current=doy_current,
-        intervention_graphic_path=inputs["intervention_graphic_path"],
-        safe_graphic_path=inputs["safe_graphic_path"],
     )
 
     _draw_inference_arrows(fig)
@@ -338,16 +350,7 @@ def _populate_panel_c(ax, *, outbreak_df, seasonal_profile_grid):
     )
 
 
-def _populate_panel_d(
-    ax,
-    *,
-    outbreak_df,
-    doy_current,
-    intervention_graphic_path,
-    safe_graphic_path,
-):
-    # Additional-case risk in the run-up to the current day, shaded either side of the risk
-    # threshold with the intervention/safe graphics.
+def _populate_panel_d(ax, *, outbreak_df, doy_current):
     doy_vec = outbreak_df["day_of_year"].to_numpy()
     prob_vec = outbreak_df["additional_case_prob"].to_numpy()
     x_lower = 305  # 1 November (non-leap year)
@@ -355,17 +358,19 @@ def _populate_panel_d(
 
     y_upper = float(np.ceil(prob_vec[plot_mask].max() * 40) / 40)
 
-    ax.axhspan(0, ADDITIONAL_CASE_PROB_THRESHOLD, color="#9CCC65", alpha=0.45, zorder=0)
+    ax.axhspan(
+        0, ADDITIONAL_CASE_PROB_THRESHOLD, color=SAFE_BAND_COLOR, alpha=0.45, zorder=0
+    )
     ax.axhspan(
         ADDITIONAL_CASE_PROB_THRESHOLD,
         1.0,
-        color="#FFE082",
+        color=ELEVATED_BAND_COLOR,
         alpha=0.45,
         zorder=0,
     )
     ax.axhline(
         ADDITIONAL_CASE_PROB_THRESHOLD,
-        color="#558B2F",
+        color=SAFE_COLOR,
         linestyle=":",
         linewidth=1,
         zorder=1,
@@ -392,27 +397,379 @@ def _populate_panel_d(
         va="top",
         fontsize=12,
     )
-    intervention_image = mpimg.imread(intervention_graphic_path)
-    ax.add_artist(
-        AnnotationBbox(
-            OffsetImage(intervention_image, zoom=0.18),
-            (0.7, 0.56),
-            xycoords="axes fraction",
-            frameon=False,
-        )
-    )
-    safe_image = mpimg.imread(safe_graphic_path)
-    ax.add_artist(
-        AnnotationBbox(
-            OffsetImage(safe_image, zoom=0.75 * 0.18),
-            (0.71, 0.06),
-            xycoords="axes fraction",
-            frameon=False,
-        )
-    )
+    threshold_axes_y = ADDITIONAL_CASE_PROB_THRESHOLD / y_upper
+    _draw_intervention_card(ax, centre_y=(threshold_axes_y + 1) / 2)
+    _draw_safe_label(ax, centre_y=threshold_axes_y / 2)
 
     month_start_xticks(ax, year=2017, interval_months=1)
     ax.tick_params(axis="x", labelsize=12)
+
+
+def _add_card_axes(ax, *, centre_y, height, color):
+    """Create a rounded card with equal x/y units, centred in the risk band."""
+    fig_width, fig_height = ax.figure.get_size_inches()
+    ax_bbox = ax.get_position()
+    axes_height = (
+        CARD_AXES_WIDTH
+        * (height / CARD_WIDTH)
+        * (ax_bbox.width * fig_width)
+        / (ax_bbox.height * fig_height)
+    )
+    card_ax = ax.inset_axes(
+        [CARD_AXES_LEFT, centre_y - axes_height / 2, CARD_AXES_WIDTH, axes_height]
+    )
+    card_ax.set_xlim(0, CARD_WIDTH)
+    card_ax.set_ylim(0, height)
+    card_ax.set_aspect("equal")
+    card_ax.axis("off")
+    card = mpatches.FancyBboxPatch(
+        (0, 0),
+        CARD_WIDTH,
+        height,
+        boxstyle=f"round,pad=0,rounding_size={CARD_CORNER_RADIUS}",
+        # Both cards stay opaque white over their respective risk bands.
+        facecolor="white",
+        edgecolor=color,
+        linewidth=1.0,
+        clip_on=False,
+        zorder=0,
+    )
+    card_ax.add_patch(card)
+    return card_ax
+
+
+def _draw_intervention_card(ax, *, centre_y):
+    card_ax = _add_card_axes(
+        ax,
+        centre_y=centre_y,
+        height=INTERVENTION_CARD_HEIGHT,
+        color=INTERVENTION_COLOR,
+    )
+    centre_x = CARD_WIDTH / 2
+    text_kwargs: dict[str, Any] = dict(
+        color=INTERVENTION_COLOR, fontweight="bold", ha="center", va="center"
+    )
+
+    _draw_warning_sign(card_ax, centre=(centre_x, 7.05))
+    card_ax.text(centre_x, 5.35, "RISK IS ELEVATED", fontsize=11.5, **text_kwargs)
+    card_ax.plot(
+        [0.75, CARD_WIDTH - 0.75],
+        [4.65, 4.65],
+        color=INTERVENTION_COLOR,
+        linewidth=0.6,
+        solid_capstyle="round",
+    )
+
+    icon_y = 2.95
+    _draw_magnifying_glass(card_ax, centre=(1.65, icon_y), scale=ICON_SCALE)
+    _draw_plus(card_ax, centre=(3.25, icon_y))
+    _draw_crossed_out_mosquito(card_ax, centre=(centre_x, icon_y), scale=ICON_SCALE)
+    _draw_plus(card_ax, centre=(6.75, icon_y))
+    _draw_long_sleeved_shirt(card_ax, centre=(8.3, icon_y), scale=ICON_SCALE)
+
+    card_ax.text(centre_x, 0.95, "MAINTAIN INTERVENTIONS", fontsize=10, **text_kwargs)
+
+
+def _draw_warning_sign(ax, *, centre):
+    # Round the triangle itself, not just the stroke joins, for smooth inner corners.
+    origin = np.array(centre)
+    vertices = np.array(
+        [
+            (-0.13, 0.99),
+            (0.0, 1.22),
+            (0.13, 0.99),
+            (1.1, -0.69),
+            (1.23, -0.92),
+            (0.97, -0.92),
+            (-0.97, -0.92),
+            (-1.23, -0.92),
+            (-1.1, -0.69),
+            (-0.13, 0.99),
+            (-0.13, 0.99),
+        ]
+    )
+    ax.add_patch(
+        mpatches.PathPatch(
+            Path(
+                origin + 1.1 * vertices,
+                [Path.MOVETO]
+                + [Path.CURVE3, Path.CURVE3, Path.LINETO] * 3
+                + [Path.CLOSEPOLY],
+            ),
+            facecolor="none",
+            edgecolor=INTERVENTION_COLOR,
+            linewidth=2.6,
+            joinstyle="round",
+        )
+    )
+    x, y = centre
+    ax.plot(
+        [x, x],
+        [y - 0.10, y + 0.50],
+        color=INTERVENTION_COLOR,
+        linewidth=3.2,
+        solid_capstyle="round",
+    )
+    ax.add_patch(
+        mpatches.Circle(
+            (x, y - 0.54), 0.11, facecolor=INTERVENTION_COLOR, edgecolor="none"
+        )
+    )
+
+
+def _draw_magnifying_glass(ax, *, centre, scale):
+    x, y = centre
+    lens_x, lens_y, lens_radius = x - 0.22 * scale, y + 0.27 * scale, 0.58 * scale
+    ax.add_patch(
+        mpatches.Circle(
+            (lens_x, lens_y),
+            lens_radius,
+            facecolor="none",
+            edgecolor=INTERVENTION_COLOR,
+            linewidth=ICON_LINEWIDTH,
+        )
+    )
+    neck_r_vec = scale * np.array([0.58, 0.88]) / np.sqrt(2)
+    ax.plot(
+        lens_x + neck_r_vec,
+        lens_y - neck_r_vec,
+        color=INTERVENTION_COLOR,
+        linewidth=ICON_LINEWIDTH,
+        solid_capstyle="round",
+    )
+    handle_r_vec = scale * np.array([0.88, 1.45]) / np.sqrt(2)
+    ax.plot(
+        lens_x + handle_r_vec,
+        lens_y - handle_r_vec,
+        color=INTERVENTION_COLOR,
+        linewidth=4.0,
+        solid_capstyle="round",
+    )
+
+
+def _draw_plus(ax, *, centre, half_length=0.22):
+    x, y = centre
+    line_kwargs: dict[str, Any] = dict(
+        color=INTERVENTION_COLOR,
+        linewidth=1.4,
+        solid_capstyle="round",
+    )
+    ax.plot([x - half_length, x + half_length], [y, y], **line_kwargs)
+    ax.plot([x, x], [y - half_length, y + half_length], **line_kwargs)
+
+
+def _draw_crossed_out_mosquito(ax, *, centre, scale):
+    origin = np.array(centre)
+    ring_radius = 0.95 * scale
+
+    # Bend the leg tips inward for rim clearance without shrinking the insect.
+    left_legs = [
+        [(-0.06, 0.28), (-0.32, 0.40), (-0.34, 0.55), (-0.34, 0.64), (-0.38, 0.68)],
+        [(-0.08, 0.18), (-0.40, 0.12), (-0.48, -0.13), (-0.54, -0.28), (-0.68, -0.35)],
+        [(-0.07, 0.08), (-0.23, -0.17), (-0.24, -0.40), (-0.25, -0.57), (-0.39, -0.68)],
+    ]
+    for side in (-1, 1):
+        side_scale = scale * np.array([side, 1])
+        for vertices in left_legs:
+            ax.add_patch(
+                mpatches.PathPatch(
+                    Path(
+                        origin + side_scale * np.array(vertices),
+                        [Path.MOVETO] + [Path.CURVE3] * 4,
+                    ),
+                    facecolor="none",
+                    edgecolor=MOSQUITO_COLOR,
+                    linewidth=0.8,
+                    capstyle="round",
+                    zorder=1,
+                )
+            )
+
+        ax.add_patch(
+            mpatches.PathPatch(
+                Path(
+                    origin
+                    + side_scale * np.array([(0.03, 0.46), (0.10, 0.56), (0.16, 0.62)]),
+                    [Path.MOVETO, Path.CURVE3, Path.CURVE3],
+                ),
+                facecolor="none",
+                edgecolor=MOSQUITO_COLOR,
+                linewidth=0.6,
+                capstyle="round",
+                zorder=1,
+            )
+        )
+        wing_vertices = np.array(
+            [
+                (-0.06, 0.23),
+                (-0.32, 0.25),
+                (-0.86, 0.08),
+                (-0.73, -0.08),
+                (-0.63, -0.19),
+                (-0.24, 0.00),
+                (-0.06, 0.12),
+                (-0.06, 0.23),
+            ]
+        )
+        ax.add_patch(
+            mpatches.PathPatch(
+                Path(
+                    origin + side_scale * wing_vertices,
+                    [Path.MOVETO] + [Path.CURVE4] * 6 + [Path.CLOSEPOLY],
+                ),
+                facecolor="#D9D9D9",
+                edgecolor=MOSQUITO_COLOR,
+                linewidth=0.65,
+                zorder=2,
+            )
+        )
+    ax.plot(
+        [origin[0], origin[0]],
+        origin[1] + scale * np.array([0.45, 0.79]),
+        color=MOSQUITO_COLOR,
+        linewidth=0.7,
+        solid_capstyle="round",
+        zorder=1,
+    )
+    for body_centre, width, height in [
+        ((0.0, -0.23), 0.14, 0.78),  # abdomen
+        ((0.0, 0.2), 0.21, 0.3),  # thorax
+        ((0.0, 0.4), 0.16, 0.16),  # head
+    ]:
+        ax.add_patch(
+            mpatches.Ellipse(
+                origin + scale * np.array(body_centre),
+                width=width * scale,
+                height=height * scale,
+                facecolor=MOSQUITO_COLOR,
+                edgecolor="none",
+                zorder=3,
+            )
+        )
+
+    # Clipping keeps the thick slash inside the circular rim.
+    ring = mpatches.Circle(
+        centre,
+        ring_radius,
+        facecolor="none",
+        edgecolor=INTERVENTION_COLOR,
+        linewidth=2.3,
+        zorder=5,
+    )
+    ax.add_patch(ring)
+    slash = origin + ring_radius / np.sqrt(2) * np.array([(-1, 1), (1, -1)])
+    (slash_line,) = ax.plot(
+        slash[:, 0],
+        slash[:, 1],
+        color=INTERVENTION_COLOR,
+        linewidth=2.6,
+        solid_capstyle="butt",
+        zorder=4,
+    )
+    slash_line.set_clip_path(ring)
+
+
+def _draw_long_sleeved_shirt(ax, *, centre, scale):
+    origin = np.array(centre)
+    move, line, curve, close = Path.MOVETO, Path.LINETO, Path.CURVE3, Path.CLOSEPOLY
+    outline_vertices = np.array(
+        [
+            (-0.26, 0.83),
+            (-0.54, 0.75),
+            (-0.66, 0.72),
+            (-0.69, 0.60),
+            (-1.00, -0.60),
+            (-0.75, -0.67),
+            (-0.55, 0.12),
+            (-0.55, -0.72),
+            (-0.55, -0.79),
+            (-0.46, -0.80),
+            (0.0, -0.87),
+            (0.46, -0.80),
+            (0.55, -0.79),
+            (0.55, -0.72),
+            (0.55, 0.12),
+            (0.75, -0.67),
+            (1.00, -0.60),
+            (0.69, 0.60),
+            (0.66, 0.72),
+            (0.54, 0.75),
+            (0.26, 0.83),
+            (0.0, 0.53),
+            (-0.26, 0.83),
+            (-0.26, 0.83),
+        ]
+    )
+    outline_codes = [
+        move,
+        line,
+        curve,
+        curve,
+        line,
+        line,
+        line,
+        line,
+        curve,
+        curve,
+        curve,
+        curve,
+        curve,
+        curve,
+        line,
+        line,
+        line,
+        line,
+        curve,
+        curve,
+        line,
+        curve,
+        curve,
+        close,
+    ]
+    ax.add_patch(
+        mpatches.PathPatch(
+            Path(origin + scale * outline_vertices, outline_codes),
+            facecolor="none",
+            edgecolor=INTERVENTION_COLOR,
+            linewidth=1.6,
+            joinstyle="round",
+        )
+    )
+
+    collar_rib = [(-0.33, 0.81), (0.0, 0.36), (0.33, 0.81)]
+    hem_band = [(-0.55, -0.67), (0.0, -0.76), (0.55, -0.67)]
+    for vertices in (collar_rib, hem_band):
+        ax.add_patch(
+            mpatches.PathPatch(
+                Path(origin + scale * np.array(vertices), [move, curve, curve]),
+                facecolor="none",
+                edgecolor=INTERVENTION_COLOR,
+                linewidth=0.9,
+                capstyle="round",
+            )
+        )
+    for side in (-1, 1):
+        cuff = origin + scale * np.array([side, 1]) * [(0.965, -0.47), (0.717, -0.54)]
+        ax.plot(cuff[:, 0], cuff[:, 1], color=INTERVENTION_COLOR, linewidth=0.9)
+
+
+def _draw_safe_label(ax, *, centre_y):
+    label_ax = _add_card_axes(
+        ax,
+        centre_y=centre_y,
+        height=SAFE_LABEL_HEIGHT,
+        color=SAFE_COLOR,
+    )
+    label_ax.text(
+        CARD_WIDTH / 2,
+        SAFE_LABEL_HEIGHT / 2,
+        "SAFE TO RELAX INTERVENTIONS",
+        color=SAFE_COLOR,
+        fontsize=9,
+        fontweight="bold",
+        ha="center",
+        va="center",
+    )
 
 
 def _draw_inference_arrows(fig):

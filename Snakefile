@@ -249,8 +249,6 @@ rule schematic_plots:
         shared_input_paths,
         "scripts/schematic_plots.py",
         results_paths_schematic,
-        "figures/schematic/intervention_graphic.png",
-        "figures/schematic/safe_graphic.png",
     output:
         schematic_figure_path,
     shell:
